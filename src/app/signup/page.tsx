@@ -18,14 +18,18 @@ function SignupContent() {
 
   // Form State
   const [contactType, setContactType] = useState<"phone" | "email">("phone");
-  const [contactValue, setContactValue] = useState("+91 98765 43210");
-  const [otpValue, setOtpValue] = useState("123456");
+  const [contactValue, setContactValue] = useState("");
+  const [otpValue, setOtpValue] = useState("");
   const [otpVerified, setOtpVerified] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [otpMessage, setOtpMessage] = useState("");
   const [otpError, setOtpError] = useState("");
 
   const handleSendOtp = async () => {
+    if (!contactValue.trim()) {
+      setOtpError(contactType === "phone" ? "Please enter your mobile number." : "Please enter your email address.");
+      return;
+    }
     setIsSendingOtp(true);
     setOtpError("");
     setOtpMessage("");
@@ -33,13 +37,17 @@ function SignupContent() {
     setIsSendingOtp(false);
     if (res.success) {
       setOtpMessage(res.message || '');
-      if (res.demoHint) setOtpValue(res.demoHint);
+      // Waiting for user to type OTP received on WhatsApp
     } else {
       setOtpError(res.error || "Failed to send OTP.");
     }
   };
 
   const handleVerifyOtp = async () => {
+    if (!otpValue.trim()) {
+      setOtpError("Please enter the 6-digit OTP.");
+      return;
+    }
     setOtpError("");
     setOtpMessage("");
     const res = await verifyOtp({ recipient: contactValue, otp: otpValue });
@@ -51,49 +59,29 @@ function SignupContent() {
     }
   };
 
-  const [headName, setHeadName] = useState("Rajesh Kumar Garg");
-  const [nativePlace, setNativePlace] = useState("Agroha, Haryana");
-  const [gotra, setGotra] = useState("Garg");
+  const [headName, setHeadName] = useState("");
+  const [nativePlace, setNativePlace] = useState("");
+  const [gotra, setGotra] = useState("");
 
   const [members, setMembers] = useState<Member[]>([
     {
       id: "m-1",
-      fullName: "Rajesh Kumar Garg",
+      fullName: "",
       relationToHead: "self",
-      dob: "1978-05-14",
+      dob: "",
       gender: "Male",
       maritalStatus: "Married",
-      currentCity: "New Delhi",
+      currentCity: "",
       currentCountry: "India",
-      profession: "Chartered Accountant & Financial Consultant",
-      phone: "+91 98765 43210",
-      email: "rajesh.garg@example.com",
+      profession: "",
       verifiedBySelf: true,
       ownerLocked: true,
       visibility: {
         contactInfo: "members_only",
         dob: "hidden",
-        photo: "public_to_members"
-      }
+        photo: "public_to_members",
+      },
     },
-    {
-      id: "m-2",
-      fullName: "Sunita Garg",
-      relationToHead: "spouse",
-      dob: "1982-08-20",
-      gender: "Female",
-      maritalStatus: "Married",
-      currentCity: "New Delhi",
-      currentCountry: "India",
-      profession: "Senior Educator / Homemaker",
-      verifiedBySelf: false,
-      ownerLocked: false,
-      visibility: {
-        contactInfo: "members_only",
-        dob: "hidden",
-        photo: "public_to_members"
-      }
-    }
   ]);
 
   const [consentGiven, setConsentGiven] = useState(false);
@@ -240,7 +228,14 @@ function SignupContent() {
                       <input
                         type="radio"
                         checked={contactType === "phone"}
-                        onChange={() => setContactType("phone")}
+                        onChange={() => {
+                          setContactType("phone");
+                          setContactValue("");
+                          setOtpValue("");
+                          setOtpVerified(false);
+                          setOtpMessage("");
+                          setOtpError("");
+                        }}
                         className="text-brand-primary focus:ring-brand-primary"
                       />
                       <span>Mobile Number (SMS / WhatsApp)</span>
@@ -249,7 +244,14 @@ function SignupContent() {
                       <input
                         type="radio"
                         checked={contactType === "email"}
-                        onChange={() => setContactType("email")}
+                        onChange={() => {
+                          setContactType("email");
+                          setContactValue("");
+                          setOtpValue("");
+                          setOtpVerified(false);
+                          setOtpMessage("");
+                          setOtpError("");
+                        }}
                         className="text-brand-primary focus:ring-brand-primary"
                       />
                       <span>Email Address</span>
