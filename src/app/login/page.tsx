@@ -1,5 +1,8 @@
 'use client';
 
+import { createSession } from "@/actions/auth";
+
+
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,17 +14,23 @@ export default function LoginPage() {
   const [otp, setOtp] = useState("123456");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      if (role === "admin") {
-        router.push("/admin/moderation");
-      } else {
-        router.push("/dashboard");
-      }
-    }, 600);
+    
+    await createSession({
+      userId: `u-${Date.now()}`,
+      role,
+      contact,
+      householdStatus: role === "admin" ? "live" : "live",
+    });
+
+    setIsSubmitting(false);
+    if (role === "admin") {
+      router.push("/admin/moderation");
+    } else {
+      router.push("/dashboard");
+    }
   };
 
   return (
