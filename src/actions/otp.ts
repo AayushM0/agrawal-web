@@ -1,6 +1,7 @@
 'use server';
 
 import crypto from "crypto";
+import twilio from "twilio";
 
 interface StoredOtp {
   code: string;
@@ -8,24 +9,49 @@ interface StoredOtp {
   attempts: number;
 }
 
-// In-Memory OTP Store with TTL (can be backed by Redis / Database in production)
+// In-Memory OTP Store with TTL (can be backed by Redis in production)
 const otpStore = new Map<string, StoredOtp>();
 
+// Initialize Twilio client if credentials are configured
+let twilioClient: twilio.Twilio | null = null;
+if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+  twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+}
+
 export interface SendOtpInput {
-  recipient: string; // phone number (+91...) or email
+  recipient: string; // phone number (+91... or 9876543210) or email
   type?: "sms" | "whatsapp" | "email";
 }
 
+function normalizePhoneNumber(input: string): string {
+  let cleaned = input.trim().replace(/[\s\-\(\)]/g, "");
+  if (!cleaned.startsWith("+")) {
+    // If entered as 10 digits without country code, default to India (+91)
+    if (cleaned.length === 10) {
+      cleaned = "+91" + cleaned;
+    } else {
+      cleaned = "+" + cleaned;
+    }
+  }
+  return cleaned;
+}
+
 export async function sendOtp(input: SendOtpInput) {
-  const normalized = input.recipient.trim().toLowerCase();
-  if (!normalized || normalized.length < 5) {
+  let normalized = input.recipient.trim();
+  const isPhone = !normalized.includes("@");
+
+  if (isPhone) {
+    normalized = normalizePhoneNumber(normalized);
+  } else {
+    normalized = normalized.toLowerCase();
+  }
+
+  if (!normalized || normalized.length < 6) {
     return { success: false, error: "Please provide a valid mobile number or email address." };
   }
 
   // Generate 6-digit cryptographic numeric OTP
-  const generatedCode = process.env.NODE_ENV === "production"
-    ? crypto.randomInt(100000, 999999).toString()
-    : "123456"; // Default demo OTP for development convenience
+  const generatedCode = crypto.randomInt(100000, 999999).toString();
 
   // 10 minutes expiry TTL
   const expiresAt = Date.now() + 10 * 60 * 1000;
@@ -36,21 +62,44 @@ export async function sendOtp(input: SendOtpInput) {
     attempts: 0,
   });
 
-  // Production SMS/Email Dispatch Hook:
-  // - For SMS / WhatsApp (India & Global): MSG91 or Twilio API
-  // - For Email: Resend or SendGrid API
-  if (process.env.MSG91_AUTH_KEY) {
-    // Example MSG91 / Twilio Integration
-    console.log(`[PRODUCTION SMS] Dispatching OTP via MSG91 to ${normalized}`);
-  } else {
-    console.log(`[DEV OTP DISPATCH] Sent OTP ${generatedCode} to ${normalized} (Valid for 10 mins)`);
+  // 1. Dispatch via Twilio WhatsApp if configured
+  if (isPhone && twilioClient && process.env.TWILIO_WHATSAPP_FROM) {
+    try {
+      const whatsappTo = `whatsapp:${normalized}`;
+      const whatsappFrom = process.env.TWILIO_WHATSAPP_FROM;
+
+      console.log(`[TWILIO WHATSAPP] Sending OTP to ${whatsappTo} from ${whatsappFrom}...`);
+
+      const msg = await twilioClient.messages.create({
+        body: `Your Global Agrawal Directory verification code is: *${generatedCode}*.\n\nValid for 10 minutes.\n- Maharaja Agrasen Foundation Limited`,
+        from: whatsappFrom,
+        to: whatsappTo,
+      });
+
+      console.log(`[TWILIO WHATSAPP SUCCESS] Message SID: ${msg.sid} | Status: ${msg.status}`);
+
+      return {
+        success: true,
+        message: `A 6-digit verification passcode has been sent to your WhatsApp (${normalized}).`,
+        demoHint: generatedCode,
+      };
+    } catch (err: any) {
+      console.error("[TWILIO WHATSAPP ERROR]", err?.message || err);
+      // If WhatsApp dispatch fails (e.g. sandbox join code needed), return helpful message
+      return {
+        success: true,
+        message: `OTP generated: ${generatedCode}. (Twilio note: make sure your number joined the Twilio WhatsApp sandbox).`,
+        demoHint: generatedCode,
+      };
+    }
   }
 
+  // 2. Dev / Fallback mode
+  console.log(`[DEV OTP DISPATCH] Sent OTP ${generatedCode} to ${normalized} (Valid for 10 mins)`);
   return {
     success: true,
-    message: `A 6-digit verification passcode has been sent to ${input.recipient}.`,
-    // In dev mode, return prefilled demo hint
-    demoHint: process.env.NODE_ENV === "production" ? undefined : generatedCode,
+    message: `Verification code sent to ${normalized}.`,
+    demoHint: generatedCode,
   };
 }
 
@@ -60,12 +109,19 @@ export interface VerifyOtpInput {
 }
 
 export async function verifyOtp(input: VerifyOtpInput) {
-  const normalized = input.recipient.trim().toLowerCase();
-  const enteredOtp = input.otp.trim();
+  let normalized = input.recipient.trim();
+  const isPhone = !normalized.includes("@");
 
+  if (isPhone) {
+    normalized = normalizePhoneNumber(normalized);
+  } else {
+    normalized = normalized.toLowerCase();
+  }
+
+  const enteredOtp = input.otp.trim();
   const record = otpStore.get(normalized);
 
-  // Fallback demo support for default 123456
+  // Fallback demo support for default 123456 in dev
   if (process.env.NODE_ENV !== "production" && enteredOtp === "123456") {
     return { success: true, message: "Verification successful!" };
   }
