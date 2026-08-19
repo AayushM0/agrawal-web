@@ -147,3 +147,22 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     message: "Registration submitted successfully into community moderation queue.",
   };
 }
+export async function checkContactRegistration(contact: string) {
+  if (!contact || contact.trim().length < 5) {
+    return { isRegistered: false };
+  }
+  const isPhone = !contact.includes("@");
+  const canonicalContact = isPhone 
+    ? normalizePhoneNumber(contact) 
+    : contact.trim().toLowerCase();
+
+  const existing = await db.getHouseholdByContact(canonicalContact);
+  if (existing) {
+    return {
+      isRegistered: true,
+      householdCode: existing.householdCode,
+      headName: existing.headName,
+    };
+  }
+  return { isRegistered: false };
+}

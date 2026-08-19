@@ -2,16 +2,16 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import WizardProgressBar from "@/components/wizard/WizardProgressBar";
 import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
-import { registerHousehold } from "@/actions/register";
+import { registerHousehold, checkContactRegistration } from "@/actions/register";
 import { sendOtp, verifyOtp } from "@/actions/otp";
 
 function calculateAge(dobStr: string): number | null {
   if (!dobStr) return null;
   const clean = dobStr.trim();
-  // If user entered a number like "16" or year like "2008"
   if (/^\d{1,3}$/.test(clean)) {
     return parseInt(clean, 10);
   }
@@ -31,6 +31,7 @@ function calculateAge(dobStr: string): number | null {
 }
 
 function SignupContent() {
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -45,6 +46,7 @@ function SignupContent() {
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [otpMessage, setOtpMessage] = useState("");
   const [otpError, setOtpError] = useState("");
+  const [alreadyRegisteredInfo, setAlreadyRegisteredInfo] = useState<{ isRegistered: boolean; householdCode?: string; headName?: string } | null>(null);
 
   // Step 2: Household Info State
   const [headName, setHeadName] = useState("");
@@ -95,9 +97,21 @@ function SignupContent() {
       setOtpError(contactType === "phone" ? "Please enter a valid mobile number." : "Please enter a valid email address.");
       return;
     }
+
     setIsSendingOtp(true);
     setOtpError("");
     setOtpMessage("");
+    setAlreadyRegisteredInfo(null);
+
+    // 1. Check if number is already registered in directory
+    const checkRes = await checkContactRegistration(contactValue);
+    if (checkRes.isRegistered) {
+      setIsSendingOtp(false);
+      setAlreadyRegisteredInfo(checkRes);
+      return;
+    }
+
+    // 2. Dispatch OTP
     const res = await sendOtp({ recipient: contactValue, type: contactType === "phone" ? "sms" : "email" });
     setIsSendingOtp(false);
     if (res.success) {
@@ -336,6 +350,7 @@ function SignupContent() {
                           setOtpVerified(false);
                           setOtpMessage("");
                           setOtpError("");
+                          setAlreadyRegisteredInfo(null);
                         }}
                         className="text-brand-primary focus:ring-brand-primary"
                       />
@@ -353,6 +368,7 @@ function SignupContent() {
                           setOtpVerified(false);
                           setOtpMessage("");
                           setOtpError("");
+                          setAlreadyRegisteredInfo(null);
                         }}
                         className="text-brand-primary focus:ring-brand-primary"
                       />
@@ -373,6 +389,7 @@ function SignupContent() {
                         setContactValue(e.target.value);
                         setOtpVerified(false);
                         setOtpError("");
+                        setAlreadyRegisteredInfo(null);
                       }}
                       placeholder={contactType === "phone" ? "+91 98765 43210" : "head@example.com"}
                       className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
@@ -383,66 +400,106 @@ function SignupContent() {
                       disabled={isSendingOtp}
                       className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold bg-canvas-warm text-brand-primary border border-brand-accent hover:bg-white transition-all shrink-0"
                     >
-                      {isSendingOtp ? "Sending..." : "Send OTP"}
+                      {isSendingOtp ? "Checking..." : "Send OTP"}
                     </button>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-body-heading mb-1.5">
-                    Enter 6-Digit OTP Passcode
-                  </label>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="text"
-                      maxLength={6}
-                      value={otpValue}
-                      onChange={(e) => setOtpValue(e.target.value)}
-                      placeholder="6-digit OTP code"
-                      className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs font-mono text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleVerifyOtp}
-                      disabled={isVerifyingOtp}
-                      className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                        otpVerified
-                          ? "bg-emerald-600 text-white"
-                          : "bg-brand-primary text-white hover:bg-brand-burgundy"
-                      }`}
-                    >
-                      {isVerifyingOtp ? "Verifying..." : (otpVerified ? "✓ Verified" : "Verify OTP")}
-                    </button>
+                {/* ALREADY REGISTERED BANNER & REDIRECT CTA */}
+                {alreadyRegisteredInfo && (
+                  <div className="p-4 rounded-2xl bg-amber-50 border-2 border-brand-gold/50 space-y-3 animate-in fade-in">
+                    <div className="flex items-start gap-3">
+                      <span className="text-xl">🏡</span>
+                      <div>
+                        <h4 className="text-xs font-bold text-brand-primary">
+                          This {contactType === "phone" ? "number" : "email"} is already registered!
+                        </h4>
+                        <p className="text-[11px] text-body-muted mt-0.5">
+                          A household profile {alreadyRegisteredInfo.headName && `(${alreadyRegisteredInfo.headName})`} under reference ID <strong>#{alreadyRegisteredInfo.householdCode}</strong> already exists in the Global Directory.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                      <Link
+                        href={`/login`}
+                        className="px-5 py-2.5 rounded-xl text-xs font-bold text-white va-btn-join text-center shadow-sm"
+                      >
+                        Sign In to Your Household Dashboard →
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setContactValue("");
+                          setAlreadyRegisteredInfo(null);
+                        }}
+                        className="px-4 py-2.5 rounded-xl text-xs font-semibold text-body-muted hover:text-brand-primary bg-white border border-brand-accent/30 text-center"
+                      >
+                        Use a Different Number
+                      </button>
+                    </div>
                   </div>
+                )}
 
-                  {otpMessage && (
-                    <p className="text-[11px] font-semibold text-emerald-700 mt-2">
-                      {otpMessage}
-                    </p>
-                  )}
-                  {otpError && (
-                    <p className="text-[11px] font-semibold text-red-700 mt-2">
-                      {otpError}
-                    </p>
-                  )}
+                {!alreadyRegisteredInfo && (
+                  <div>
+                    <label className="block text-xs font-bold text-body-heading mb-1.5">
+                      Enter 6-Digit OTP Passcode
+                    </label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={otpValue}
+                        onChange={(e) => setOtpValue(e.target.value)}
+                        placeholder="6-digit OTP code"
+                        className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs font-mono text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVerifyOtp}
+                        disabled={isVerifyingOtp}
+                        className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                          otpVerified
+                            ? "bg-emerald-600 text-white"
+                            : "bg-brand-primary text-white hover:bg-brand-burgundy"
+                        }`}
+                      >
+                        {isVerifyingOtp ? "Verifying..." : (otpVerified ? "✓ Verified" : "Verify OTP")}
+                      </button>
+                    </div>
+
+                    {otpMessage && (
+                      <p className="text-[11px] font-semibold text-emerald-700 mt-2">
+                        {otpMessage}
+                      </p>
+                    )}
+                    {otpError && (
+                      <p className="text-[11px] font-semibold text-red-700 mt-2">
+                        {otpError}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {!alreadyRegisteredInfo && (
+                <div className="flex justify-end pt-4 border-t border-brand-accent/20">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!otpVerified && !contactValue) {
+                        setOtpError("Please verify your mobile number or email before continuing.");
+                        return;
+                      }
+                      setStep(2);
+                    }}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-maroon"
+                  >
+                    Continue to Household Details →
+                  </button>
                 </div>
-              </div>
-
-              <div className="flex justify-end pt-4 border-t border-brand-accent/20">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!otpVerified && !contactValue) {
-                      setOtpError("Please verify your mobile number or email before continuing.");
-                      return;
-                    }
-                    setStep(2);
-                  }}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-maroon"
-                >
-                  Continue to Household Details →
-                </button>
-              </div>
+              )}
             </div>
           )}
 
