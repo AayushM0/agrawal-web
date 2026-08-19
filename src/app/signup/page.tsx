@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import WizardProgressBar from "@/components/wizard/WizardProgressBar";
 import { gotras } from "@/data/gotras";
@@ -9,8 +8,29 @@ import { Household, Member } from "@/types/household";
 import { registerHousehold } from "@/actions/register";
 import { sendOtp, verifyOtp } from "@/actions/otp";
 
+function calculateAge(dobStr: string): number | null {
+  if (!dobStr) return null;
+  const clean = dobStr.trim();
+  // If user entered a number like "16" or year like "2008"
+  if (/^\d{1,3}$/.test(clean)) {
+    return parseInt(clean, 10);
+  }
+  if (/^\d{4}$/.test(clean)) {
+    const currentYear = new Date().getFullYear();
+    return currentYear - parseInt(clean, 10);
+  }
+  const birthDate = new Date(clean);
+  if (isNaN(birthDate.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
+}
+
 function SignupContent() {
-  const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -29,7 +49,7 @@ function SignupContent() {
   // Step 2: Household Info State
   const [headName, setHeadName] = useState("");
   const [nativePlace, setNativePlace] = useState("");
-  const [gotra, setGotra] = useState(gotras[0].name); // Default to 'Garg' so it's never empty!
+  const [gotra, setGotra] = useState(gotras[0].name); // 'Garg' default
   const [step2Error, setStep2Error] = useState("");
 
   // Step 3: Family Members State
@@ -72,7 +92,7 @@ function SignupContent() {
   // Step 1 Handlers
   const handleSendOtp = async () => {
     if (!contactValue.trim() || contactValue.trim().length < 5) {
-      setOtpError(contactType === "phone" ? "Please enter a valid 10-digit mobile number." : "Please enter a valid email address.");
+      setOtpError(contactType === "phone" ? "Please enter a valid mobile number." : "Please enter a valid email address.");
       return;
     }
     setIsSendingOtp(true);
@@ -102,7 +122,7 @@ function SignupContent() {
       setOtpMessage("✓ Contact verified successfully! Auto-advancing...");
       setTimeout(() => {
         setStep(2);
-      }, 500);
+      }, 400);
     } else {
       setOtpError(res.error || "Invalid OTP code.");
     }
@@ -112,7 +132,7 @@ function SignupContent() {
   const handleStep2Next = () => {
     setStep2Error("");
     if (!headName.trim() || headName.trim().length < 2) {
-      setStep2Error("Please enter the Head of Household's full name (min 2 characters).");
+      setStep2Error("Please enter the Head of Household's full name.");
       return;
     }
     if (!gotra.trim()) {
@@ -150,7 +170,21 @@ function SignupContent() {
   };
 
   const updateMember = (id: string, field: keyof Member, value: any) => {
-    setMembers(members.map((m) => (m.id === id ? { ...m, [field]: value } : m)));
+    setMembers(
+      members.map((m) => {
+        if (m.id !== id) return m;
+        const updated = { ...m, [field]: value };
+        
+        // Smart Minor Check: If DOB is entered and age < 18, lock maritalStatus to "Unmarried"
+        if (field === "dob") {
+          const age = calculateAge(value);
+          if (age !== null && age < 18) {
+            updated.maritalStatus = "Unmarried";
+          }
+        }
+        return updated;
+      })
+    );
   };
 
   const updateVisibility = (
@@ -184,26 +218,32 @@ function SignupContent() {
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!consentGiven) {
-      alert("Please check the consent box to agree to directory guidelines.");
+      alert("Please accept the community guidelines consent.");
       return;
     }
     setIsSubmitting(true);
 
-    const res = await registerHousehold({
-      headName,
-      verifiedContact: contactValue,
-      gotra,
-      nativePlace,
-      members,
-      consentAccepted: consentGiven,
-    });
+    try {
+      const res = await registerHousehold({
+        headName,
+        verifiedContact: contactValue,
+        gotra,
+        nativePlace,
+        members,
+        consentAccepted: consentGiven,
+      });
 
-    setIsSubmitting(false);
-    if (res.success) {
-      setSuccessCode(res.householdCode || "AGR-2026-LIVE");
-      setIsSuccess(true);
-    } else {
-      alert(res.error || "Registration failed. Please check inputs.");
+      setIsSubmitting(false);
+      if (res.success) {
+        setSuccessCode(res.householdCode || "AGR-2026-LIVE");
+        setIsSuccess(true);
+      } else {
+        alert(res.error || "Registration failed. Please check inputs.");
+      }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      console.error("Submission error:", err);
+      alert("Registration submission error. Please try again.");
     }
   };
 
@@ -222,7 +262,7 @@ function SignupContent() {
               Registration Submitted Successfully!
             </h1>
             <p className="text-xs sm:text-sm text-body-text leading-relaxed mb-6">
-              Thank you for registering your family in the <strong>Global Agrawal Directory</strong>. Your submission is in the community moderation queue. Once approved by our team, your household profile will go live.
+              Thank you for registering your family in the <strong>Global Agrawal Directory</strong>. Your submission is now in the community moderation queue. Once approved by our team, your household profile will go live.
             </p>
             <div className="p-3 sm:p-4 rounded-xl bg-canvas-warm border border-brand-accent/30 text-xs font-mono text-brand-primary mb-6">
               Reference ID: <strong>#{successCode}</strong> • Gotra: <strong>{gotra}</strong>
@@ -513,125 +553,161 @@ function SignupContent() {
               )}
 
               <div className="space-y-4 mb-6">
-                {members.map((member, index) => (
-                  <div
-                    key={member.id}
-                    className="p-4 sm:p-5 rounded-2xl border border-brand-accent/30 bg-canvas-warm/20 relative"
-                  >
-                    <div className="flex items-center justify-between mb-3 pb-2 border-b border-brand-accent/20">
-                      <span className="text-xs font-bold text-brand-primary">
-                        Member #{index + 1} {index === 0 && "(Head of Household)"}
-                      </span>
-                      {index > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => removeMember(member.id)}
-                          className="text-xs font-semibold text-red-600 hover:text-red-800"
-                        >
-                          ✕ Remove
-                        </button>
-                      )}
+                {members.map((member, index) => {
+                  const calculatedAge = calculateAge(member.dob);
+                  const isMinor = calculatedAge !== null && calculatedAge < 18;
+
+                  return (
+                    <div
+                      key={member.id}
+                      className="p-4 sm:p-5 rounded-2xl border border-brand-accent/30 bg-canvas-warm/20 relative"
+                    >
+                      <div className="flex items-center justify-between mb-3 pb-2 border-b border-brand-accent/20">
+                        <span className="text-xs font-bold text-brand-primary">
+                          Member #{index + 1} {index === 0 && "(Head of Household)"}
+                        </span>
+                        {index > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => removeMember(member.id)}
+                            className="text-xs font-semibold text-red-600 hover:text-red-800"
+                          >
+                            ✕ Remove
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {/* 1. Full Name */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-body-heading mb-1">
+                            Full Name *
+                          </label>
+                          <input
+                            type="text"
+                            value={member.fullName}
+                            onChange={(e) => updateMember(member.id, "fullName", e.target.value)}
+                            placeholder="e.g. Rahul Garg"
+                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                          />
+                        </div>
+
+                        {/* 2. Relation */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-body-heading mb-1">
+                            Relation to Head
+                          </label>
+                          <select
+                            value={member.relationToHead}
+                            disabled={index === 0}
+                            onChange={(e) => updateMember(member.id, "relationToHead", e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                          >
+                            <option value="self">Self (Head)</option>
+                            <option value="spouse">Spouse</option>
+                            <option value="son">Son</option>
+                            <option value="daughter">Daughter</option>
+                            <option value="father">Father</option>
+                            <option value="mother">Mother</option>
+                            <option value="brother">Brother</option>
+                            <option value="sister">Sister</option>
+                            <option value="daughter_in_law">Daughter-in-law</option>
+                            <option value="son_in_law">Son-in-law</option>
+                            <option value="grandson">Grandson</option>
+                            <option value="granddaughter">Granddaughter</option>
+                            <option value="other">Other Relative</option>
+                          </select>
+                        </div>
+
+                        {/* 3. Date of Birth / Age */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-body-heading mb-1">
+                            Date of Birth / Age
+                          </label>
+                          <input
+                            type="text"
+                            value={member.dob}
+                            onChange={(e) => updateMember(member.id, "dob", e.target.value)}
+                            placeholder="YYYY-MM-DD or Age (e.g. 28)"
+                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                          />
+                          {calculatedAge !== null && (
+                            <span className="text-[10px] text-brand-gold font-semibold block mt-0.5">
+                              Calculated Age: {calculatedAge} yrs {isMinor && "(Minor)"}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* 4. Gender */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-body-heading mb-1">
+                            Gender
+                          </label>
+                          <select
+                            value={member.gender}
+                            onChange={(e) => updateMember(member.id, "gender", e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                          >
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+
+                        {/* 5. Marital Status (Smart Minor Check) */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-body-heading mb-1">
+                            Marital Status
+                          </label>
+                          {isMinor ? (
+                            <div className="w-full px-3 py-2 rounded-lg border border-brand-accent/20 text-xs bg-gray-100 text-body-muted font-semibold">
+                              Unmarried (Age &lt; 18)
+                            </div>
+                          ) : (
+                            <select
+                              value={member.maritalStatus}
+                              onChange={(e) => updateMember(member.id, "maritalStatus", e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                            >
+                              <option value="Married">Married</option>
+                              <option value="Unmarried">Unmarried</option>
+                              <option value="Widowed">Widowed</option>
+                              <option value="Divorced">Divorced</option>
+                            </select>
+                          )}
+                        </div>
+
+                        {/* 6. Current City */}
+                        <div>
+                          <label className="block text-[11px] font-bold text-body-heading mb-1">
+                            Current City
+                          </label>
+                          <input
+                            type="text"
+                            value={member.currentCity}
+                            onChange={(e) => updateMember(member.id, "currentCity", e.target.value)}
+                            placeholder="e.g. New Delhi"
+                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                          />
+                        </div>
+
+                        {/* 7. Profession */}
+                        <div className="sm:col-span-2 lg:col-span-3">
+                          <label className="block text-[11px] font-bold text-body-heading mb-1">
+                            Profession / Occupation / Education
+                          </label>
+                          <input
+                            type="text"
+                            value={member.profession}
+                            onChange={(e) => updateMember(member.id, "profession", e.target.value)}
+                            placeholder={isMinor ? "e.g. Student / Class 10" : "e.g. Chartered Accountant / Business Owner"}
+                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                          />
+                        </div>
+                      </div>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-body-heading mb-1">
-                          Full Name *
-                        </label>
-                        <input
-                          type="text"
-                          value={member.fullName}
-                          onChange={(e) => updateMember(member.id, "fullName", e.target.value)}
-                          placeholder="e.g. Rahul Garg"
-                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-body-heading mb-1">
-                          Relation to Head
-                        </label>
-                        <select
-                          value={member.relationToHead}
-                          disabled={index === 0}
-                          onChange={(e) => updateMember(member.id, "relationToHead", e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                        >
-                          <option value="self">Self (Head)</option>
-                          <option value="spouse">Spouse</option>
-                          <option value="son">Son</option>
-                          <option value="daughter">Daughter</option>
-                          <option value="father">Father</option>
-                          <option value="mother">Mother</option>
-                          <option value="brother">Brother</option>
-                          <option value="sister">Sister</option>
-                          <option value="daughter_in_law">Daughter-in-law</option>
-                          <option value="son_in_law">Son-in-law</option>
-                          <option value="grandson">Grandson</option>
-                          <option value="granddaughter">Granddaughter</option>
-                          <option value="other">Other Relative</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-body-heading mb-1">
-                          Gender
-                        </label>
-                        <select
-                          value={member.gender}
-                          onChange={(e) => updateMember(member.id, "gender", e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                        >
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                          <option value="Other">Other</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-body-heading mb-1">
-                          Marital Status
-                        </label>
-                        <select
-                          value={member.maritalStatus}
-                          onChange={(e) => updateMember(member.id, "maritalStatus", e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                        >
-                          <option value="Married">Married</option>
-                          <option value="Unmarried">Unmarried</option>
-                          <option value="Widowed">Widowed</option>
-                          <option value="Divorced">Divorced</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-body-heading mb-1">
-                          Current City
-                        </label>
-                        <input
-                          type="text"
-                          value={member.currentCity}
-                          onChange={(e) => updateMember(member.id, "currentCity", e.target.value)}
-                          placeholder="e.g. New Delhi"
-                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-body-heading mb-1">
-                          Profession / Occupation
-                        </label>
-                        <input
-                          type="text"
-                          value={member.profession}
-                          onChange={(e) => updateMember(member.id, "profession", e.target.value)}
-                          placeholder="e.g. Software Engineer / Business"
-                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 pt-4 border-t border-brand-accent/20">
@@ -763,7 +839,7 @@ function SignupContent() {
                   <div className="flex flex-wrap gap-1.5">
                     {members.map((m, idx) => (
                       <span key={m.id} className="text-[11px] font-semibold bg-white border border-brand-accent/30 px-2.5 py-1 rounded-full text-body-heading">
-                        {m.fullName || `Member #${idx + 1}`} ({m.relationToHead})
+                        {m.fullName || `Member #${idx + 1}`} ({m.relationToHead}) {m.dob && `• ${m.dob}`}
                       </span>
                     ))}
                   </div>
