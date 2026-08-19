@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { verifyOtp } from "@/actions/otp";
+import { clearSession, getSession } from "@/actions/auth";
 
 export interface DeleteAccountInput {
   householdId: string;
@@ -16,21 +17,27 @@ export async function deleteHouseholdAccount(input: DeleteAccountInput) {
     return { success: false, error: "Invalid OTP. Account deletion requires verified identity confirmation." };
   }
 
-  // 2. Cascade delete household and members
-  const households = await db.getHouseholds();
-  const target = households.find((h) => h.id === input.householdId || h.verifiedContact === input.verifiedContact);
+  // 2. Cascade delete household and permanently scrub all member PII (DPDP Compliance)
+  const household = await db.getHouseholdByContact(input.verifiedContact);
+  const targetId = household ? household.id : input.householdId;
 
-  if (!target) {
+  if (!targetId) {
     return { success: false, error: "Household account not found." };
   }
 
-  // Soft/Hard delete from store
-  await db.updateHouseholdStatus(target.id, "rejected", "Account deleted by user request (Right to be Forgotten).");
+  // Execute hard permanent delete of household and all associated members from database
+  await db.deleteHousehold(targetId);
 
-  console.log(`[PRIVACY / DPDP] Household ${target.householdCode} deleted under Right to be Forgotten.`);
+  // Clear active session cookie if current user is deleting their own account
+  const currentSession = await getSession();
+  if (currentSession && (currentSession.contact === input.verifiedContact || currentSession.userId === targetId)) {
+    await clearSession();
+  }
+
+  console.log(`[PRIVACY / DPDP COMPLIANCE] Household ${targetId} and all member PII permanently deleted.`);
 
   return {
     success: true,
-    message: "Your household data and associated member profiles have been permanently removed from the directory.",
+    message: "Your household data and all associated member profiles have been permanently scrubbed and deleted from the directory.",
   };
 }

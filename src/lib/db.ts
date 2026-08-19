@@ -95,6 +95,7 @@ export const db = {
       }));
     } catch (e) {
       console.error("DB Error in getHouseholds:", e);
+      if (process.env.NODE_ENV === "production") throw e;
       return fallbackStore.getHouseholds();
     }
   },
@@ -151,7 +152,8 @@ export const db = {
         members,
       };
     } catch (e) {
-      console.error("DB Error in getHouseholdByContact, using fallback:", e);
+      console.error("DB Error in getHouseholdByContact:", e);
+      if (process.env.NODE_ENV === "production") throw e;
       return fallbackStore.getHouseholdByContact(contact);
     }
   },
@@ -213,7 +215,8 @@ export const db = {
       return { ...household, id: dbHouseholdId };
     } catch (e) {
       await client.query("ROLLBACK");
-      console.error("DB Error in createHousehold, using fallback:", e);
+      console.error("DB Error in createHousehold:", e);
+      if (process.env.NODE_ENV === "production") throw e;
       return fallbackStore.createHousehold(household);
     } finally {
       client.release();
@@ -245,6 +248,7 @@ export const db = {
       }));
     } catch (e) {
       console.error("DB Error in getAllMembers:", e);
+      if (process.env.NODE_ENV === "production") throw e;
       return [];
     }
   },
@@ -277,6 +281,7 @@ export const db = {
       };
     } catch (e) {
       console.error("DB Error in getMemberById:", e);
+      if (process.env.NODE_ENV === "production") throw e;
       return null;
     }
   },

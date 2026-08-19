@@ -36,7 +36,6 @@ export default function MemberProfilePage() {
     setIsRevealing(true);
     setRevealError("");
     const res = await revealContact({
-      viewerUserId: "user-current-session",
       targetMemberId: member.id,
     });
     setIsRevealing(false);

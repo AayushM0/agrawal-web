@@ -2,28 +2,31 @@
 
 import { cookies } from "next/headers";
 import crypto from "crypto";
+import { signSessionToken, verifySessionToken } from "@/lib/auth-tokens";
 
 export interface SessionData {
   userId: string;
   role: "head" | "member" | "admin";
   contact: string;
   householdStatus?: "pending_review" | "live" | "rejected";
+  loggedInAt?: number;
 }
 
 export async function verifyAdminPassword(password: string): Promise<boolean> {
-  const masterPassword = process.env.ADMIN_MASTER_PASSWORD || "@Sab1234@";
-  if (!password) return false;
+  const masterPassword = process.env.ADMIN_MASTER_PASSWORD;
+  if (!password || !masterPassword) return false;
 
-  const bufferA = Buffer.from(password);
-  const bufferB = Buffer.from(masterPassword);
+  const hashA = crypto.createHash("sha256").update(password).digest();
+  const hashB = crypto.createHash("sha256").update(masterPassword).digest();
 
-  if (bufferA.length !== bufferB.length) return false;
-  return crypto.timingSafeEqual(bufferA, bufferB);
+  return crypto.timingSafeEqual(hashA, hashB);
 }
 
 export async function createSession(data: SessionData) {
   const cookieStore = await cookies();
-  cookieStore.set("auth_session", JSON.stringify({ ...data, loggedInAt: Date.now() }), {
+  const token = signSessionToken(data);
+
+  cookieStore.set("auth_session", token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -37,11 +40,7 @@ export async function getSession(): Promise<SessionData | null> {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("auth_session")?.value;
   if (!sessionCookie) return null;
-  try {
-    return JSON.parse(sessionCookie);
-  } catch {
-    return null;
-  }
+  return verifySessionToken(sessionCookie);
 }
 
 export async function clearSession() {

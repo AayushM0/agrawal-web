@@ -1,5 +1,8 @@
 'use server';
 
+import { normalizePhoneNumber } from "@/lib/phone";
+
+
 import crypto from "crypto";
 import twilio from "twilio";
 import { Resend } from "resend";
@@ -30,17 +33,7 @@ export interface SendOtpInput {
   type?: "sms" | "whatsapp" | "email";
 }
 
-function normalizePhoneNumber(input: string): string {
-  let cleaned = input.trim().replace(/[\s\-\(\)]/g, "");
-  if (!cleaned.startsWith("+")) {
-    if (cleaned.length === 10) {
-      cleaned = "+91" + cleaned;
-    } else {
-      cleaned = "+" + cleaned;
-    }
-  }
-  return cleaned;
-}
+
 
 export async function sendOtp(input: SendOtpInput) {
   let normalized = input.recipient.trim();
