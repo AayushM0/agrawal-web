@@ -9,7 +9,9 @@ if (process.env.DATABASE_URL) {
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
     max: 10,
-    idleTimeoutMillis: 30000,
+    idleTimeoutMillis: 60000,
+    connectionTimeoutMillis: 4000,
+    keepAlive: true,
   });
 }
 

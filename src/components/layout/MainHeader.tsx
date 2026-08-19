@@ -14,14 +14,16 @@ export default function MainHeader() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    async function checkAuth() {
-      const current = await getSession();
-      setSession(current);
-      setIsLoading(false);
+    setMobileMenuOpen(false);
+    // Only re-verify session if entering auth or dashboard routes
+    const isAuthTransition = pathname === "/login" || pathname === "/signup" || pathname === "/dashboard" || pathname.startsWith("/admin");
+    if (!session || isAuthTransition) {
+      getSession().then((current) => {
+        setSession(current);
+        setIsLoading(false);
+      });
     }
-    checkAuth();
-    setMobileMenuOpen(false); // Close menu on page navigation
-  }, [pathname]);
+  }, [pathname, session]);
 
   const handleLogout = async () => {
     await clearSession();
