@@ -1,3 +1,4 @@
+import { normalizePhoneNumber } from "@/lib/phone";
 import { Pool } from "pg";
 import type { Household, Member } from "../types/household";
 import { initialMockHouseholds } from "../data/mockMembers";
@@ -28,9 +29,18 @@ class FallbackStore {
   async getHouseholds(): Promise<Household[]> { return Array.from(this.households.values()); }
   async getHouseholdById(id: string): Promise<Household | null> { return this.households.get(id) || null; }
   async getHouseholdByContact(contact: string): Promise<Household | null> {
+    if (!contact) return null;
     const clean = contact.trim().toLowerCase();
+    const isPhone = !clean.includes("@");
+    const canonical = isPhone ? normalizePhoneNumber(clean) : clean;
+    const last10 = clean.replace(/[^0-9]/g, "").slice(-10);
+
     for (const h of this.households.values()) {
-      if (h.verifiedContact.trim().toLowerCase() === clean) return h;
+      const hClean = h.verifiedContact.trim().toLowerCase();
+      const hLast10 = hClean.replace(/[^0-9]/g, "").slice(-10);
+      if (hClean === clean || hClean === canonical || (last10 && hLast10 === last10)) {
+        return h;
+      }
     }
     return null;
   }
@@ -163,11 +173,23 @@ export const db = {
   },
 
   async getHouseholdByContact(contact: string): Promise<Household | null> {
+    if (!contact) return null;
+    const clean = contact.trim();
+    const isPhone = !clean.includes("@");
+    const canonical = isPhone ? normalizePhoneNumber(clean) : clean.toLowerCase();
+    const rawDigits = clean.replace(/[^0-9]/g, "");
+    const last10 = rawDigits.slice(-10);
+
     if (!pool) return fallbackStore.getHouseholdByContact(contact);
     try {
       const res = await pool.query(
-        "SELECT * FROM households WHERE verified_contact = $1 LIMIT 1",
-        [contact.trim()]
+        `SELECT * FROM households 
+         WHERE verified_contact = $1 
+            OR verified_contact = $2 
+            OR verified_contact = $3 
+            OR verified_contact LIKE $4
+         LIMIT 1`,
+        [clean, canonical, last10, `%${last10}`]
       );
       if (res.rows.length === 0) return fallbackStore.getHouseholdByContact(contact);
       const h = res.rows[0];

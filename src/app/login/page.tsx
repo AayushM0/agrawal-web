@@ -107,10 +107,14 @@ export default function LoginPage() {
       return;
     }
 
+    const cleanContact = contact.trim();
+    const isPhone = !cleanContact.includes("@");
+    const canonicalContact = isPhone ? (cleanContact.startsWith("+") ? cleanContact : `+91${cleanContact.replace(/[^0-9]/g, "").slice(-10)}`) : cleanContact.toLowerCase();
+
     await createSession({
       userId: `u-${Date.now()}`,
       role: "head",
-      contact: contact.trim(),
+      contact: canonicalContact,
       householdStatus: "live",
     });
 
