@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-brand-primary: #741b17;
+    --color-brand-burgundy: #45110f;
+    --color-brand-accent: #d79a20;
+    --color-brand-accent-dark: #aa6d09;
+    --color-bg-page: #fffaf2;
+    --color-text-body: #4d372c;
+    --color-text-heading: #2d1b14;
+    --color-text-muted: #7c685b;
+    --color-border-gold: rgba(215, 154, 32, 0.30);
+    
+    --gradient-top-strip: linear-gradient(90deg, #45110f 0%, #741b17 50%, #45110f 100%);
+    --gradient-gold-cta: linear-gradient(135deg, #f4cb65 0%, #d99d23 50%, #aa6d09 100%);
+    --gradient-maroon-btn: linear-gradient(135deg, #741b17 0%, #521310 100%);
+    --gradient-gold-soft: linear-gradient(135deg, #fff7dd 0%, #fae8b2 100%);
+    --gradient-hero-card: linear-gradient(135deg, #ffffff 0%, #fff7eb 100%);
+    --gradient-footer: linear-gradient(180deg, #300806 0%, #1e0504 100%);
+  }
+
+  html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+    background-color: var(--color-bg-page);
+    color: var(--color-text-body);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Custom Utilities for cross-browser scrollbar control */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom Heritage Components */
+.va-btn-join {
+  background: var(--gradient-gold-cta);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(194, 132, 11, 0.28);
+  transition: all 0.2s ease-out;
+}
+.va-btn-join:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(194, 132, 11, 0.36);
+}
+
+.va-btn-maroon {
+  background: var(--gradient-maroon-btn);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(116, 27, 23, 0.22);
+  transition: all 0.2s ease-out;
+}
+.va-btn-maroon:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(116, 27, 23, 0.30);
+}
+
+.va-badge-gold {
+  background: var(--gradient-gold-soft);
+  color: var(--color-brand-accent-dark);
+  border: 1px solid var(--color-border-gold);
+}
+
+.va-badge-maroon {
+  background: #fbf0ee;
+  color: var(--color-brand-primary);
+  border: 1px solid rgba(116, 27, 23, 0.25);
+}
+
+.va-badge-live {
+  background: #edfcf2;
+  color: #0e623b;
+  border: 1px solid rgba(140, 91, 5, 0.25);
+}
+
+.va-badge-pending {
+  background: #fff8e6;
+  color: #8c5b05;
+  border: 1px solid rgba(140, 91, 5, 0.25);
+}
+
+/* Single line top bar */
+.va-top-bar {
+  background: var(--gradient-top-strip);
+  color: #fff3d2;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(215, 154, 32, 0.35);
+}
