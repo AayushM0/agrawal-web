@@ -8,7 +8,8 @@ import { revealContact } from "@/actions/reveal";
 
 export default function MemberProfilePage() {
   const params = useParams();
-  const memberId = params?.id as string;
+  const rawId = params?.id as string;
+  const memberId = rawId ? decodeURIComponent(rawId) : "";
   const [member, setMember] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showContact, setShowContact] = useState(false);

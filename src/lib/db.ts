@@ -67,7 +67,15 @@ class FallbackStore {
   }
   async getMemberById(memberId: string): Promise<any | null> {
     const all = await this.getAllMembers();
-    return all.find((m) => m.id === memberId) || null;
+    const clean = memberId?.trim();
+    if (!clean) return null;
+    return all.find((m) => 
+      m.id === clean || 
+      m.id?.toString() === clean || 
+      m.householdCode === clean || 
+      m.householdCode?.replace('#', '') === clean ||
+      (m.householdId && m.householdId.toString() === clean)
+    ) || null;
   }
   async claimMember(memberId: string): Promise<boolean> {
     for (const h of this.households.values()) {
@@ -317,7 +325,7 @@ export const db = {
           h.household_code as "householdCode", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
         FROM members m
         JOIN households h ON m.household_id = h.id
-        WHERE m.id = $1 OR m.id::text = $1;
+        WHERE m.id::text = $1 OR h.household_code = $1 OR h.id::text = $1;
       `;
       const res = await pool.query(query, [memberId]);
       if (res.rows.length === 0) return fallbackStore.getMemberById(memberId);
