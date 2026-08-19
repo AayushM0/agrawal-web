@@ -119,9 +119,9 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="py-14 bg-canvas-page">
+    <main className="py-8 sm:py-14 bg-canvas-page">
       <div className="max-w-md mx-auto px-4">
-        <div className="text-center mb-8">
+        <div className="text-center mb-6 sm:mb-8">
           <span className="text-xs font-bold uppercase va-badge-gold px-3 py-1 rounded-full mb-2 inline-block">
             Member Portal • प्रवेश द्वार
           </span>
@@ -135,7 +135,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="bg-white border border-brand-accent/30 rounded-3xl p-6 sm:p-8 shadow-warm">
+        <div className="bg-white border border-brand-accent/30 rounded-3xl p-5 sm:p-8 shadow-warm">
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-body-heading mb-1.5">
@@ -215,7 +215,7 @@ export default function LoginPage() {
                   <label className="block text-xs font-bold text-body-heading mb-1.5">
                     Registered Mobile (WhatsApp) or Email
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="text"
                       value={contact}
@@ -226,13 +226,13 @@ export default function LoginPage() {
                         setErrorMessage("");
                       }}
                       placeholder="+91 98765 43210 or email@domain.com"
-                      className="flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                      className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     />
                     <button
                       type="button"
                       onClick={handleSendOtp}
                       disabled={isSendingOtp}
-                      className="px-4 py-2.5 rounded-xl text-xs font-bold bg-canvas-warm text-brand-primary border border-brand-accent hover:bg-white transition-all shrink-0"
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold bg-canvas-warm text-brand-primary border border-brand-accent hover:bg-white transition-all shrink-0"
                     >
                       {isSendingOtp ? "Sending..." : (otpSent ? "Resend" : "Send OTP")}
                     </button>
@@ -251,39 +251,45 @@ export default function LoginPage() {
                   </label>
                   <input
                     type="text"
+                    maxLength={6}
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
-                    placeholder="Enter 6-digit OTP received"
+                    placeholder="Enter 6-digit OTP"
                     className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs font-mono text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                   />
+                  <span className="text-[11px] text-body-muted block mt-1">
+                    Passcode delivered via WhatsApp or Email.
+                  </span>
                 </div>
               </div>
             )}
 
             {errorMessage && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
-                {errorMessage}
+              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
+                ⚠️ {errorMessage}
               </div>
             )}
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3 rounded-full text-xs font-bold text-white va-btn-maroon shadow-warm"
+              className="w-full py-3 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta transition-all mt-2"
             >
-              {isSubmitting 
-                ? "Verifying Access..." 
-                : role === "admin" 
-                  ? "Unlock Admin Moderation Portal →" 
-                  : "Verify OTP & Open Dashboard →"}
+              {isSubmitting
+                ? "Verifying Credentials..."
+                : role === "admin"
+                ? "Unlock Admin Moderation Portal →"
+                : "Sign In to Household Dashboard →"}
             </button>
           </form>
 
-          <div className="pt-6 mt-6 border-t border-brand-accent/20 text-center text-xs text-body-muted">
-            New to the community?{" "}
-            <Link href="/signup" className="text-brand-primary font-bold hover:underline">
-              Register Your Family Free
-            </Link>
+          <div className="mt-6 pt-4 border-t border-brand-accent/20 text-center">
+            <p className="text-xs text-body-muted">
+              Haven&apos;t registered your family yet?{" "}
+              <Link href="/signup" className="font-bold text-brand-primary hover:underline">
+                Register Family Free
+              </Link>
+            </p>
           </div>
         </div>
       </div>

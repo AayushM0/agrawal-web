@@ -1,39 +1,48 @@
 import React from "react";
-import Image from "next/image";
+import Link from "next/link";
 
 export default function FounderAppeal() {
   return (
-    <section id="appeal" className="py-16 bg-[#fff6e5] border-b border-brand-accent/20">
-      <div className="max-w-5xl mx-auto px-4">
-        <div className="bg-white border-2 border-brand-accent rounded-3xl p-8 sm:p-12 shadow-warmLg">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8">
-            <div className="relative w-28 h-28 shrink-0">
-              <Image
-                src="/images/logo.png"
-                alt="Maharaja Agrasen Foundation Logo"
-                width={112}
-                height={112}
-                className="object-contain drop-shadow-[0_4px_14px_rgba(116,27,23,0.25)]"
-              />
-            </div>
-            
-            <div className="flex-1 text-center sm:text-left">
-              <span className="inline-block text-xs font-bold uppercase tracking-wider va-badge-maroon px-3 py-1 rounded-full mb-2">
-                Our Global Appeal • संस्थापक संदेश
+    <section className="py-12 sm:py-16 bg-white border-b border-brand-accent/20">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="bg-[linear-gradient(135deg,#741b17_0%,#4a100e_100%)] text-white rounded-3xl p-6 sm:p-12 shadow-warmLg">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
+            <div className="lg:col-span-2 space-y-4">
+              <span className="inline-block text-[10px] sm:text-xs font-bold tracking-wider uppercase px-3 py-1 rounded-full bg-brand-gold text-brand-primary">
+                Founders Appeal • संदेश
               </span>
-              <h3 className="text-xl sm:text-2xl font-black text-brand-primary mb-3">
-                &ldquo;One Community • One Platform • One Global Family&rdquo;
-              </h3>
-              <p className="text-xs sm:text-sm text-body-text leading-relaxed mb-4">
-                &ldquo;We invite every Agrawal family across the world, alongside community organizations, entrepreneurs, professionals, and youth leaders, to become part of this historic initiative. Registration is entirely <strong>FREE OF CHARGE</strong>. This platform belongs to the community, and its strength comes from our collective participation.&rdquo;
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black leading-tight">
+                An Appeal to Every Agrawal Family
+              </h2>
+              <p className="text-xs sm:text-sm text-white/90 leading-relaxed max-w-2xl">
+                Our vision is to document, unite, and empower every family in our global community. By registering your household today, you help build an unbreakable legacy of mutual support, cultural preservation, and youth opportunities.
               </p>
-              <div>
-                <p className="text-sm font-extrabold text-brand-primary">
-                  Sohan Lal Jindal &ldquo;Singapore Wale&rdquo;
-                </p>
-                <p className="text-xs text-body-muted">
-                  Founder & Chairman — Maharaja Agrasen Foundation Limited Singapore | Founder & Chairman — JSM Group
-                </p>
+
+              <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <Link
+                  href="/signup"
+                  className="px-7 py-3 rounded-full text-xs sm:text-sm font-extrabold text-brand-primary bg-brand-gold hover:bg-amber-300 shadow-md text-center transition-all"
+                >
+                  Register Your Family Free →
+                </Link>
+                <Link
+                  href="/about"
+                  className="px-6 py-3 rounded-full text-xs sm:text-sm font-bold text-white bg-white/15 hover:bg-white/25 border border-white/20 text-center transition-all"
+                >
+                  Read About the Mission
+                </Link>
+              </div>
+            </div>
+
+            <div className="p-5 sm:p-6 rounded-2xl bg-white/10 border border-white/15 backdrop-blur-sm text-xs space-y-3">
+              <h3 className="text-sm font-bold text-brand-gold">
+                Maharaja Agrasen Foundation
+              </h3>
+              <p className="text-white/80 leading-relaxed">
+                Registered under the Indian Non-Profit Trust Acts. Dedicated to the socio-economic advancement and cultural solidarity of the global Agrawal community.
+              </p>
+              <div className="pt-2 border-t border-white/15 text-[11px] text-white/70">
+                Free Registration • No Commercial Advertisements • Data Protected
               </div>
             </div>
           </div>

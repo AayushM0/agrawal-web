@@ -43,10 +43,14 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
   }
 
   // 3. 18 Gotras Validation
-  const validGotra = gotras.some((g) => g.name.toLowerCase() === input.gotra?.toLowerCase());
-  if (!validGotra) {
+  const inputGotra = input.gotra?.trim();
+  const validGotraObj = gotras.find(
+    (g) => g.name.toLowerCase() === inputGotra?.toLowerCase() || g.devanagari === inputGotra
+  );
+  if (!validGotraObj) {
     return { success: false, error: "Please select a valid Gotra from the 18 established Gotras." };
   }
+  const canonicalGotra = validGotraObj.name;
 
   // 4. Contact Normalization
   const isPhone = !input.verifiedContact.includes("@");
@@ -119,7 +123,7 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     headUserId: `u-${Date.now()}`,
     headName: cleanHeadName,
     nativePlace: cleanNativePlace,
-    gotra: input.gotra,
+    gotra: canonicalGotra,
     status: "pending_review",
     verifiedContact: canonicalContact,
     consentAcceptedAt: new Date().toISOString(),

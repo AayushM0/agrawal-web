@@ -1,19 +1,30 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { searchDirectory } from "@/actions/search";
 import { gotras } from "@/data/gotras";
 
-export default function DirectoryPage() {
+function DirectoryContent() {
+  const searchParams = useSearchParams();
+  const initialGotra = searchParams.get("gotra") || "All";
+
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedGotra, setSelectedGotra] = useState("All");
+  const [selectedGotra, setSelectedGotra] = useState(initialGotra);
   const [selectedLocation, setSelectedLocation] = useState("All");
   const [nearMeActive, setNearMeActive] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [members, setMembers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Update selectedGotra if URL param changes
+  useEffect(() => {
+    const urlGotra = searchParams.get("gotra");
+    if (urlGotra) {
+      setSelectedGotra(urlGotra);
+    }
+  }, [searchParams]);
 
   const fetchResults = useCallback(async () => {
     setIsLoading(true);
@@ -37,7 +48,7 @@ export default function DirectoryPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchResults();
-    }, 200);
+    }, 150);
     return () => clearTimeout(timer);
   }, [fetchResults]);
 
@@ -47,7 +58,7 @@ export default function DirectoryPage() {
     <main className="py-6 sm:py-10 bg-canvas-page">
       <div className="max-w-7xl mx-auto px-4">
         {/* Search Hero Banner */}
-        <div className="bg-white border border-brand-accent/30 rounded-3xl p-5 sm:p-8 shadow-warm mb-6 sm:mb-8">
+        <div className="bg-white border border-brand-accent/30 rounded-3xl p-4 sm:p-8 shadow-warm mb-6 sm:mb-8">
           <div className="max-w-2xl mb-4 sm:mb-6">
             <span className="text-xs font-bold uppercase va-badge-gold px-3 py-1 rounded-full mb-2 inline-block">
               Verified Global Directory • सत्यापित निर्देशिका
@@ -76,7 +87,6 @@ export default function DirectoryPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              {/* Mobile Filter Toggle Button */}
               <button
                 type="button"
                 onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
@@ -107,7 +117,7 @@ export default function DirectoryPage() {
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                   <circle cx="12" cy="10" r="3"></circle>
                 </svg>
-                <span className="truncate">{nearMeActive ? "Near Me (50km)" : "Near Me"}</span>
+                <span className="truncate">{nearMeActive ? "Near Me: Active" : "Near Me"}</span>
               </button>
             </div>
           </div>
@@ -117,7 +127,7 @@ export default function DirectoryPage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
           {/* Sidebar (Always visible on desktop lg, collapsible on mobile) */}
           <aside className={`lg:col-span-1 ${mobileFiltersOpen ? "block" : "hidden lg:block"}`}>
-            <div className="bg-white border border-brand-accent/30 rounded-2xl p-5 shadow-warm sticky top-20 space-y-5 animate-in fade-in">
+            <div className="bg-white border border-brand-accent/30 rounded-2xl p-4 sm:p-5 shadow-warm sticky top-20 space-y-4 animate-in fade-in">
               <div className="flex items-center justify-between pb-3 border-b border-brand-accent/20">
                 <h3 className="text-sm font-extrabold text-brand-primary flex items-center gap-2">
                   <span>Filter Directory</span>
@@ -175,16 +185,16 @@ export default function DirectoryPage() {
                   <option value="New Delhi">New Delhi, India</option>
                   <option value="Bengaluru">Bengaluru, India</option>
                   <option value="Jaipur">Jaipur, India</option>
+                  <option value="Agroha">Agroha, Haryana</option>
                   <option value="Singapore">Singapore</option>
                   <option value="Dubai">Dubai, UAE</option>
                 </select>
               </div>
 
               <div className="p-3 rounded-xl bg-canvas-warm/60 border border-brand-accent/30 text-[11px] text-body-muted leading-relaxed">
-                🔒 <strong>Privacy Guard:</strong> Direct contact details are protected behind verified community access limits.
+                🔒 <strong>Privacy Guard:</strong> Direct contact details are protected behind verified member access.
               </div>
 
-              {/* Mobile Close Filters button */}
               <button
                 type="button"
                 onClick={() => setMobileFiltersOpen(false)}
@@ -209,14 +219,14 @@ export default function DirectoryPage() {
                 <p className="text-xs font-bold text-body-muted">Searching verified database records...</p>
               </div>
             ) : members.length === 0 ? (
-              <div className="bg-white border border-brand-accent/30 rounded-2xl p-8 sm:p-12 text-center shadow-warm">
+              <div className="bg-white border border-brand-accent/30 rounded-2xl p-6 sm:p-12 text-center shadow-warm">
                 <p className="text-base font-bold text-brand-primary mb-1.5">No matching profiles found</p>
                 <p className="text-xs text-body-muted mb-4 max-w-md mx-auto">
                   {selectedGotra !== "All" || selectedLocation !== "All" || searchQuery
                     ? "Try adjusting your search keywords or resetting your Gotra and location filters."
                     : "No verified households are registered yet. Be the first to register your family!"}
                 </p>
-                <div className="flex flex-wrap items-center justify-center gap-2">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
                   {(selectedGotra !== "All" || selectedLocation !== "All" || searchQuery) && (
                     <button
                       type="button"
@@ -225,37 +235,37 @@ export default function DirectoryPage() {
                         setSelectedLocation("All");
                         setSearchQuery("");
                       }}
-                      className="px-5 py-2.5 rounded-full text-xs font-bold text-brand-primary bg-canvas-warm border border-brand-accent"
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold text-brand-primary bg-canvas-warm border border-brand-accent"
                     >
                       Clear Filters
                     </button>
                   )}
                   <Link
                     href="/signup"
-                    className="px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta"
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta"
                   >
                     Register Your Family Free →
                   </Link>
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 {members.map((m) => (
                   <div
                     key={m.id}
                     className="bg-white border border-brand-accent/30 rounded-2xl p-4 sm:p-5 shadow-warm hover:shadow-warmLg hover:border-brand-accent transition-all flex flex-col justify-between"
                   >
                     <div>
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-brand-accent/20 border border-brand-accent/40 flex items-center justify-center text-brand-primary font-black text-sm shrink-0">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-full bg-brand-accent/20 border border-brand-accent/40 flex items-center justify-center text-brand-primary font-black text-sm shrink-0">
                             {m.fullName?.charAt(0) || "A"}
                           </div>
-                          <div>
-                            <h4 className="text-sm font-bold text-brand-primary leading-tight">
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-bold text-brand-primary leading-tight truncate">
                               {m.fullName}
                             </h4>
-                            <span className="text-[11px] text-brand-gold font-semibold font-devanagari">
+                            <span className="text-[11px] text-brand-gold font-semibold font-devanagari block truncate">
                               Gotra: {m.gotra}
                             </span>
                           </div>
@@ -266,37 +276,29 @@ export default function DirectoryPage() {
                         </span>
                       </div>
 
-                      <div className="space-y-1.5 text-xs text-body-text mb-4">
-                        <p className="flex items-center gap-1.5 text-body-heading font-medium">
-                          <svg className="w-3.5 h-3.5 text-brand-accent-dark shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-                            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-                          </svg>
-                          <span className="line-clamp-1">{m.profession || "Profession not listed"}</span>
+                      <div className="space-y-1 text-xs text-body-text mb-4">
+                        <p className="flex items-center gap-1.5 text-body-heading font-medium truncate">
+                          <span className="truncate">{m.profession || "Profession not listed"}</span>
                         </p>
 
-                        <p className="flex items-center gap-1.5 text-body-muted">
-                          <svg className="w-3.5 h-3.5 text-brand-accent-dark shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                            <circle cx="12" cy="10" r="3"></circle>
-                          </svg>
-                          <span>{m.currentCity}, {m.currentCountry}</span>
+                        <p className="flex items-center gap-1.5 text-body-muted truncate">
+                          <span className="truncate">{m.currentCity}, {m.currentCountry}</span>
                         </p>
 
-                        <p className="text-[11px] text-body-muted">
+                        <p className="text-[11px] text-body-muted truncate">
                           <strong>Native Place:</strong> {m.nativePlace}
                         </p>
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-brand-accent/20 flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    <div className="pt-3 border-t border-brand-accent/20 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 truncate">
                         ✓ Verified Member
                       </span>
 
                       <Link
                         href={`/directory/${m.id}`}
-                        className="text-xs font-bold text-brand-primary hover:text-brand-burgundy flex items-center gap-1 hover:underline"
+                        className="text-xs font-bold text-brand-primary hover:text-brand-burgundy flex items-center gap-1 hover:underline shrink-0"
                       >
                         <span>View Profile</span>
                         <span>→</span>
@@ -310,5 +312,13 @@ export default function DirectoryPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function DirectoryPage() {
+  return (
+    <Suspense fallback={<div className="p-12 text-center text-xs font-bold">Loading Directory...</div>}>
+      <DirectoryContent />
+    </Suspense>
   );
 }
