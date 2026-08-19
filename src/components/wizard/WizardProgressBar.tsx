@@ -1,63 +1,92 @@
+'use client';
+
 import React from "react";
 
-interface Props {
+interface WizardProgressBarProps {
   currentStep: number;
   totalSteps: number;
 }
 
-const stepLabels = [
+const stepNames = [
   "Contact Verification",
-  "Household & Gotra",
+  "Gotra & Ancestry",
   "Family Members",
-  "Privacy Settings",
-  "Consent & Submit"
+  "Privacy Preferences",
+  "Consent & Review",
 ];
 
-export default function WizardProgressBar({ currentStep, totalSteps }: Props) {
+export default function WizardProgressBar({
+  currentStep,
+  totalSteps,
+}: WizardProgressBarProps) {
+  const progressPercent = ((currentStep - 1) / (totalSteps - 1)) * 100;
+
   return (
-    <div className="w-full mb-8">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-xs font-bold text-brand-primary uppercase tracking-wider">
-          Step {currentStep} of {totalSteps} — {stepLabels[currentStep - 1]}
-        </span>
-        <span className="text-xs font-bold text-brand-accent-dark">
-          {Math.round((currentStep / totalSteps) * 100)}% Completed
-        </span>
-      </div>
-      
-      {/* Progress Track */}
-      <div className="w-full bg-canvas-warm h-2.5 rounded-full overflow-hidden border border-brand-accent/25">
-        <div
-          className="h-full bg-gradient-to-r from-[#f4cb65] via-[#d99d23] to-[#741b17] transition-all duration-300 rounded-full"
-          style={{ width: `${(currentStep / totalSteps) * 100}%` }}
-        />
+    <div className="mb-8">
+      {/* Mobile Compact Step Indicator (<640px) */}
+      <div className="block sm:hidden mb-4">
+        <div className="flex items-center justify-between text-xs font-bold text-brand-primary mb-1.5">
+          <span>
+            Step {currentStep} of {totalSteps}: {stepNames[currentStep - 1]}
+          </span>
+          <span className="font-mono text-[11px] text-body-muted">
+            {Math.round((currentStep / totalSteps) * 100)}%
+          </span>
+        </div>
+        <div className="w-full h-2 bg-canvas-warm rounded-full overflow-hidden border border-brand-accent/20">
+          <div
+            className="h-full bg-gradient-to-r from-brand-primary to-brand-gold transition-all duration-300 rounded-full"
+            style={{ width: `${(currentStep / totalSteps) * 100}%` }}
+          />
+        </div>
       </div>
 
-      {/* Step Indicators */}
-      <div className="grid grid-cols-5 gap-1 mt-3">
-        {stepLabels.map((label, idx) => {
-          const stepNum = idx + 1;
-          const isDone = stepNum < currentStep;
-          const isCurrent = stepNum === currentStep;
-          return (
-            <div key={label} className="text-center">
-              <div
-                className={`mx-auto w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold mb-1 transition-all ${
-                  isDone
-                    ? "bg-brand-primary text-white"
-                    : isCurrent
-                    ? "bg-brand-accent text-brand-burgundy ring-2 ring-brand-accent/50 font-black"
-                    : "bg-white text-body-muted border border-brand-accent/30"
-                }`}
-              >
-                {isDone ? "✓" : stepNum}
+      {/* Desktop / Tablet Numbered Stepper (>=640px) */}
+      <div className="hidden sm:block">
+        <div className="relative flex justify-between items-center">
+          {/* Background Connecting Line */}
+          <div className="absolute top-1/2 left-0 right-0 h-1 bg-canvas-warm -translate-y-1/2 z-0 border border-brand-accent/20" />
+
+          {/* Active Progress Line */}
+          <div
+            className="absolute top-1/2 left-0 h-1 bg-gradient-to-r from-brand-primary to-brand-gold -translate-y-1/2 z-0 transition-all duration-300"
+            style={{ width: `${progressPercent}%` }}
+          />
+
+          {/* Step Nodes */}
+          {Array.from({ length: totalSteps }, (_, i) => {
+            const stepNum = i + 1;
+            const isCompleted = stepNum < currentStep;
+            const isCurrent = stepNum === currentStep;
+
+            return (
+              <div key={stepNum} className="relative z-10 flex flex-col items-center">
+                <div
+                  className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-sm ${
+                    isCompleted
+                      ? "bg-brand-primary text-white ring-4 ring-brand-accent/30"
+                      : isCurrent
+                      ? "bg-brand-gold text-brand-primary ring-4 ring-brand-primary/20 scale-110 font-extrabold"
+                      : "bg-white text-body-muted border-2 border-brand-accent/40"
+                  }`}
+                >
+                  {isCompleted ? "✓" : stepNum}
+                </div>
+                <span
+                  className={`text-[10px] font-semibold mt-2 text-center max-w-[80px] leading-tight ${
+                    isCurrent
+                      ? "text-brand-primary font-bold"
+                      : isCompleted
+                      ? "text-body-heading"
+                      : "text-body-muted"
+                  }`}
+                >
+                  {stepNames[i]}
+                </span>
               </div>
-              <span className="text-[10px] hidden md:block font-medium text-body-muted line-clamp-1">
-                {label}
-              </span>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

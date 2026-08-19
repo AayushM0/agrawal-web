@@ -1,12 +1,24 @@
 'use server';
 
 import { cookies } from "next/headers";
+import crypto from "crypto";
 
 export interface SessionData {
   userId: string;
   role: "head" | "member" | "admin";
   contact: string;
   householdStatus?: "pending_review" | "live" | "rejected";
+}
+
+export async function verifyAdminPassword(password: string): Promise<boolean> {
+  const masterPassword = process.env.ADMIN_MASTER_PASSWORD || "@Sab1234@";
+  if (!password) return false;
+
+  const bufferA = Buffer.from(password);
+  const bufferB = Buffer.from(masterPassword);
+
+  if (bufferA.length !== bufferB.length) return false;
+  return crypto.timingSafeEqual(bufferA, bufferB);
 }
 
 export async function createSession(data: SessionData) {

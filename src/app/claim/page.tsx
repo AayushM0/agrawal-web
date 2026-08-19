@@ -10,8 +10,8 @@ function ClaimContent() {
   const tokenFromUrl = searchParams.get("token") || "";
 
   const [claimToken, setClaimToken] = useState(tokenFromUrl);
-  const [memberPhone, setMemberPhone] = useState("+91 98111 22334");
-  const [otp, setOtp] = useState("123456");
+  const [memberPhone, setMemberPhone] = useState("");
+  const [otp, setOtp] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [isClaimed, setIsClaimed] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -121,7 +121,7 @@ function ClaimContent() {
               placeholder="6-digit OTP"
               className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs font-mono text-body-heading bg-canvas-warm/30 focus:ring-1 focus:ring-brand-primary"
             />
-            <p className="text-[11px] text-body-muted mt-1">Demo OTP prefilled.</p>
+            
           </div>
 
           {errorMessage && (

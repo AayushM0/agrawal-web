@@ -66,3 +66,15 @@ export async function searchDirectory(filters: SearchFilters) {
     data: safeListResults,
   };
 }
+
+export async function getMemberProfile(memberId: string) {
+  if (!memberId) return { success: false, error: "Member ID required." };
+  const member = await db.getMemberById(memberId);
+  if (!member) {
+    return { success: false, error: "Member profile not found." };
+  }
+  return {
+    success: true,
+    data: member,
+  };
+}

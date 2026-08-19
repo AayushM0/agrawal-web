@@ -53,7 +53,10 @@ function SignupContent() {
     const res = await verifyOtp({ recipient: contactValue, otp: otpValue });
     if (res.success) {
       setOtpVerified(true);
-      setOtpMessage("✓ Contact verified successfully!");
+      setOtpMessage("✓ Contact verified successfully! Auto-advancing...");
+      setTimeout(() => {
+        setStep(2);
+      }, 500);
     } else {
       setOtpError(res.error || "Invalid OTP code.");
     }

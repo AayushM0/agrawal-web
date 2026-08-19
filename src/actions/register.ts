@@ -13,6 +13,8 @@ export interface RegisterHouseholdInput {
   consentAccepted: boolean;
 }
 
+import { createSession } from "./auth";
+
 export async function registerHousehold(input: RegisterHouseholdInput) {
   // 1. Consent Validation
   if (!input.consentAccepted) {
@@ -65,6 +67,14 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
   };
 
   await db.createHousehold(newHousehold);
+
+  // Automatically establish logged-in session for the newly registered Head of Household
+  await createSession({
+    userId: newHousehold.headUserId,
+    role: "head",
+    contact: input.verifiedContact,
+    householdStatus: "pending_review",
+  });
 
   return {
     success: true,

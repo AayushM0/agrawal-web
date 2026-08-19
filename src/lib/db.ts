@@ -39,6 +39,16 @@ class FallbackStore {
     this.households.set(id, h);
     return h;
   }
+  async approveAllPendingHouseholds(): Promise<number> {
+    let count = 0;
+    for (const h of this.households.values()) {
+      if (h.status === "pending_review") {
+        h.status = "live";
+        count++;
+      }
+    }
+    return count;
+  }
   async getAllMembers(): Promise<any[]> {
     const results: any[] = [];
     for (const h of this.households.values()) {
@@ -47,6 +57,10 @@ class FallbackStore {
       }
     }
     return results;
+  }
+  async getMemberById(memberId: string): Promise<any | null> {
+    const all = await this.getAllMembers();
+    return all.find((m) => m.id === memberId) || null;
   }
   async claimMember(memberId: string): Promise<boolean> {
     for (const h of this.households.values()) {
@@ -103,6 +117,23 @@ export const db = {
       );
       if (res.rows.length === 0) return null;
       const h = res.rows[0];
+      const mRes = await pool.query(
+        `SELECT id, household_id as "householdId", full_name as "fullName", relation_to_head as "relationToHead",
+                dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
+                current_country as "currentCountry", profession_freetext as "profession", phone, email, bio,
+                verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
+                visibility_contact, visibility_dob, visibility_photo
+         FROM members WHERE household_id = $1 ORDER BY created_at ASC;`,
+        [h.id]
+      );
+      const members = mRes.rows.map(m => ({
+        ...m,
+        visibility: {
+          contactInfo: m.visibility_contact,
+          dob: m.visibility_dob,
+          photo: m.visibility_photo,
+        }
+      }));
       return {
         id: h.id,
         householdCode: h.household_code,
@@ -115,7 +146,7 @@ export const db = {
         verifiedContact: h.verified_contact,
         consentAcceptedAt: h.consent_accepted_at,
         createdAt: h.created_at,
-        members: [],
+        members,
       };
     } catch (e) {
       console.error("DB Error in getHouseholdByContact, using fallback:", e);
@@ -143,39 +174,41 @@ export const db = {
         household.verifiedContact,
         household.consentAcceptedAt || new Date().toISOString(),
       ]);
-      const newHouseholdId = hRes.rows[0].id;
+      const dbHouseholdId = hRes.rows[0].id;
 
       for (const m of household.members) {
         const insertMQuery = `
           INSERT INTO members (
-            household_id, full_name, relation_to_head, dob, gender, marital_status,
+            id, household_id, full_name, relation_to_head, dob, gender, marital_status,
             current_city, current_country, profession_freetext, phone, email, bio,
-            verified_by_self, owner_locked, visibility_contact, visibility_dob, visibility_photo
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);
+            visibility_contact, visibility_dob, visibility_photo, verified_by_self, owner_locked
+          ) VALUES (
+            gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+          );
         `;
         await client.query(insertMQuery, [
-          newHouseholdId,
+          dbHouseholdId,
           m.fullName,
           m.relationToHead,
-          m.dob || "1990-01-01",
+          m.dob && m.dob.trim() ? m.dob : null,
           m.gender,
           m.maritalStatus,
-          m.currentCity,
-          m.currentCountry,
-          m.profession,
+          m.currentCity || household.nativePlace,
+          m.currentCountry || "India",
+          m.profession || null,
           m.phone || null,
           m.email || null,
           m.bio || null,
-          m.verifiedBySelf || false,
-          m.ownerLocked || false,
           m.visibility?.contactInfo || "members_only",
           m.visibility?.dob || "hidden",
           m.visibility?.photo || "public_to_members",
+          m.verifiedBySelf || false,
+          m.ownerLocked || false,
         ]);
       }
 
       await client.query("COMMIT");
-      return { ...household, id: newHouseholdId };
+      return { ...household, id: dbHouseholdId };
     } catch (e) {
       await client.query("ROLLBACK");
       console.error("DB Error in createHousehold, using fallback:", e);
@@ -200,10 +233,6 @@ export const db = {
         JOIN households h ON m.household_id = h.id;
       `;
       const res = await pool.query(query);
-      if (res.rows.length === 0) {
-        // If DB is empty, use fallback records
-        return fallbackStore.getAllMembers();
-      }
       return res.rows.map(r => ({
         ...r,
         visibility: {
@@ -213,8 +242,53 @@ export const db = {
         }
       }));
     } catch (e) {
-      console.error("DB Error in getAllMembers, using fallback:", e);
-      return fallbackStore.getAllMembers();
+      console.error("DB Error in getAllMembers:", e);
+      return [];
+    }
+  },
+
+  async getMemberById(memberId: string): Promise<any | null> {
+    if (!pool) return fallbackStore.getMemberById(memberId);
+    try {
+      const query = `
+        SELECT 
+          m.id, m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
+          m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
+          m.current_country as "currentCountry", m.profession_freetext as "profession",
+          m.phone, m.email, m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
+          m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
+          h.household_code as "householdCode", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
+        FROM members m
+        JOIN households h ON m.household_id = h.id
+        WHERE m.id = $1 OR m.id::text = $1;
+      `;
+      const res = await pool.query(query, [memberId]);
+      if (res.rows.length === 0) return null;
+      const r = res.rows[0];
+      return {
+        ...r,
+        visibility: {
+          contactInfo: r.visibility_contact,
+          dob: r.visibility_dob,
+          photo: r.visibility_photo,
+        }
+      };
+    } catch (e) {
+      console.error("DB Error in getMemberById:", e);
+      return null;
+    }
+  },
+
+  async approveAllPendingHouseholds(): Promise<number> {
+    if (!pool) return fallbackStore.approveAllPendingHouseholds();
+    try {
+      const res = await pool.query(
+        "UPDATE households SET status = 'live' WHERE status = 'pending_review' RETURNING id;"
+      );
+      return res.rowCount || 0;
+    } catch (e) {
+      console.error("DB Error in approveAllPendingHouseholds:", e);
+      return 0;
     }
   },
 
