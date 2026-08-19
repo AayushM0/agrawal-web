@@ -10,16 +10,8 @@ import { registerHousehold, checkContactRegistration } from "@/actions/register"
 import { sendOtp, verifyOtp } from "@/actions/otp";
 
 function calculateAge(dobStr: string): number | null {
-  if (!dobStr) return null;
-  const clean = dobStr.trim();
-  if (/^\d{1,3}$/.test(clean)) {
-    return parseInt(clean, 10);
-  }
-  if (/^\d{4}$/.test(clean)) {
-    const currentYear = new Date().getFullYear();
-    return currentYear - parseInt(clean, 10);
-  }
-  const birthDate = new Date(clean);
+  if (!dobStr || !dobStr.trim()) return null;
+  const birthDate = new Date(dobStr.trim());
   if (isNaN(birthDate.getTime())) return null;
   const today = new Date();
   let age = today.getFullYear() - birthDate.getFullYear();
@@ -27,7 +19,7 @@ function calculateAge(dobStr: string): number | null {
   if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
     age--;
   }
-  return age;
+  return age >= 0 ? age : null;
 }
 
 function SignupContent() {
@@ -676,21 +668,22 @@ function SignupContent() {
                           </select>
                         </div>
 
-                        {/* 3. Date of Birth / Age */}
+                        {/* 3. Date of Birth Date Picker */}
                         <div>
                           <label className="block text-[11px] font-bold text-body-heading mb-1">
-                            Date of Birth / Age
+                            Date of Birth (जन्म तिथि)
                           </label>
                           <input
-                            type="text"
+                            type="date"
+                            max={new Date().toISOString().split("T")[0]}
+                            min="1910-01-01"
                             value={member.dob}
                             onChange={(e) => updateMember(member.id, "dob", e.target.value)}
-                            placeholder="YYYY-MM-DD or Age (e.g. 28)"
-                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white text-body-heading focus:ring-1 focus:ring-brand-primary"
                           />
                           {calculatedAge !== null && (
                             <span className="text-[10px] text-brand-gold font-semibold block mt-0.5">
-                              Calculated Age: {calculatedAge} yrs {isMinor && "(Minor)"}
+                              Age: {calculatedAge} yrs {isMinor ? "• Minor (<18)" : "• Adult"}
                             </span>
                           )}
                         </div>
