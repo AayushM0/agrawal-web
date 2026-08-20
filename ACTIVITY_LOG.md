@@ -13,6 +13,15 @@
 
 ## 🕒 Chronological Activity Log
 
+### [2026-08-20 18:52:00] — Configured Matt Pocock Engineering Skills
+- **Status**: ✅ Completed
+- **Changes**:
+  - Initialized **Local Markdown** issue tracker under `.scratch/<feature-slug>/`.
+  - Configured canonical triage label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) in `docs/agents/triage-labels.md`.
+  - Configured single-context domain architecture rules in `docs/agents/domain.md` and initial glossary in `CONTEXT.md`.
+  - Added top-level guidelines in `AGENTS.md` and created `docs/adr/`.
+
+---
 ### [2026-08-20 03:18:00] — Stateless OTP & Multi-Format Phone Login
 - **Status**: ✅ Deployed (`bdd548f`)
 - **Changes**:
