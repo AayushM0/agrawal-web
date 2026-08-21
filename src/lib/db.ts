@@ -515,7 +515,7 @@ export const db = {
              owner_locked = true,
              phone = COALESCE($2, phone),
              email = COALESCE($3, email)
-         WHERE id::text = $1 OR id = $1
+         WHERE id = $1::uuid
          RETURNING id;`,
         [memberId, contactInfo?.phone || null, contactInfo?.email ? contactInfo.email.trim().toLowerCase() : null]
       );
