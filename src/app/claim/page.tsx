@@ -53,7 +53,7 @@ function ClaimContent() {
             Self-Verification Complete!
           </h1>
           <p className="text-xs text-body-text leading-relaxed mb-6">
-            You now independently manage your personal profile in the <strong>ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION</strong>. Your profile is locked from household head edits.
+            You now independently manage your personal profile in the <strong>ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY</strong>. Your profile is locked from household head edits.
           </p>
           <div className="flex flex-col gap-2">
             <Link href="/directory" className="px-6 py-3 rounded-full text-xs font-bold text-white va-btn-maroon">

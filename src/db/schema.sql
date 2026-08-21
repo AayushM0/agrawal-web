@@ -1,4 +1,4 @@
--- PostgreSQL + PostGIS Schema for ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION (v1)
+-- PostgreSQL + PostGIS Schema for ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY (v1)
 -- Exactly aligns with TRD.md and ARCHITECTURE.md
 
 -- Extensions

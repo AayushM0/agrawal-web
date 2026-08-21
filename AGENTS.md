@@ -1,6 +1,6 @@
-# ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION — Agent Guidelines
+# ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY — Agent Guidelines
 
-Welcome to the ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION repository. This file provides guidelines and conventions for agentic workflows operating in this codebase.
+Welcome to the ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY repository. This file provides guidelines and conventions for agentic workflows operating in this codebase.
 
 ## Agent skills
 

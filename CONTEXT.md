@@ -1,4 +1,4 @@
-# ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION — Domain Context & Glossary
+# ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY — Domain Context & Glossary
 
 ## Core Ubiquitous Language & Domain Concepts
 

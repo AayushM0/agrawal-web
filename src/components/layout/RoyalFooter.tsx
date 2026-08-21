@@ -18,7 +18,7 @@ export default function RoyalFooter() {
               />
               <div>
                 <h3 className="text-sm sm:text-base font-extrabold text-brand-primary uppercase leading-tight">
-                  ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION
+                  ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY
                 </h3>
                 <p className="text-xs text-brand-gold font-semibold">One Community • One Platform • One Global Family</p>
               </div>

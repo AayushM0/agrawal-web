@@ -19,7 +19,7 @@ export default function MainFooter() {
               />
               <div>
                 <h3 className="text-xs sm:text-sm font-extrabold text-brand-primary uppercase leading-tight">
-                  ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION
+                  ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY
                 </h3>
                 <p className="text-[10px] text-body-muted font-medium">
                   Maharaja Agrasen Foundation Limited Singapore

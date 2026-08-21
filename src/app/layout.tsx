@@ -27,7 +27,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION — One Community • One Platform • One Global Family",
+  title: "ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY — One Community • One Platform • One Global Family",
   description: "Connecting Agrawals worldwide in a verified, trusted, and free community directory under Maharaja Agrasen Foundation Limited Singapore.",
 };
 
