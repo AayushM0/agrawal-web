@@ -1,16 +1,19 @@
 'use client';
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { sendOtp, verifyOtp } from "@/actions/otp";
 import { checkContactRegistration } from "@/actions/register";
 import { getSession, createSession, verifyAdminPassword } from "@/actions/auth";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialContact = searchParams.get("contact") || "";
+
   const [role, setRole] = useState<"head" | "admin">("head");
-  const [contact, setContact] = useState("");
+  const [contact, setContact] = useState(initialContact);
   const [adminPassword, setAdminPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [isSendingOtp, setIsSendingOtp] = useState(false);
@@ -19,6 +22,12 @@ export default function LoginPage() {
   const [otpMessage, setOtpMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [notRegistered, setNotRegistered] = useState(false);
+
+  useEffect(() => {
+    if (initialContact && !contact) {
+      setContact(initialContact);
+    }
+  }, [initialContact]);
 
   useEffect(() => {
     async function checkAuth() {
@@ -334,5 +343,13 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-12 text-center text-xs font-bold">Loading Member Portal...</div>}>
+      <LoginContent />
+    </Suspense>
   );
 }

@@ -112,6 +112,10 @@ function SignupContent() {
     if (checkRes.isRegistered) {
       setIsSendingOtp(false);
       setAlreadyRegisteredInfo(checkRes);
+      setOtpError("This mobile/email is already registered! Redirecting to Member Login...");
+      setTimeout(() => {
+        router.push(`/login?contact=${encodeURIComponent(contactValue.trim())}`);
+      }, 1500);
       return;
     }
 
