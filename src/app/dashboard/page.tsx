@@ -259,6 +259,12 @@ export default function DashboardPage() {
                   ✕ Status: Revision Needed
                 </span>
               )}
+              <a
+                href="/dashboard/pass"
+                className="text-[11px] font-semibold text-amber-700 hover:text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-0.5 rounded-full transition-colors"
+              >
+                🪪 My Pass
+              </a>
               <button
                 type="button"
                 onClick={handleLogout}
