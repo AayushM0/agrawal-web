@@ -1,7 +1,7 @@
-# Global Agrawal Directory (वैश्विक अग्रवाल निर्देशिका)
+# ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION (अंतर्राष्ट्रीय अग्रवाल समाज फाउंडेशन)
 
 > One Community • One Platform • One Global Family | एक समाज • एक मंच • एक परिवार  
-> Initiated under Maharaja Agrasen Foundation Limited (Sohan Lal Jindal *"Singapore Wale"*).
+> Initiated under Maharaja Agrasen Foundation Limited Singapore (Sohan Lal Jindal *"Singapore Wale"*).
 
 ---
 

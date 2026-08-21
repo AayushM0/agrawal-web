@@ -94,20 +94,20 @@ export async function sendOtp(input: SendOtpInput) {
   if (!isPhone && resendClient) {
     try {
       const emailHtml = `
-        <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; background: #fffaf2; border: 1px solid #d79a20; border-radius: 16px; padding: 24px; text-align: center;">
-          <h2 style="color: #741b17; margin-top: 0;">Global Agrawal Directory</h2>
-          <p style="font-size: 14px; color: #4d372c;">Your verification passcode is:</p>
-          <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #741b17; margin: 16px 0; background: #ffffff; padding: 12px; border-radius: 8px;">
+        <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; background: #fffdf8; border: 1px solid #e69500; border-radius: 16px; padding: 24px; text-align: center;">
+          <h2 style="color: #d9531e; margin-top: 0;">ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION</h2>
+          <p style="font-size: 14px; color: #422b22;">Your verification passcode is:</p>
+          <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #d9531e; margin: 16px 0; background: #ffffff; padding: 12px; border-radius: 8px; border: 1px solid #fde08b;">
             ${generatedCode}
           </div>
-          <p style="font-size: 12px; color: #7c685b;">Valid for 10 minutes. Do not share with anyone.</p>
+          <p style="font-size: 12px; color: #7a5e52;">Valid for 10 minutes. Do not share with anyone.</p>
         </div>
       `;
 
       await resendClient.emails.send({
-        from: "Global Agrawal Directory <onboarding@resend.dev>",
+        from: "ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION <onboarding@resend.dev>",
         to: normalized,
-        subject: `${generatedCode} is your Directory Verification Code`,
+        subject: `${generatedCode} is your Verification Code`,
         html: emailHtml,
       });
 
@@ -124,10 +124,10 @@ export async function sendOtp(input: SendOtpInput) {
   if (isPhone && twilioClient && process.env.TWILIO_WHATSAPP_FROM) {
     try {
       await twilioClient.messages.create({
-        body: `Your Global Agrawal Directory verification code is: *${generatedCode}*.
+        body: `Your ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION verification code is: *${generatedCode}*.
 
 Valid for 10 minutes.
-- Maharaja Agrasen Foundation Limited`,
+- Maharaja Agrasen Foundation Limited Singapore`,
         from: process.env.TWILIO_WHATSAPP_FROM,
         to: `whatsapp:${normalized}`,
       });

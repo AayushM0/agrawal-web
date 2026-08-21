@@ -1,4 +1,4 @@
-# 📜 Global Agrawal Directory — System Activity & Change Log
+# 📜 ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION — System Activity & Change Log
 
 > **Note**: This document is updated in real time whenever changes, bug fixes, enhancements, or architectural updates occur in the project.
 

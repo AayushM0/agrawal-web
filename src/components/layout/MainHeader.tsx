@@ -37,29 +37,29 @@ export default function MainHeader() {
   const isAdmin = session?.role === "admin";
 
   return (
-    <header className="sticky top-0 z-50 bg-[#fffaf2]/95 backdrop-blur-md border-b border-brand-accent/25 shadow-warm transition-all">
+    <header className="sticky top-0 z-50 bg-[#fffdf8]/95 backdrop-blur-md border-b border-brand-accent/25 shadow-warm transition-all">
       <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
         {/* Brand Logo & Title */}
         <Link href="/" className="flex items-center gap-2.5 sm:gap-3.5 text-decoration-none group shrink-0">
           <div className="relative w-11 h-11 sm:w-14 sm:h-14 shrink-0 transition-transform group-hover:scale-105">
             <Image
               src="/images/logo.png"
-              alt="Maharaja Agrasen Foundation Logo"
+              alt="Maharaja Agrasen Foundation Limited Singapore Logo"
               width={58}
               height={58}
-              className="object-contain drop-shadow-[0_2px_8px_rgba(116,27,23,0.22)]"
+              className="object-contain drop-shadow-[0_2px_8px_rgba(217,83,30,0.22)]"
               priority
             />
           </div>
           <div>
-            <span className="inline-block text-[9px] sm:text-[10px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full va-badge-gold mb-0.5">
-              Global Agrawal Directory
+            <span className="inline-block text-[8px] sm:text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full va-badge-gold mb-0.5">
+              ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION
             </span>
-            <h2 className="text-sm sm:text-lg font-extrabold text-brand-primary leading-tight tracking-tight">
-              Global Agrawal Directory
+            <h2 className="text-xs sm:text-base font-extrabold text-brand-primary leading-tight tracking-tight uppercase">
+              ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION
             </h2>
-            <p className="text-[9px] sm:text-[11px] text-body-muted font-medium truncate max-w-[180px] sm:max-w-none">
-              Maharaja Agrasen Foundation Limited
+            <p className="text-[9px] sm:text-[11px] text-body-muted font-medium truncate max-w-[200px] sm:max-w-none">
+              Maharaja Agrasen Foundation Limited Singapore
             </p>
           </div>
         </Link>
@@ -188,7 +188,7 @@ export default function MainHeader() {
       {/* Mobile Slide-over Drawer Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden fixed inset-0 top-[60px] z-50 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-[#fffaf2] border-b-2 border-brand-accent/40 shadow-2xl p-5 space-y-4 max-h-[calc(100vh-60px)] overflow-y-auto">
+          <div className="bg-[#fffdf8] border-b-2 border-brand-accent/40 shadow-2xl p-5 space-y-4 max-h-[calc(100vh-60px)] overflow-y-auto">
             <div className="space-y-1">
               <Link
                 href="/"

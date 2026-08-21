@@ -4,22 +4,22 @@
 
 @layer base {
   :root {
-    --color-brand-primary: #741b17;
-    --color-brand-burgundy: #45110f;
-    --color-brand-accent: #d79a20;
-    --color-brand-accent-dark: #aa6d09;
-    --color-bg-page: #fffaf2;
-    --color-text-body: #4d372c;
-    --color-text-heading: #2d1b14;
-    --color-text-muted: #7c685b;
-    --color-border-gold: rgba(215, 154, 32, 0.30);
+    --color-brand-primary: #d9531e;
+    --color-brand-burgundy: #c04515;
+    --color-brand-accent: #e69500;
+    --color-brand-accent-dark: #b87b10;
+    --color-bg-page: #fffdf8;
+    --color-text-body: #422b22;
+    --color-text-heading: #291811;
+    --color-text-muted: #7a5e52;
+    --color-border-gold: rgba(230, 149, 0, 0.35);
     
-    --gradient-top-strip: linear-gradient(90deg, #45110f 0%, #741b17 50%, #45110f 100%);
-    --gradient-gold-cta: linear-gradient(135deg, #f4cb65 0%, #d99d23 50%, #aa6d09 100%);
-    --gradient-maroon-btn: linear-gradient(135deg, #741b17 0%, #521310 100%);
-    --gradient-gold-soft: linear-gradient(135deg, #fff7dd 0%, #fae8b2 100%);
-    --gradient-hero-card: linear-gradient(135deg, #ffffff 0%, #fff7eb 100%);
-    --gradient-footer: linear-gradient(180deg, #300806 0%, #1e0504 100%);
+    --gradient-top-strip: linear-gradient(90deg, #d9531e 0%, #f59e0b 50%, #d9531e 100%);
+    --gradient-gold-cta: linear-gradient(135deg, #fbbf24 0%, #e69500 50%, #c27803 100%);
+    --gradient-maroon-btn: linear-gradient(135deg, #e06d14 0%, #c04515 100%);
+    --gradient-gold-soft: linear-gradient(135deg, #fff9e6 0%, #fde8b7 100%);
+    --gradient-hero-card: linear-gradient(135deg, #ffffff 0%, #fffbf2 100%);
+    --gradient-footer: linear-gradient(180deg, #fffdf8 0%, #fff6e5 100%);
   }
 
   html, body {
@@ -44,23 +44,23 @@
 .va-btn-join {
   background: var(--gradient-gold-cta);
   color: #ffffff;
-  box-shadow: 0 10px 24px rgba(194, 132, 11, 0.28);
+  box-shadow: 0 10px 24px rgba(230, 149, 0, 0.28);
   transition: all 0.2s ease-out;
 }
 .va-btn-join:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 32px rgba(194, 132, 11, 0.36);
+  box-shadow: 0 16px 32px rgba(230, 149, 0, 0.36);
 }
 
 .va-btn-maroon {
   background: var(--gradient-maroon-btn);
   color: #ffffff;
-  box-shadow: 0 8px 20px rgba(116, 27, 23, 0.22);
+  box-shadow: 0 8px 20px rgba(217, 83, 30, 0.25);
   transition: all 0.2s ease-out;
 }
 .va-btn-maroon:hover {
   transform: translateY(-2px);
-  box-shadow: 0 14px 28px rgba(116, 27, 23, 0.30);
+  box-shadow: 0 14px 28px rgba(217, 83, 30, 0.32);
 }
 
 .va-badge-gold {
@@ -70,15 +70,15 @@
 }
 
 .va-badge-maroon {
-  background: #fbf0ee;
+  background: #fff1eb;
   color: var(--color-brand-primary);
-  border: 1px solid rgba(116, 27, 23, 0.25);
+  border: 1px solid rgba(217, 83, 30, 0.25);
 }
 
 .va-badge-live {
   background: #edfcf2;
   color: #0e623b;
-  border: 1px solid rgba(140, 91, 5, 0.25);
+  border: 1px solid rgba(14, 98, 59, 0.25);
 }
 
 .va-badge-pending {
@@ -90,9 +90,9 @@
 /* Single line top bar */
 .va-top-bar {
   background: var(--gradient-top-strip);
-  color: #fff3d2;
+  color: #ffffff;
   min-height: 38px;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgba(215, 154, 32, 0.35);
+  border-bottom: 1px solid rgba(230, 149, 0, 0.4);
 }

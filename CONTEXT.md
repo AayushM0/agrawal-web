@@ -1,4 +1,4 @@
-# Global Agrawal Directory — Domain Context & Glossary
+# ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION — Domain Context & Glossary
 
 ## Core Ubiquitous Language & Domain Concepts
 

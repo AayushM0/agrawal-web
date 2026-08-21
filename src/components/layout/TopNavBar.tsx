@@ -5,18 +5,18 @@ export default function TopNavBar() {
   return (
     <div className="va-top-bar w-full px-4 text-xs font-medium border-b border-brand-accent/30 select-none overflow-hidden">
       <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-4 py-1">
-        <div className="flex items-center gap-2 text-[#fff3d2] font-semibold shrink truncate min-w-0">
-          <span className="w-2 h-2 rounded-full bg-brand-accentLight shadow-[0_0_6px_#f0c96a] shrink-0"></span>
+        <div className="flex items-center gap-2 text-white font-semibold shrink truncate min-w-0">
+          <span className="w-2 h-2 rounded-full bg-brand-accentLight shadow-[0_0_6px_#fde08b] shrink-0"></span>
           <span className="truncate">
             One Community • One Platform • One Global Family{" "}
-            <em className="text-[#ffe7a8] not-italic font-normal ml-1 hidden sm:inline">
+            <em className="text-amber-100 not-italic font-normal ml-1 hidden sm:inline">
               (एक समाज • एक मंच • एक परिवार)
             </em>
           </span>
         </div>
 
         <nav aria-label="Top Quick Navigation" className="shrink-0 hidden md:block">
-          <ul className="flex items-center gap-4 text-[#fff3d2]/90 text-xs font-medium">
+          <ul className="flex items-center gap-4 text-white/90 text-xs font-medium">
             <li>
               <Link href="/" className="hover:text-white hover:underline transition-colors">
                 Home

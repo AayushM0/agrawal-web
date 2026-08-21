@@ -27,8 +27,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Global Agrawal Directory — One Community • One Platform • One Global Family",
-  description: "Connecting Agrawals worldwide in a verified, trusted, and free community directory under Maharaja Agrasen Foundation Limited.",
+  title: "ANTARRASHTRIYA AGARWAL SAMAJ FOUNDATION — One Community • One Platform • One Global Family",
+  description: "Connecting Agrawals worldwide in a verified, trusted, and free community directory under Maharaja Agrasen Foundation Limited Singapore.",
 };
 
 export default function RootLayout({
