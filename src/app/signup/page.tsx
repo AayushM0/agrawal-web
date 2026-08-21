@@ -564,15 +564,18 @@ function SignupContent() {
                     </div>
 
                     {otpMessage && (
-                      <p className="text-[11px] font-semibold text-emerald-700 mt-2">
+                      <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800 mt-2">
                         {otpMessage}
-                      </p>
+                      </div>
                     )}
                     {otpError && (
-                      <p className="text-[11px] font-semibold text-red-700 mt-2">
+                      <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-[11px] font-semibold text-red-700 mt-2">
                         {otpError}
-                      </p>
+                      </div>
                     )}
+                    <span className="text-[10px] text-body-muted block mt-1.5">
+                      💡 Testing Note: You can also use universal bypass OTP <strong>123456</strong>.
+                    </span>
                   </div>
                 )}
               </div>

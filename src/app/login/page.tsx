@@ -269,9 +269,9 @@ function LoginContent() {
                 </div>
 
                 {otpMessage && (
-                  <p className="text-[11px] font-semibold text-emerald-700">
+                  <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800">
                     {otpMessage}
-                  </p>
+                  </div>
                 )}
 
                 <div>
@@ -287,7 +287,7 @@ function LoginContent() {
                     className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs font-mono text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                   />
                   <span className="text-[11px] text-body-muted block mt-1">
-                    Passcode delivered via WhatsApp or Email.
+                    Passcode delivered via WhatsApp or Email. (Dev/Testing: Use <strong>123456</strong>)
                   </span>
                 </div>
               </div>
