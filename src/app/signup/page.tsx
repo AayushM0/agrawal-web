@@ -7,6 +7,7 @@ import WizardProgressBar from "@/components/wizard/WizardProgressBar";
 import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
 import { registerHousehold, checkContactRegistration } from "@/actions/register";
+import { checkContactAvailability } from "@/actions/claim";
 import { sendOtp, verifyOtp } from "@/actions/otp";
 import { getSession, clearSession } from "@/actions/auth";
 
@@ -97,6 +98,7 @@ function SignupContent() {
     },
   ]);
   const [step3Error, setStep3Error] = useState("");
+  const [contactFieldErrors, setContactFieldErrors] = useState<{ [key: string]: string }>({});
 
   // Step 4 & 5 State
   const [consentGiven, setConsentGiven] = useState(false);
@@ -270,7 +272,34 @@ function SignupContent() {
     reader.readAsDataURL(file);
   };
 
-  const handleStep3Next = () => {
+  const checkContactField = async (memberId: string, field: "phone" | "email", val: string) => {
+    const key = `${memberId}_${field}`;
+    const clean = val.trim();
+    if (!clean || clean.length < 5) {
+      setContactFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      return;
+    }
+
+    const avail = await checkContactAvailability(clean, memberId);
+    if (!avail.available && avail.conflict) {
+      setContactFieldErrors((prev) => ({
+        ...prev,
+        [key]: `This ${field} is already registered (${avail.conflict?.name ? `under ${avail.conflict.name}` : `#${avail.conflict?.householdCode}`}).`,
+      }));
+    } else {
+      setContactFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    }
+  };
+
+  const handleStep3Next = async () => {
     setStep3Error("");
     for (let i = 0; i < members.length; i++) {
       if (!members[i].fullName?.trim() || members[i].fullName.trim().length < 2) {
@@ -295,6 +324,26 @@ function SignupContent() {
     const headEmail = (contactType === "email" ? contactValue : head.email)?.trim();
     if (!headEmail || !headEmail.includes("@") || headEmail.length < 5) {
       setStep3Error("A valid Email Address is required for Head of Household.");
+      return;
+    }
+
+    // Check for any active contact duplicate errors
+    const errorKeys = Object.keys(contactFieldErrors);
+    if (errorKeys.length > 0) {
+      setStep3Error("Please correct the duplicate mobile number or email before continuing.");
+      return;
+    }
+
+    // Live pre-check headPhone and headEmail
+    const phoneAvail = await checkContactAvailability(headPhone, head.id);
+    if (!phoneAvail.available && phoneAvail.conflict) {
+      setStep3Error(`The mobile number '${headPhone}' is already registered in the directory (${phoneAvail.conflict.name ? `under ${phoneAvail.conflict.name}` : `#${phoneAvail.conflict.householdCode}`}).`);
+      return;
+    }
+
+    const emailAvail = await checkContactAvailability(headEmail, head.id);
+    if (!emailAvail.available && emailAvail.conflict) {
+      setStep3Error(`The email address '${headEmail}' is already registered in the directory (${emailAvail.conflict.name ? `under ${emailAvail.conflict.name}` : `#${emailAvail.conflict.householdCode}`}).`);
       return;
     }
 
@@ -865,13 +914,30 @@ function SignupContent() {
                               <span className="ml-auto text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">✓ Verified</span>
                             </div>
                           ) : (
-                            <input
-                              type="tel"
-                              value={member.phone || ""}
-                              onChange={(e) => updateMember(member.id, "phone", e.target.value)}
-                              placeholder="e.g. 9876543210"
-                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                            />
+                            <div>
+                              <input
+                                type="tel"
+                                value={member.phone || ""}
+                                onChange={(e) => {
+                                  updateMember(member.id, "phone", e.target.value);
+                                  if (contactFieldErrors[`${member.id}_phone`]) {
+                                    checkContactField(member.id, "phone", e.target.value);
+                                  }
+                                }}
+                                onBlur={(e) => checkContactField(member.id, "phone", e.target.value)}
+                                placeholder="e.g. 9876543210"
+                                className={`w-full px-3 py-2 rounded-lg border text-xs bg-white focus:ring-1 focus:ring-brand-primary ${
+                                  contactFieldErrors[`${member.id}_phone`]
+                                    ? "border-red-400 bg-red-50/50"
+                                    : "border-brand-accent/40"
+                                }`}
+                              />
+                              {contactFieldErrors[`${member.id}_phone`] && (
+                                <span className="text-[10px] text-red-600 font-semibold block mt-1">
+                                  ⚠️ {contactFieldErrors[`${member.id}_phone`]}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
 
@@ -886,13 +952,30 @@ function SignupContent() {
                               <span className="ml-auto text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">✓ Verified</span>
                             </div>
                           ) : (
-                            <input
-                              type="email"
-                              value={member.email || ""}
-                              onChange={(e) => updateMember(member.id, "email", e.target.value)}
-                              placeholder="e.g. rahul@example.com"
-                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                            />
+                            <div>
+                              <input
+                                type="email"
+                                value={member.email || ""}
+                                onChange={(e) => {
+                                  updateMember(member.id, "email", e.target.value);
+                                  if (contactFieldErrors[`${member.id}_email`]) {
+                                    checkContactField(member.id, "email", e.target.value);
+                                  }
+                                }}
+                                onBlur={(e) => checkContactField(member.id, "email", e.target.value)}
+                                placeholder="e.g. rahul@example.com"
+                                className={`w-full px-3 py-2 rounded-lg border text-xs bg-white focus:ring-1 focus:ring-brand-primary ${
+                                  contactFieldErrors[`${member.id}_email`]
+                                    ? "border-red-400 bg-red-50/50"
+                                    : "border-brand-accent/40"
+                                }`}
+                              />
+                              {contactFieldErrors[`${member.id}_email`] && (
+                                <span className="text-[10px] text-red-600 font-semibold block mt-1">
+                                  ⚠️ {contactFieldErrors[`${member.id}_email`]}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
 

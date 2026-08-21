@@ -33,8 +33,19 @@ export default function DashboardPage() {
 
   const handleCopyClaimLink = async (memberId: string) => {
     const res = await createClaimInvite(memberId);
-    if (res.success && res.claimUrl) {
-      navigator.clipboard.writeText(res.claimUrl);
+    if (res.success && res.token) {
+      const fullUrl = `${window.location.origin}/claim?token=${encodeURIComponent(res.token)}`;
+      try {
+        await navigator.clipboard.writeText(fullUrl);
+      } catch {
+        // Fallback for non-secure contexts
+        const textarea = document.createElement("textarea");
+        textarea.value = fullUrl;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
       setCopiedToken(memberId);
       setTimeout(() => setCopiedToken(null), 2500);
     }

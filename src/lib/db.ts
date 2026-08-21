@@ -87,12 +87,43 @@ class FallbackStore {
       (m.householdId && m.householdId.toString() === clean)
     ) || null;
   }
-  async claimMember(memberId: string): Promise<boolean> {
+  async claimMember(memberId: string, contactInfo?: { phone?: string; email?: string }): Promise<boolean> {
     for (const h of this.households.values()) {
-      const m = h.members.find((mem) => mem.id === memberId);
-      if (m) { m.verifiedBySelf = true; m.ownerLocked = true; return true; }
+      const m = h.members.find((mem) => mem.id === memberId || (mem as any).id?.toString() === memberId);
+      if (m) { 
+        m.verifiedBySelf = true; 
+        m.ownerLocked = true;
+        if (contactInfo?.phone) m.phone = contactInfo.phone;
+        if (contactInfo?.email) m.email = contactInfo.email;
+        return true; 
+      }
     }
     return false;
+  }
+  async checkContactExists(contact: string, excludeMemberId?: string): Promise<{ exists: boolean; type?: "head" | "member"; name?: string; householdCode?: string }> {
+    const clean = (contact || "").trim().toLowerCase();
+    if (!clean || clean.length < 5) return { exists: false };
+    const digits = clean.replace(/[^0-9]/g, "");
+
+    for (const h of this.households.values()) {
+      const hContact = (h.verifiedContact || "").trim().toLowerCase();
+      const hDigits = hContact.replace(/[^0-9]/g, "");
+      if (hContact === clean || (digits.length >= 10 && hDigits.endsWith(digits.slice(-10)))) {
+        return { exists: true, type: "head", name: h.headName, householdCode: h.householdCode };
+      }
+      for (const m of h.members) {
+        if (excludeMemberId && (m.id === excludeMemberId || (m as any).id?.toString() === excludeMemberId)) {
+          continue;
+        }
+        const mEmail = (m.email || "").trim().toLowerCase();
+        const mPhone = (m.phone || "").trim().toLowerCase();
+        const mDigits = mPhone.replace(/[^0-9]/g, "");
+        if (mEmail === clean || (digits.length >= 10 && mDigits.endsWith(digits.slice(-10)))) {
+          return { exists: true, type: "member", name: m.fullName, householdCode: h.householdCode };
+        }
+      }
+    }
+    return { exists: false };
   }
 }
 
@@ -412,19 +443,71 @@ export const db = {
     }
   },
 
-  async claimMember(memberId: string): Promise<boolean> {
-    if (!pool) return fallbackStore.claimMember(memberId);
+  async claimMember(memberId: string, contactInfo?: { phone?: string; email?: string }): Promise<boolean> {
+    if (!pool) return fallbackStore.claimMember(memberId, contactInfo);
     try {
       const res = await pool.query(
-        "UPDATE members SET verified_by_self = true, owner_locked = true WHERE id = $1 RETURNING id;",
-        [memberId]
+        `UPDATE members 
+         SET verified_by_self = true, 
+             owner_locked = true,
+             phone = COALESCE($2, phone),
+             email = COALESCE($3, email)
+         WHERE id::text = $1 OR id = $1
+         RETURNING id;`,
+        [memberId, contactInfo?.phone || null, contactInfo?.email ? contactInfo.email.trim().toLowerCase() : null]
       );
-      fallbackStore.claimMember(memberId);
-      if (res.rows.length === 0) return fallbackStore.claimMember(memberId);
+      fallbackStore.claimMember(memberId, contactInfo);
+      if (res.rows.length === 0) return fallbackStore.claimMember(memberId, contactInfo);
       return true;
     } catch (e) {
       console.warn("DB Error in claimMember, using fallback:", e);
-      return fallbackStore.claimMember(memberId);
+      return fallbackStore.claimMember(memberId, contactInfo);
+    }
+  },
+
+  async checkContactExists(contact: string, excludeMemberId?: string): Promise<{ exists: boolean; type?: "head" | "member"; name?: string; householdCode?: string }> {
+    if (!contact || contact.trim().length < 5) return { exists: false };
+    const clean = contact.trim();
+    const isEmail = clean.includes("@");
+    const canonical = isEmail ? clean.toLowerCase() : normalizePhoneNumber(clean);
+    const digitsOnly = clean.replace(/[^0-9]/g, "");
+    const last10 = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
+
+    if (!pool) return fallbackStore.checkContactExists(contact, excludeMemberId);
+
+    try {
+      // 1. Check in households (verified_contact)
+      const hRes = await pool.query(
+        `SELECT id, household_code, head_name, verified_contact 
+         FROM households 
+         WHERE verified_contact = $1 OR verified_contact = $2 OR verified_contact LIKE $3
+         LIMIT 1;`,
+        [clean, canonical, `%${last10}`]
+      );
+      if (hRes.rows.length > 0) {
+        const h = hRes.rows[0];
+        return { exists: true, type: "head", name: h.head_name, householdCode: h.household_code };
+      }
+
+      // 2. Check in members (phone or email)
+      const mRes = await pool.query(
+        `SELECT m.id, m.full_name, h.household_code 
+         FROM members m 
+         JOIN households h ON m.household_id = h.id 
+         WHERE (m.phone = $1 OR m.phone = $2 OR m.phone LIKE $3 OR LOWER(m.email) = LOWER($4))
+           AND ($5::text IS NULL OR m.id::text != $5)
+         LIMIT 1;`,
+        [clean, canonical, `%${last10}`, canonical, excludeMemberId || null]
+      );
+      if (mRes.rows.length > 0) {
+        const m = mRes.rows[0];
+        return { exists: true, type: "member", name: m.full_name, householdCode: m.household_code };
+      }
+
+      return { exists: false };
+    } catch (e) {
+      console.warn("DB Error in checkContactExists, using fallback store:", e);
+      return fallbackStore.checkContactExists(contact, excludeMemberId);
     }
   },
 };

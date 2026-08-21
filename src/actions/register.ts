@@ -93,6 +93,29 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     return { success: false, error: "A valid email address is required for Head of Household." };
   }
 
+  // Check contact conflicts for Head's Phone & Email
+  const phoneConflict = await db.checkContactExists(headPhone);
+  if (phoneConflict.exists && phoneConflict.type === "head") {
+    const existingH = await db.getHouseholdByContact(canonicalContact);
+    if (!existingH || existingH.householdCode !== phoneConflict.householdCode) {
+      return {
+        success: false,
+        error: `The mobile number '${headPhone}' is already registered in the directory (${phoneConflict.name ? `under ${phoneConflict.name}` : `#${phoneConflict.householdCode}`}).`,
+      };
+    }
+  }
+
+  const emailConflict = await db.checkContactExists(headEmail);
+  if (emailConflict.exists && emailConflict.type === "head") {
+    const existingH = await db.getHouseholdByContact(canonicalContact);
+    if (!existingH || existingH.householdCode !== emailConflict.householdCode) {
+      return {
+        success: false,
+        error: `The email address '${headEmail}' is already registered in the directory (${emailConflict.name ? `under ${emailConflict.name}` : `#${emailConflict.householdCode}`}).`,
+      };
+    }
+  }
+
   for (let i = 0; i < input.members.length; i++) {
     const m = input.members[i];
     const memberName = m.fullName?.trim();
