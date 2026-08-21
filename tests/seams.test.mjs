@@ -87,3 +87,15 @@ test("Seam 6: Database layer throws errors instead of swallowing them", () => {
   assert.ok(!dbCode.includes("fallbackStore."), "Must not reference fallbackStore");
   assert.ok(dbCode.includes("throw ") || !dbCode.includes("catch (e)"), "Must throw errors or remove swallowing catch blocks entirely");
 });
+
+// --- SEAM 7: Cryptographic Secrets Hardening ---
+test("Seam 7: Cryptographic secrets must not have hardcoded fallbacks", () => {
+  const otpCode = fs.readFileSync(path.join(webRoot, "src/actions/otp.ts"), "utf8");
+  const authTokensCode = fs.readFileSync(path.join(webRoot, "src/lib/auth-tokens.ts"), "utf8");
+  
+  assert.ok(!otpCode.includes("agarwal_dir_secure"), "OTP module must not contain hardcoded fallback secret");
+  assert.ok(!authTokensCode.includes("agarwal_dir_secure"), "Auth tokens module must not contain hardcoded fallback secret");
+  
+  assert.ok(otpCode.includes("throw new Error") && otpCode.includes("AUTH_SECRET"), "OTP module must throw if AUTH_SECRET is missing");
+  assert.ok(authTokensCode.includes("throw new Error") && authTokensCode.includes("AUTH_SECRET"), "Auth tokens module must throw if AUTH_SECRET is missing");
+});
