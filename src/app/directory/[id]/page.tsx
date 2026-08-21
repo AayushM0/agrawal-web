@@ -87,8 +87,12 @@ export default function MemberProfilePage() {
 
         <div className="bg-white border-2 border-brand-accent/30 rounded-3xl p-6 sm:p-10 shadow-warmLg">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 pb-6 border-b border-brand-accent/20">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border-2 border-brand-accent flex items-center justify-center text-2xl font-black text-brand-primary shadow-sm shrink-0">
-              {member.fullName ? member.fullName.charAt(0) : "A"}
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border-2 border-brand-accent flex items-center justify-center text-2xl font-black text-brand-primary shadow-sm shrink-0">
+              {member.photoUrl ? (
+                <img src={member.photoUrl} alt={member.fullName || "Member"} className="w-full h-full object-cover" />
+              ) : (
+                member.fullName ? member.fullName.charAt(0) : "A"
+              )}
             </div>
 
             <div className="flex-1 text-center sm:text-left">
@@ -98,9 +102,14 @@ export default function MemberProfilePage() {
                   #{member.householdCode}
                 </span>
               </div>
-              <p className="text-xs font-bold text-brand-gold font-devanagari mb-2">
+              <p className="text-xs font-bold text-brand-gold font-devanagari mb-1">
                 Gotra: {member.gotra} {member.relationToHead && `• Relation: ${member.relationToHead.toUpperCase()}`}
               </p>
+              {member.fatherName && (
+                <p className="text-xs font-semibold text-body-heading mb-1.5">
+                  <span className="text-body-muted">Father&apos;s Name (पिता का नाम):</span> {member.fatherName}
+                </p>
+              )}
               <p className="text-xs text-body-heading font-medium">
                 {member.profession || "Profession not specified"}
               </p>
@@ -116,6 +125,11 @@ export default function MemberProfilePage() {
             <div>
               <span className="text-[11px] font-bold text-body-muted block mb-0.5">Ancestral Native Place</span>
               <p className="font-semibold text-body-heading">{member.nativePlace || "Not specified"}</p>
+            </div>
+
+            <div>
+              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Father&apos;s Full Name</span>
+              <p className="font-semibold text-body-heading">{member.fatherName || "Not specified"}</p>
             </div>
 
             <div>

@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS members (
     profession_category TEXT,
     phone TEXT,
     email TEXT,
+    father_name TEXT,
     photo_url TEXT,
     bio TEXT,
     verified_by_self BOOLEAN NOT NULL DEFAULT FALSE,

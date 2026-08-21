@@ -18,6 +18,7 @@ export interface Member {
   profession: string;
   phone?: string;
   email?: string;
+  fatherName?: string;
   photoUrl?: string;
   bio?: string;
   verifiedBySelf: boolean;

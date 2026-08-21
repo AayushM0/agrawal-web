@@ -196,7 +196,8 @@ export const db = {
       const mRes = await pool.query(
         `SELECT id, household_id as "householdId", full_name as "fullName", relation_to_head as "relationToHead",
                 dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
-                current_country as "currentCountry", profession_freetext as "profession", phone, email, bio,
+                current_country as "currentCountry", profession_freetext as "profession", phone, email,
+                father_name as "fatherName", photo_url as "photoUrl", bio,
                 verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
                 visibility_contact, visibility_dob, visibility_photo
          FROM members WHERE household_id = $1 ORDER BY created_at ASC;`,
@@ -264,10 +265,10 @@ export const db = {
         const insertMQuery = `
           INSERT INTO members (
             id, household_id, full_name, relation_to_head, dob, gender, marital_status,
-            current_city, current_country, profession_freetext, phone, email, bio,
+            current_city, current_country, profession_freetext, phone, email, father_name, photo_url, bio,
             visibility_contact, visibility_dob, visibility_photo, verified_by_self, owner_locked
           ) VALUES (
-            gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
+            gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
           );
         `;
         await client.query(insertMQuery, [
@@ -282,6 +283,8 @@ export const db = {
           m.profession || "Not specified",
           m.phone || null,
           m.email || null,
+          m.fatherName || null,
+          m.photoUrl || null,
           m.bio || null,
           m.visibility?.contactInfo || "members_only",
           m.visibility?.dob || "hidden",
@@ -312,7 +315,7 @@ export const db = {
           m.id, m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
           m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
           m.current_country as "currentCountry", m.profession_freetext as "profession",
-          m.phone, m.email, m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
+          m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
           m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
           h.household_code as "householdCode", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
         FROM members m
@@ -342,7 +345,7 @@ export const db = {
           m.id, m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
           m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
           m.current_country as "currentCountry", m.profession_freetext as "profession",
-          m.phone, m.email, m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
+          m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
           m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
           h.household_code as "householdCode", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
         FROM members m

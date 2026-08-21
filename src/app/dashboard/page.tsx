@@ -207,27 +207,39 @@ export default function DashboardPage() {
                   key={m.id}
                   className="p-4 sm:p-5 rounded-2xl border border-brand-accent/30 bg-canvas-warm/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                 >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <h3 className="text-sm font-bold text-brand-primary truncate">{m.fullName}</h3>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full va-badge-gold uppercase shrink-0">
-                        {m.relationToHead}
-                      </span>
-                      {m.ownerLocked ? (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-300 shrink-0">
-                          🔒 Self-Claimed & Locked
-                        </span>
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border border-brand-accent flex items-center justify-center text-base font-bold text-brand-primary shrink-0">
+                      {m.photoUrl ? (
+                        <img src={m.photoUrl} alt={m.fullName} className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-300 shrink-0">
-                          👤 Managed by You
-                        </span>
+                        m.fullName ? m.fullName.charAt(0) : "M"
                       )}
                     </div>
 
-                    <p className="text-xs text-body-heading truncate">{m.profession || "Profession not listed"}</p>
-                    <p className="text-[11px] text-body-muted truncate">
-                      {m.currentCity || household.nativePlace}, {m.currentCountry || "India"} {m.dob && `• DOB: ${m.dob}`}
-                    </p>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 className="text-sm font-bold text-brand-primary truncate">{m.fullName}</h3>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full va-badge-gold uppercase shrink-0">
+                          {m.relationToHead}
+                        </span>
+                        {m.ownerLocked ? (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-300 shrink-0">
+                            🔒 Self-Claimed & Locked
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-300 shrink-0">
+                            👤 Managed by You
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-body-heading truncate">
+                        {m.profession || "Profession not listed"} {m.fatherName && `• s/o ${m.fatherName}`}
+                      </p>
+                      <p className="text-[11px] text-body-muted truncate">
+                        {m.currentCity || household.nativePlace}, {m.currentCountry || "India"} {m.dob && `• DOB: ${m.dob}`}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2 self-start sm:self-center shrink-0">

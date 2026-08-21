@@ -76,6 +76,23 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     return { success: false, error: "At least one family member (Head of Household) must be added." };
   }
 
+  // Mandatory Father's Name & Dual Contact Check for Head of Household (Member[0])
+  const head = input.members[0];
+  const headFatherName = head.fatherName?.trim();
+  if (!headFatherName || headFatherName.length < 2 || headFatherName.length > 100) {
+    return { success: false, error: "Father's Full Name (पिता का नाम) is required for Head of Household." };
+  }
+
+  const headPhone = head.phone?.trim();
+  if (!headPhone || headPhone.replace(/[^0-9]/g, "").length < 7) {
+    return { success: false, error: "A valid mobile phone number is required for Head of Household." };
+  }
+
+  const headEmail = head.email?.trim();
+  if (!headEmail || !headEmail.includes("@") || headEmail.length < 5) {
+    return { success: false, error: "A valid email address is required for Head of Household." };
+  }
+
   for (let i = 0; i < input.members.length; i++) {
     const m = input.members[i];
     const memberName = m.fullName?.trim();
@@ -104,6 +121,10 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     ...m,
     fullName: m.fullName.trim(),
     relationToHead: (m.relationToHead?.toLowerCase() as any) || (idx === 0 ? "self" : "other"),
+    fatherName: m.fatherName?.trim() || undefined,
+    photoUrl: m.photoUrl?.trim() || undefined,
+    phone: m.phone ? (m.phone.includes("@") ? m.phone.trim() : normalizePhoneNumber(m.phone)) : undefined,
+    email: m.email?.trim().toLowerCase() || undefined,
     currentCity: m.currentCity?.trim() || cleanNativePlace,
     currentCountry: m.currentCountry?.trim() || "India",
     profession: m.profession?.trim() || "",
