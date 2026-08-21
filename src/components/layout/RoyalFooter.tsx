@@ -10,7 +10,7 @@ export default function RoyalFooter() {
           <div>
             <div className="flex items-center gap-3.5 mb-4">
               <Image
-                src="/images/logo.png"
+                src="/images/logo-transparent.png"
                 alt="Maharaja Agrasen Foundation Limited Singapore Logo"
                 width={50}
                 height={50}

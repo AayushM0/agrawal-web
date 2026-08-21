@@ -39,7 +39,7 @@ export default function MainHeader() {
         <Link href="/" className="flex items-center gap-2.5 sm:gap-3.5 text-decoration-none group shrink-0">
           <div className="relative w-11 h-11 sm:w-14 sm:h-14 shrink-0 transition-transform group-hover:scale-105">
             <Image
-              src="/images/logo.png"
+              src="/images/logo-transparent.png"
               alt="Maharaja Agrasen Foundation Limited Singapore Logo"
               width={58}
               height={58}

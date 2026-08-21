@@ -11,7 +11,7 @@ export default function MainFooter() {
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <Image
-                src="/images/logo.png"
+                src="/images/logo-transparent.png"
                 alt="Maharaja Agrasen Foundation Limited Singapore Logo"
                 width={44}
                 height={44}
