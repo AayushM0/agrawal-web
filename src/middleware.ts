@@ -54,15 +54,15 @@ export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const authCookie = req.cookies.get("auth_session")?.value;
 
-  const isLoginPage = pathname === "/login";
+  const isAuthPage = pathname === "/login" || pathname === "/signup" || pathname === "/signin";
   const isProtectedAdminRoute = pathname.startsWith("/admin");
   const isProtectedDirectoryRoute = pathname.startsWith("/directory");
   const isProtectedDashboardRoute = pathname.startsWith("/dashboard");
 
   const session = authCookie ? await verifyEdgeToken(authCookie) : null;
 
-  // 1. Only redirect away from /login if already logged in (allow /signup for family registration)
-  if (isLoginPage && session) {
+  // 1. Redirect away from /login, /signup, or /signin if already logged in
+  if (isAuthPage && session) {
     if (session.role === "admin") {
       return NextResponse.redirect(new URL("/admin/moderation", req.url));
     }
@@ -93,6 +93,7 @@ export const config = {
   matcher: [
     "/login",
     "/signup",
+    "/signin",
     "/directory/:path*",
     "/dashboard/:path*",
     "/admin/:path*",

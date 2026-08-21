@@ -8,6 +8,7 @@ import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
 import { registerHousehold, checkContactRegistration } from "@/actions/register";
 import { sendOtp, verifyOtp } from "@/actions/otp";
+import { getSession } from "@/actions/auth";
 
 function calculateAge(dobStr: string): number | null {
   if (!dobStr || !dobStr.trim()) return null;
@@ -31,6 +32,21 @@ function SignupContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [successCode, setSuccessCode] = useState("");
+
+  // Check if already authenticated and redirect to dashboard
+  useEffect(() => {
+    async function checkAuth() {
+      const session = await getSession();
+      if (session) {
+        if (session.role === "admin") {
+          router.push("/admin/moderation");
+        } else {
+          router.push("/dashboard");
+        }
+      }
+    }
+    checkAuth();
+  }, [router]);
 
   // Step 1: Contact Verification State
   const [contactType, setContactType] = useState<"phone" | "email">(
