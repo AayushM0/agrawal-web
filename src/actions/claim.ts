@@ -7,7 +7,7 @@ export async function createClaimInvite(memberId: string) {
   return {
     success: true,
     token,
-    claimUrl: `https://agrawal-directory.org/claim?token=${token}`,
+    claimUrl: `https://agarwal-directory.org/claim?token=${token}`,
   };
 }
 

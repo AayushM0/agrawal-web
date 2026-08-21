@@ -12,7 +12,7 @@ export default function FounderAppeal() {
                 Founders Appeal • संदेश
               </span>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black leading-tight">
-                An Appeal to Every Agrawal Family
+                An Appeal to Every Agarwal Family
               </h2>
               <p className="text-xs sm:text-sm text-white/90 leading-relaxed max-w-2xl">
                 Our vision is to document, unite, and empower every family in our global community. By registering your household today, you help build an unbreakable legacy of mutual support, cultural preservation, and youth opportunities.
@@ -39,7 +39,7 @@ export default function FounderAppeal() {
                 Maharaja Agrasen Foundation Limited Singapore
               </h3>
               <p className="text-white/90 leading-relaxed">
-                Dedicated to the socio-economic advancement and cultural solidarity of the global Agrawal community.
+                Dedicated to the socio-economic advancement and cultural solidarity of the global Agarwal community.
               </p>
               <div className="pt-2 border-t border-white/15 text-[11px] text-white/80">
                 Free Registration • No Commercial Advertisements • Data Protected

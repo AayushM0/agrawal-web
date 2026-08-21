@@ -8,7 +8,7 @@ const pillars = [
     hindi: "वैश्विक परिवार निर्देशिका",
     status: "LIVE",
     isLive: true,
-    desc: "Connecting Agrawal families across India, Singapore, UAE, USA, Canada, UK, Australia, and worldwide. Search by location, native place, Gotra, and profession.",
+    desc: "Connecting Agarwal families across India, Singapore, UAE, USA, Canada, UK, Australia, and worldwide. Search by location, native place, Gotra, and profession.",
     actionText: "Register Family Free →",
     actionHref: "/signup",
     icon: (
@@ -57,7 +57,7 @@ const pillars = [
     hindi: "रोजगार व करियर",
     status: "COMING SOON",
     isLive: false,
-    desc: "Connecting talented Agrawal youth with corporate internships, executive positions, mentorship, and multinational career pathways.",
+    desc: "Connecting talented Agarwal youth with corporate internships, executive positions, mentorship, and multinational career pathways.",
     actionText: "Learn More",
     actionHref: "/about",
     icon: (
@@ -113,7 +113,7 @@ export default function SevenPillarsGrid() {
             The 7 Pillars of the Platform
           </h2>
           <p className="text-xs sm:text-sm text-body-muted mt-1">
-            A staged ecosystem designed to unite, empower, and support Agrawal families globally.
+            A staged ecosystem designed to unite, empower, and support Agarwal families globally.
           </p>
         </div>
 

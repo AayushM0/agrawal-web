@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const SECRET = process.env.AUTH_SECRET || "agrawal_dir_secure_hmac_secret_2026_super_key_998127";
+const SECRET = process.env.AUTH_SECRET || "agarwal_dir_secure_hmac_secret_2026_super_key_998127";
 
 async function verifyEdgeToken(token: string): Promise<any | null> {
   if (!token || !token.includes(".")) return null;

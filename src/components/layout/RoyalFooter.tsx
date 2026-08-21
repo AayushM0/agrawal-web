@@ -24,7 +24,7 @@ export default function RoyalFooter() {
               </div>
             </div>
             <p className="text-xs leading-relaxed text-body-text/85 mb-4">
-              Our vision is to build a powerful and trusted Global Digital Platform for the Agrawal Community. Registration is completely FREE OF CHARGE.
+              Our vision is to build a powerful and trusted Global Digital Platform for the Agarwal Community. Registration is completely FREE OF CHARGE.
             </p>
             <p className="text-xs font-bold text-brand-primary font-devanagari">
               धर्म • सेवा • संस्कार • शिक्षा • समाज उत्थान

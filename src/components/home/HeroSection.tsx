@@ -11,7 +11,7 @@ export default function HeroSection() {
           </span>
           
           <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-brand-primary leading-[1.2] mb-3 sm:mb-4 tracking-tight">
-            Connecting Agrawals Worldwide Into One Trusted Global Family
+            Connecting Agarwals Worldwide Into One Trusted Global Family
           </h1>
           
           <p className="text-sm sm:text-base lg:text-lg font-bold text-body-heading mb-2 sm:mb-3">
@@ -22,7 +22,7 @@ export default function HeroSection() {
           </p>
           
           <p className="text-xs sm:text-sm lg:text-base text-body-text/85 leading-relaxed mb-6 sm:mb-8 max-w-2xl">
-            Built on the enduring principles of Maharaja Agrasen — Dharma, Seva, Sanskaar, Education, and Community Upliftment. A secure, trusted, and verified global platform where Agrawal families connect, collaborate, and grow together. Registration is completely <strong>FREE OF CHARGE</strong>.
+            Built on the enduring principles of Maharaja Agrasen — Dharma, Seva, Sanskaar, Education, and Community Upliftment. A secure, trusted, and verified global platform where Agarwal families connect, collaborate, and grow together. Registration is completely <strong>FREE OF CHARGE</strong>.
           </p>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">

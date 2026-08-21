@@ -97,7 +97,7 @@ export const initialMockHouseholds: Household[] = [
         profession: "Managing Director — International Steel & Commodities",
         phone: "+65 8765 4321",
         email: "vikram.jindal@globalmetals.sg",
-        bio: "Leading international trade across Southeast Asia and India. Coordinator for Global Agrawal Chapters.",
+        bio: "Leading international trade across Southeast Asia and India. Coordinator for Global Agarwal Chapters.",
         verifiedBySelf: true,
         ownerLocked: true,
         visibility: {

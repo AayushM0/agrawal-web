@@ -27,7 +27,7 @@ export default function MainFooter() {
               </div>
             </div>
             <p className="text-xs text-body-text/80 leading-relaxed">
-              Connecting Agrawal families globally under one trusted, verified lineage directory. Free forever for every family.
+              Connecting Agarwal families globally under one trusted, verified lineage directory. Free forever for every family.
             </p>
           </div>
 

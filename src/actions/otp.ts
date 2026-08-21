@@ -7,7 +7,7 @@ import twilio from "twilio";
 import { Resend } from "resend";
 
 function getOtpSecret(): string {
-  return process.env.AUTH_SECRET || "agrawal_dir_secure_otp_hmac_secret_2026_key_998127";
+  return process.env.AUTH_SECRET || "agarwal_dir_secure_otp_hmac_secret_2026_key_998127";
 }
 
 function signOtpChallenge(recipient: string, code: string, expiresAt: number, attempts: number = 0): string {

@@ -4,7 +4,7 @@ import type { SessionData } from "@/actions/auth";
 const MAX_SESSION_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 function getSecret(): string {
-  return process.env.AUTH_SECRET || "agrawal_dir_secure_hmac_secret_2026_super_key_998127";
+  return process.env.AUTH_SECRET || "agarwal_dir_secure_hmac_secret_2026_super_key_998127";
 }
 
 export function signSessionToken(data: SessionData): string {

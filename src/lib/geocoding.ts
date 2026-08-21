@@ -3,7 +3,7 @@ export interface Coordinates {
   longitude: number;
 }
 
-// Known coordinates cache for common Agrawal hub cities
+// Known coordinates cache for common Agarwal hub cities
 const KNOWN_COORDINATES: Record<string, Coordinates> = {
   "agroha": { latitude: 29.3522, longitude: 75.6144 },
   "new delhi": { latitude: 28.6139, longitude: 77.2090 },

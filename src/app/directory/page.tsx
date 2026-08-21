@@ -64,7 +64,7 @@ function DirectoryContent() {
               Verified Global Directory • सत्यापित निर्देशिका
             </span>
             <h1 className="text-xl sm:text-3xl font-black text-brand-primary">
-              Search Agrawal Individuals & Families
+              Search Agarwal Individuals & Families
             </h1>
             <p className="text-xs sm:text-sm text-body-muted mt-1">
               Search by Name, Gotra, Native Place, Profession, or City across the worldwide community.

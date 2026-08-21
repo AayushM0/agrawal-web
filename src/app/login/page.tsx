@@ -78,7 +78,7 @@ export default function LoginPage() {
       await createSession({
         userId: `admin-${Date.now()}`,
         role: "admin",
-        contact: contact.trim() || "admin@agrawal-foundation.org",
+        contact: contact.trim() || "admin@agarwal-foundation.org",
         householdStatus: "live",
       });
 
@@ -207,7 +207,7 @@ export default function LoginPage() {
                     type="email"
                     value={contact}
                     onChange={(e) => setContact(e.target.value)}
-                    placeholder="admin@agrawal-foundation.org"
+                    placeholder="admin@agarwal-foundation.org"
                     className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                   />
                 </div>
