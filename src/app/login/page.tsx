@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { sendOtp, verifyOtp } from "@/actions/otp";
+import { checkContactRegistration } from "@/actions/register";
 import { getSession, createSession, verifyAdminPassword } from "@/actions/auth";
 
 export default function LoginPage() {
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpMessage, setOtpMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [notRegistered, setNotRegistered] = useState(false);
 
   useEffect(() => {
     async function checkAuth() {
@@ -40,7 +42,21 @@ export default function LoginPage() {
     setIsSendingOtp(true);
     setErrorMessage("");
     setOtpMessage("");
+    setNotRegistered(false);
 
+    // 1. Check whether contact exists in the database
+    const checkRes = await checkContactRegistration(contact.trim());
+    if (!checkRes.isRegistered) {
+      setIsSendingOtp(false);
+      setNotRegistered(true);
+      setErrorMessage("This contact number/email is not registered with any family yet. Redirecting to Free Registration...");
+      setTimeout(() => {
+        router.push(`/signup?contact=${encodeURIComponent(contact.trim())}`);
+      }, 1500);
+      return;
+    }
+
+    // 2. Contact exists -> dispatch OTP
     const isPhone = !contact.includes("@");
     const res = await sendOtp({
       recipient: contact,
@@ -268,7 +284,27 @@ export default function LoginPage() {
               </div>
             )}
 
-            {errorMessage && (
+            {notRegistered && (
+              <div className="p-4 rounded-2xl bg-amber-50 border-2 border-brand-gold/60 space-y-2 animate-in fade-in">
+                <div className="flex items-start gap-2.5">
+                  <span className="text-xl">🏡</span>
+                  <div>
+                    <h4 className="text-xs font-bold text-brand-primary">No Family Registration Found</h4>
+                    <p className="text-[11px] text-body-text leading-relaxed mt-0.5">
+                      This mobile/email is not registered with any family. Please complete the one-time free registration first.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href={`/signup?contact=${encodeURIComponent(contact.trim())}`}
+                  className="block w-full py-2 px-4 rounded-xl text-xs font-bold text-center text-white va-btn-join shadow-sm mt-1"
+                >
+                  Register Family Free (Sign Up) →
+                </Link>
+              </div>
+            )}
+
+            {errorMessage && !notRegistered && (
               <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
                 ⚠️ {errorMessage}
               </div>

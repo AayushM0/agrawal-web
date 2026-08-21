@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import WizardProgressBar from "@/components/wizard/WizardProgressBar";
 import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
@@ -24,14 +24,19 @@ function calculateAge(dobStr: string): number | null {
 
 function SignupContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialContact = searchParams.get("contact") || "";
+
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [successCode, setSuccessCode] = useState("");
 
   // Step 1: Contact Verification State
-  const [contactType, setContactType] = useState<"phone" | "email">("phone");
-  const [contactValue, setContactValue] = useState("");
+  const [contactType, setContactType] = useState<"phone" | "email">(
+    initialContact && initialContact.includes("@") ? "email" : "phone"
+  );
+  const [contactValue, setContactValue] = useState(initialContact);
   const [otpValue, setOtpValue] = useState("");
   const [otpVerified, setOtpVerified] = useState(false);
   const [isSendingOtp, setIsSendingOtp] = useState(false);
@@ -39,6 +44,13 @@ function SignupContent() {
   const [otpMessage, setOtpMessage] = useState("");
   const [otpError, setOtpError] = useState("");
   const [alreadyRegisteredInfo, setAlreadyRegisteredInfo] = useState<{ isRegistered: boolean; householdCode?: string; headName?: string } | null>(null);
+
+  useEffect(() => {
+    if (initialContact && !contactValue) {
+      setContactValue(initialContact);
+      setContactType(initialContact.includes("@") ? "email" : "phone");
+    }
+  }, [initialContact]);
 
   // Step 2: Household Info State
   const [headName, setHeadName] = useState("");
