@@ -99,3 +99,18 @@ test("Seam 7: Cryptographic secrets must not have hardcoded fallbacks", () => {
   assert.ok(otpCode.includes("throw new Error") && otpCode.includes("AUTH_SECRET"), "OTP module must throw if AUTH_SECRET is missing");
   assert.ok(authTokensCode.includes("throw new Error") && authTokensCode.includes("AUTH_SECRET"), "Auth tokens module must throw if AUTH_SECRET is missing");
 });
+
+// --- SEAM 8: OTP Optimization & Rate Limiting ---
+test("Seam 8: OTP must use native fetch and implement rate limiting", () => {
+  const pkgJson = fs.readFileSync(path.join(webRoot, "package.json"), "utf8");
+  const otpCode = fs.readFileSync(path.join(webRoot, "src/actions/otp.ts"), "utf8");
+  
+  assert.ok(!pkgJson.includes("twilio:"), "twilio SDK must be removed from package.json");
+  assert.ok(!pkgJson.includes("resend:"), "resend SDK must be removed from package.json");
+  
+  assert.ok(!otpCode.includes("import twilio"), "twilio SDK import must be removed");
+  assert.ok(!otpCode.includes("import { Resend }"), "resend SDK import must be removed");
+  
+  assert.ok(otpCode.includes("fetch("), "Must use native fetch for external API calls");
+  assert.ok(otpCode.includes("rateLimits") || otpCode.includes("RateLimit"), "Must implement rate limiting on OTP attempts");
+});
