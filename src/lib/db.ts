@@ -41,6 +41,14 @@ class FallbackStore {
       if (hClean === clean || hClean === canonical || (last10 && hLast10 === last10)) {
         return h;
       }
+      for (const m of h.members) {
+        const mEmail = (m.email || "").trim().toLowerCase();
+        const mPhone = (m.phone || "").trim().toLowerCase();
+        const mDigits = mPhone.replace(/[^0-9]/g, "");
+        if (mEmail === clean || (last10.length >= 10 && mDigits.endsWith(last10))) {
+          return h;
+        }
+      }
     }
     return null;
   }
@@ -213,6 +221,7 @@ export const db = {
 
     if (!pool) return fallbackStore.getHouseholdByContact(contact);
     try {
+      let h: any = null;
       const res = await pool.query(
         `SELECT * FROM households 
          WHERE verified_contact = $1 
@@ -222,8 +231,27 @@ export const db = {
          LIMIT 1`,
         [clean, canonical, last10, `%${last10}`]
       );
-      if (res.rows.length === 0) return fallbackStore.getHouseholdByContact(contact);
-      const h = res.rows[0];
+      if (res.rows.length > 0) {
+        h = res.rows[0];
+      } else {
+        // Search via claimed/registered members in that household
+        const memberHouseholdRes = await pool.query(
+          `SELECT h.* 
+           FROM households h
+           JOIN members m ON m.household_id = h.id
+           WHERE m.phone = $1 
+              OR m.phone = $2 
+              OR m.phone LIKE $3
+              OR LOWER(m.email) = LOWER($4)
+           LIMIT 1`,
+          [clean, canonical, `%${last10}`, canonical]
+        );
+        if (memberHouseholdRes.rows.length > 0) {
+          h = memberHouseholdRes.rows[0];
+        }
+      }
+
+      if (!h) return fallbackStore.getHouseholdByContact(contact);
       const mRes = await pool.query(
         `SELECT id, household_id as "householdId", full_name as "fullName", relation_to_head as "relationToHead",
                 dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
