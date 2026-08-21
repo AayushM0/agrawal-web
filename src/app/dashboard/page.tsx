@@ -9,6 +9,7 @@ import { clearSession } from "@/actions/auth";
 import { saveMemberProfile, saveHouseholdInfo } from "@/actions/profile";
 import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
+import LocationSelector from "@/components/LocationSelector";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -553,31 +554,13 @@ export default function DashboardPage() {
                   />
                 </div>
 
-                {/* Current City */}
-                <div>
-                  <label className="block text-xs font-bold text-body-heading mb-1">
-                    Current City (वर्तमान शहर)
-                  </label>
-                  <input
-                    type="text"
-                    value={editingMember.currentCity || ""}
-                    onChange={(e) => setEditingMember({ ...editingMember, currentCity: e.target.value })}
-                    placeholder="e.g. Mumbai"
-                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
-                  />
-                </div>
-
-                {/* Current Country */}
-                <div>
-                  <label className="block text-xs font-bold text-body-heading mb-1">
-                    Current Country (देश)
-                  </label>
-                  <input
-                    type="text"
-                    value={editingMember.currentCountry || "India"}
-                    onChange={(e) => setEditingMember({ ...editingMember, currentCountry: e.target.value })}
-                    placeholder="e.g. India"
-                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                <div className="col-span-full">
+                  <LocationSelector
+                    country={editingMember.currentCountry || ""}
+                    city={editingMember.currentCity || ""}
+                    onLocationChange={(country, city) => 
+                      setEditingMember({ ...editingMember, currentCountry: country, currentCity: city })
+                    }
                   />
                 </div>
               </div>

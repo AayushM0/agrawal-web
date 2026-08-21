@@ -10,6 +10,7 @@ import { registerHousehold, checkContactRegistration } from "@/actions/register"
 import { checkContactAvailability } from "@/actions/claim";
 import { sendOtp, verifyOtp } from "@/actions/otp";
 import { getSession, clearSession } from "@/actions/auth";
+import LocationSelector from "@/components/LocationSelector";
 
 function calculateAge(dobStr: string): number | null {
   if (!dobStr || !dobStr.trim()) return null;
@@ -1038,17 +1039,15 @@ function SignupContent() {
                           )}
                         </div>
 
-                        {/* 9. Current City */}
-                        <div>
-                          <label className="block text-[11px] font-bold text-body-heading mb-1">
-                            Current City
-                          </label>
-                          <input
-                            type="text"
-                            value={member.currentCity}
-                            onChange={(e) => updateMember(member.id, "currentCity", e.target.value)}
-                            placeholder="e.g. New Delhi"
-                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                        {/* Location Selector */}
+                        <div className="sm:col-span-2">
+                          <LocationSelector
+                            country={member.currentCountry || ""}
+                            city={member.currentCity || ""}
+                            onLocationChange={(country, city) => {
+                              updateMember(member.id, "currentCountry", country);
+                              updateMember(member.id, "currentCity", city);
+                            }}
                           />
                         </div>
 
