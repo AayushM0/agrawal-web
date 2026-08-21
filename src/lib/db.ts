@@ -299,6 +299,7 @@ export const db = {
       );
       const members = mRes.rows.map(m => ({
         ...m,
+        dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString() : String(m.dob)) : "",
         visibility: {
           contactInfo: m.visibility_contact,
           dob: m.visibility_dob,
@@ -419,6 +420,7 @@ export const db = {
       if (res.rows.length === 0) return fallbackStore.getAllMembers();
       return res.rows.map(r => ({
         ...r,
+        dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
         visibility: {
           contactInfo: r.visibility_contact,
           dob: r.visibility_dob,
@@ -451,6 +453,7 @@ export const db = {
       const r = res.rows[0];
       return {
         ...r,
+        dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
         visibility: {
           contactInfo: r.visibility_contact,
           dob: r.visibility_dob,

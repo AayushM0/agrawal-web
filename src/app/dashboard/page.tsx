@@ -500,7 +500,7 @@ export default function DashboardPage() {
                   </label>
                   <input
                     type="date"
-                    value={editingMember.dob ? editingMember.dob.split("T")[0] : ""}
+                    value={editingMember.dob ? String(editingMember.dob).split("T")[0] : ""}
                     onChange={(e) => setEditingMember({ ...editingMember, dob: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   />
