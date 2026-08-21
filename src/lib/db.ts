@@ -1,7 +1,6 @@
 import { normalizePhoneNumber } from "@/lib/phone";
 import { Pool } from "pg";
 import type { Household, Member } from "../types/household";
-import { initialMockHouseholds } from "../data/mockMembers";
 
 let pool: Pool | null = null;
 
@@ -16,161 +15,12 @@ if (process.env.DATABASE_URL) {
       keepAlive: true,
     });
   } catch (err) {
-    console.warn("Failed to initialize PG pool, using fallback store:", err);
+    console.error("Failed to initialize PG pool:", err);
+    throw err;
   }
 }
 
-// In-memory fallback if DATABASE_URL is not set or queries fail
-class FallbackStore {
-  private households: Map<string, Household> = new Map();
-  constructor() {
-    initialMockHouseholds.forEach((h) => this.households.set(h.id, JSON.parse(JSON.stringify(h))));
-  }
-  async getHouseholds(): Promise<Household[]> { return Array.from(this.households.values()); }
-  async getHouseholdById(id: string): Promise<Household | null> { return this.households.get(id) || null; }
-  async getHouseholdByContact(contact: string): Promise<Household | null> {
-    if (!contact) return null;
-    const clean = contact.trim().toLowerCase();
-    const isPhone = !clean.includes("@");
-    const canonical = isPhone ? normalizePhoneNumber(clean) : clean;
-    const last10 = clean.replace(/[^0-9]/g, "").slice(-10);
 
-    for (const h of this.households.values()) {
-      const hClean = h.verifiedContact.trim().toLowerCase();
-      const hLast10 = hClean.replace(/[^0-9]/g, "").slice(-10);
-      if (hClean === clean || hClean === canonical || (last10 && hLast10 === last10)) {
-        return h;
-      }
-      for (const m of h.members) {
-        const mEmail = (m.email || "").trim().toLowerCase();
-        const mPhone = (m.phone || "").trim().toLowerCase();
-        const mDigits = mPhone.replace(/[^0-9]/g, "");
-        if (mEmail === clean || (last10.length >= 10 && mDigits.endsWith(last10))) {
-          return h;
-        }
-      }
-    }
-    return null;
-  }
-  async createHousehold(household: Household): Promise<Household> {
-    this.households.set(household.id, household);
-    return household;
-  }
-  async updateHouseholdStatus(id: string, status: "pending_review" | "live" | "rejected", rejectionReason?: string): Promise<Household | null> {
-    const h = this.households.get(id);
-    if (!h) return null;
-    h.status = status;
-    if (rejectionReason) h.rejectionReason = rejectionReason;
-    this.households.set(id, h);
-    return h;
-  }
-  async approveAllPendingHouseholds(): Promise<number> {
-    let count = 0;
-    for (const h of this.households.values()) {
-      if (h.status === "pending_review") {
-        h.status = "live";
-        count++;
-      }
-    }
-    return count;
-  }
-  async getAllMembers(): Promise<any[]> {
-    const results: any[] = [];
-    for (const h of this.households.values()) {
-      for (const m of h.members) {
-        results.push({ ...m, householdCode: h.householdCode, gotra: h.gotra, nativePlace: h.nativePlace, householdStatus: h.status });
-      }
-    }
-    return results;
-  }
-  async getMemberById(memberId: string): Promise<any | null> {
-    const all = await this.getAllMembers();
-    const clean = memberId?.trim();
-    if (!clean) return null;
-    return all.find((m) => 
-      m.id === clean || 
-      m.id?.toString() === clean || 
-      m.householdCode === clean || 
-      m.householdCode?.replace('#', '') === clean ||
-      (m.householdId && m.householdId.toString() === clean)
-    ) || null;
-  }
-  async claimMember(memberId: string, contactInfo?: { phone?: string; email?: string }): Promise<boolean> {
-    for (const h of this.households.values()) {
-      const m = h.members.find((mem) => mem.id === memberId || (mem as any).id?.toString() === memberId);
-      if (m) { 
-        m.verifiedBySelf = true; 
-        m.ownerLocked = true;
-        if (contactInfo?.phone) m.phone = contactInfo.phone;
-        if (contactInfo?.email) m.email = contactInfo.email;
-        return true; 
-      }
-    }
-    return false;
-  }
-  async updateMemberProfile(memberId: string, updates: Partial<Member>): Promise<boolean> {
-    for (const h of this.households.values()) {
-      const m = h.members.find((mem) => mem.id === memberId || (mem as any).id?.toString() === memberId);
-      if (m) {
-        if (updates.fullName !== undefined) m.fullName = updates.fullName;
-        if (updates.fatherName !== undefined) m.fatherName = updates.fatherName;
-        if (updates.photoUrl !== undefined) m.photoUrl = updates.photoUrl;
-        if (updates.dob !== undefined) m.dob = updates.dob;
-        if (updates.gender !== undefined) m.gender = updates.gender;
-        if (updates.maritalStatus !== undefined) m.maritalStatus = updates.maritalStatus;
-        if (updates.currentCity !== undefined) m.currentCity = updates.currentCity;
-        if (updates.currentCountry !== undefined) m.currentCountry = updates.currentCountry;
-        if (updates.profession !== undefined) m.profession = updates.profession;
-        if (updates.bio !== undefined) m.bio = updates.bio;
-        if (updates.visibility) {
-          m.visibility = { ...m.visibility, ...updates.visibility };
-        }
-        if (m.relationToHead === "self") {
-          h.headName = m.fullName;
-        }
-        return true;
-      }
-    }
-    return false;
-  }
-  async updateHouseholdProfile(householdId: string, updates: { nativePlace?: string; gotra?: string; headName?: string }): Promise<boolean> {
-    const h = this.households.get(householdId) || Array.from(this.households.values()).find(item => item.id === householdId || item.householdCode === householdId);
-    if (h) {
-      if (updates.nativePlace !== undefined) h.nativePlace = updates.nativePlace;
-      if (updates.gotra !== undefined) h.gotra = updates.gotra;
-      if (updates.headName !== undefined) h.headName = updates.headName;
-      return true;
-    }
-    return false;
-  }
-  async checkContactExists(contact: string, excludeMemberId?: string): Promise<{ exists: boolean; type?: "head" | "member"; name?: string; householdCode?: string }> {
-    const clean = (contact || "").trim().toLowerCase();
-    if (!clean || clean.length < 5) return { exists: false };
-    const digits = clean.replace(/[^0-9]/g, "");
-
-    for (const h of this.households.values()) {
-      const hContact = (h.verifiedContact || "").trim().toLowerCase();
-      const hDigits = hContact.replace(/[^0-9]/g, "");
-      if (hContact === clean || (digits.length >= 10 && hDigits.endsWith(digits.slice(-10)))) {
-        return { exists: true, type: "head", name: h.headName, householdCode: h.householdCode };
-      }
-      for (const m of h.members) {
-        if (excludeMemberId && (m.id === excludeMemberId || (m as any).id?.toString() === excludeMemberId)) {
-          continue;
-        }
-        const mEmail = (m.email || "").trim().toLowerCase();
-        const mPhone = (m.phone || "").trim().toLowerCase();
-        const mDigits = mPhone.replace(/[^0-9]/g, "");
-        if (mEmail === clean || (digits.length >= 10 && mDigits.endsWith(digits.slice(-10)))) {
-          return { exists: true, type: "member", name: m.fullName, householdCode: h.householdCode };
-        }
-      }
-    }
-    return { exists: false };
-  }
-}
-
-const fallbackStore = new FallbackStore();
 
 // Safe helper to sanitize dates for PostgreSQL DATE columns
 function sanitizeDate(dob?: string): string {
@@ -213,7 +63,7 @@ function sanitizeRelation(rel?: string): "self" | "spouse" | "son" | "daughter" 
 
 export const db = {
   async getHouseholds(): Promise<Household[]> {
-    if (!pool) return fallbackStore.getHouseholds();
+    if (!pool) throw new Error("Database not connected");
     try {
       const res = await pool.query("SELECT * FROM households;");
       return res.rows.map(h => ({
@@ -230,9 +80,8 @@ export const db = {
         members: []
       }));
     } catch (e) {
-      console.warn("DB Error in getHouseholds, falling back to local store:", e);
-      return fallbackStore.getHouseholds();
-    }
+    throw e;
+  }
   },
 
   async deleteHousehold(id: string): Promise<boolean> {
@@ -241,9 +90,8 @@ export const db = {
       await pool.query("DELETE FROM households WHERE id = $1;", [id]);
       return true;
     } catch (e) {
-      console.warn("DB Error in deleteHousehold:", e);
-      return false;
-    }
+    throw e;
+  }
   },
 
   async getHouseholdByContact(contact: string): Promise<Household | null> {
@@ -254,7 +102,7 @@ export const db = {
     const rawDigits = clean.replace(/[^0-9]/g, "");
     const last10 = rawDigits.slice(-10);
 
-    if (!pool) return fallbackStore.getHouseholdByContact(contact);
+    if (!pool) throw new Error("Database not connected");
     try {
       let h: any = null;
       const res = await pool.query(
@@ -286,7 +134,7 @@ export const db = {
         }
       }
 
-      if (!h) return fallbackStore.getHouseholdByContact(contact);
+      if (!h) return null;
       const mRes = await pool.query(
         `SELECT id, household_id as "householdId", full_name as "fullName", relation_to_head as "relationToHead",
                 dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
@@ -321,15 +169,13 @@ export const db = {
         members,
       };
     } catch (e) {
-      console.warn("DB Error in getHouseholdByContact, falling back to local store:", e);
-      return fallbackStore.getHouseholdByContact(contact);
-    }
+    throw e;
+  }
   },
 
   async createHousehold(household: Household): Promise<Household> {
     // Always store in memory fallback as well to ensure immediate availability
-    await fallbackStore.createHousehold(household);
-
+    
     if (!pool) return household;
     
     let client;
@@ -403,7 +249,7 @@ export const db = {
   },
 
   async getAllMembers(): Promise<any[]> {
-    if (!pool) return fallbackStore.getAllMembers();
+    if (!pool) throw new Error("Database not connected");
     try {
       const query = `
         SELECT 
@@ -417,7 +263,7 @@ export const db = {
         JOIN households h ON m.household_id = h.id;
       `;
       const res = await pool.query(query);
-      if (res.rows.length === 0) return fallbackStore.getAllMembers();
+      if (res.rows.length === 0) return [];
       return res.rows.map(r => ({
         ...r,
         dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
@@ -428,13 +274,12 @@ export const db = {
         }
       }));
     } catch (e) {
-      console.warn("DB Error in getAllMembers, using fallback store:", e);
-      return fallbackStore.getAllMembers();
-    }
+    throw e;
+  }
   },
 
   async getMemberById(memberId: string): Promise<any | null> {
-    if (!pool) return fallbackStore.getMemberById(memberId);
+    if (!pool) throw new Error("Database not connected");
     try {
       const query = `
         SELECT 
@@ -449,7 +294,7 @@ export const db = {
         WHERE m.id::text = $1 OR h.household_code = $1 OR h.id::text = $1;
       `;
       const res = await pool.query(query, [memberId]);
-      if (res.rows.length === 0) return fallbackStore.getMemberById(memberId);
+      if (res.rows.length === 0) return null;
       const r = res.rows[0];
       return {
         ...r,
@@ -461,34 +306,30 @@ export const db = {
         }
       };
     } catch (e) {
-      console.warn("DB Error in getMemberById, using fallback store:", e);
-      return fallbackStore.getMemberById(memberId);
-    }
+    throw e;
+  }
   },
 
   async approveAllPendingHouseholds(): Promise<number> {
-    if (!pool) return fallbackStore.approveAllPendingHouseholds();
+    if (!pool) throw new Error("Database not connected");
     try {
       const res = await pool.query(
         "UPDATE households SET status = 'live' WHERE status = 'pending_review' RETURNING id;"
       );
-      fallbackStore.approveAllPendingHouseholds();
-      return res.rowCount || 0;
+            return res.rowCount || 0;
     } catch (e) {
-      console.warn("DB Error in approveAllPendingHouseholds, using fallback store:", e);
-      return fallbackStore.approveAllPendingHouseholds();
-    }
+    throw e;
+  }
   },
 
   async updateHouseholdStatus(id: string, status: "pending_review" | "live" | "rejected", rejectionReason?: string) {
-    if (!pool) return fallbackStore.updateHouseholdStatus(id, status, rejectionReason);
+    if (!pool) throw new Error("Database not connected");
     try {
       const res = await pool.query(
         "UPDATE households SET status = $1, rejection_reason = $2 WHERE id = $3 RETURNING *;",
         [status, rejectionReason || null, id]
       );
-      fallbackStore.updateHouseholdStatus(id, status, rejectionReason);
-      if (res.rows.length === 0) return fallbackStore.updateHouseholdStatus(id, status, rejectionReason);
+            if (res.rows.length === 0) return null;
       const h = res.rows[0];
       return {
         id: h.id,
@@ -504,13 +345,12 @@ export const db = {
         members: [],
       };
     } catch (e) {
-      console.warn("DB Error in updateHouseholdStatus, using fallback:", e);
-      return fallbackStore.updateHouseholdStatus(id, status, rejectionReason);
-    }
+    throw e;
+  }
   },
 
   async claimMember(memberId: string, contactInfo?: { phone?: string; email?: string }): Promise<boolean> {
-    if (!pool) return fallbackStore.claimMember(memberId, contactInfo);
+    if (!pool) throw new Error("Database not connected");
     try {
       const res = await pool.query(
         `UPDATE members 
@@ -522,13 +362,11 @@ export const db = {
          RETURNING id;`,
         [memberId, contactInfo?.phone || null, contactInfo?.email ? contactInfo.email.trim().toLowerCase() : null]
       );
-      fallbackStore.claimMember(memberId, contactInfo);
-      if (res.rows.length === 0) return fallbackStore.claimMember(memberId, contactInfo);
+            if (res.rows.length === 0) return false;
       return true;
     } catch (e) {
-      console.warn("DB Error in claimMember, using fallback:", e);
-      return fallbackStore.claimMember(memberId, contactInfo);
-    }
+    throw e;
+  }
   },
 
   async checkContactExists(contact: string, excludeMemberId?: string): Promise<{ exists: boolean; type?: "head" | "member"; name?: string; householdCode?: string }> {
@@ -539,7 +377,7 @@ export const db = {
     const digitsOnly = clean.replace(/[^0-9]/g, "");
     const last10 = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
 
-    if (!pool) return fallbackStore.checkContactExists(contact, excludeMemberId);
+    if (!pool) throw new Error("Database not connected");
 
     try {
       // 1. Check in households (verified_contact)
@@ -572,14 +410,12 @@ export const db = {
 
       return { exists: false };
     } catch (e) {
-      console.warn("DB Error in checkContactExists, using fallback store:", e);
-      return fallbackStore.checkContactExists(contact, excludeMemberId);
-    }
+    throw e;
+  }
   },
 
   async updateMemberProfile(memberId: string, updates: Partial<Member>): Promise<boolean> {
-    fallbackStore.updateMemberProfile(memberId, updates);
-    if (!pool) return true;
+        if (!pool) return true;
     try {
       const safeDob = updates.dob ? sanitizeDate(updates.dob) : null;
       const res = await pool.query(
@@ -621,14 +457,12 @@ export const db = {
       }
       return res.rows.length > 0;
     } catch (e) {
-      console.warn("DB Error in updateMemberProfile, using fallback store:", e);
-      return true;
-    }
+    throw e;
+  }
   },
 
   async updateHouseholdProfile(householdId: string, updates: { nativePlace?: string; gotra?: string; headName?: string }): Promise<boolean> {
-    fallbackStore.updateHouseholdProfile(householdId, updates);
-    if (!pool) return true;
+        if (!pool) return true;
     try {
       const res = await pool.query(
         `UPDATE households 
@@ -641,8 +475,7 @@ export const db = {
       );
       return res.rows.length > 0;
     } catch (e) {
-      console.warn("DB Error in updateHouseholdProfile, using fallback store:", e);
-      return true;
-    }
+    throw e;
+  }
   },
 };

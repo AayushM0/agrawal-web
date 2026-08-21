@@ -78,3 +78,12 @@ test("Seam 5: OTP Server Action generates code and verifies successfully", () =>
   assert.ok(otpCode.includes("attempts"), "Must track brute force attempts");
   assert.ok(otpCode.includes("expiresAt"), "Must enforce expiry TTL");
 });
+
+// --- SEAM 6: Database Layer Fail-Loud Contract ---
+test("Seam 6: Database layer throws errors instead of swallowing them", () => {
+  const dbCode = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  
+  assert.ok(!dbCode.includes("class FallbackStore"), "FallbackStore must be completely removed");
+  assert.ok(!dbCode.includes("fallbackStore."), "Must not reference fallbackStore");
+  assert.ok(dbCode.includes("throw ") || !dbCode.includes("catch (e)"), "Must throw errors or remove swallowing catch blocks entirely");
+});
