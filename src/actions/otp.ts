@@ -75,24 +75,22 @@ export async function sendOtp(input: SendOtpInput) {
     return { success: false, error: "Please provide a valid mobile number or email address." };
   }
 
-  // Generate 6-digit OTP code (or 123456 in demo/sandbox fallback)
-  const generatedCode = crypto.randomInt(100000, 999999).toString();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-  // Set stateless signed challenge cookie (immune to Serverless lambda lifecycle)
-  const challengeToken = signOtpChallenge(normalized, generatedCode, expiresAt, 0);
-  const cookieStore = await cookies();
-  cookieStore.set("otp_challenge", challengeToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 10 * 60,
-  });
-
   // 1. Dispatch via EMAIL (Resend)
   if (!isPhone && resendClient) {
     try {
+      // Generate code for email (Verify API is phone-only)
+      const generatedCode = crypto.randomInt(100000, 999999).toString();
+      const expiresAt = Date.now() + 10 * 60 * 1000;
+      const challengeToken = signOtpChallenge(normalized, generatedCode, expiresAt, 0);
+      const cookieStore = await cookies();
+      cookieStore.set("otp_challenge", challengeToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 10 * 60,
+      });
+
       const emailHtml = `
         <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; background: #fffdf8; border: 1px solid #e69500; border-radius: 16px; padding: 24px; text-align: center;">
           <h2 style="color: #d9531e; margin-top: 0;">Maharaja Agrasen Foundation Limited Singapore</h2>
@@ -113,10 +111,7 @@ export async function sendOtp(input: SendOtpInput) {
 
       if (sendRes.error) {
         console.error("[RESEND ERROR]", sendRes.error);
-        return {
-          success: false,
-          error: `Unable to dispatch email OTP: ${sendRes.error.message}`,
-        };
+        return { success: false, error: `Unable to dispatch email OTP: ${sendRes.error.message}` };
       }
 
       return {
@@ -125,21 +120,58 @@ export async function sendOtp(input: SendOtpInput) {
       };
     } catch (err: any) {
       console.error("[RESEND EMAIL ERROR]", err);
+      return { success: false, error: "Failed to send email verification code. Please try again." };
+    }
+  }
+
+  // 2. Dispatch via Twilio Verify API (SMS) — works on any number, no sandbox opt-in
+  if (isPhone && twilioClient && process.env.TWILIO_VERIFY_SERVICE_SID) {
+    try {
+      // Mark phone channel for Verify API — cookie stores normalized number for verify step
+      const cookieStore = await cookies();
+      // Store a sentinel so verifyOtp knows to use Verify API instead of cookie code
+      cookieStore.set("otp_challenge", `verify_api:${normalized}`, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 10 * 60,
+      });
+
+      await twilioClient.verify.v2
+        .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+        .verifications.create({ to: normalized, channel: "sms" });
+
+      return {
+        success: true,
+        message: `A 6-digit verification passcode has been sent via SMS to ${normalized}.`,
+      };
+    } catch (err: any) {
+      console.error("[TWILIO VERIFY ERROR]", err);
       return {
         success: false,
-        error: "Failed to send email verification code. Please try again.",
+        error: `Failed to send SMS verification code: ${err.message}`,
       };
     }
   }
 
-  // 2. Dispatch via WHATSAPP (Twilio)
+  // 3. Fallback: WhatsApp sandbox (if Verify not configured)
   if (isPhone && twilioClient && process.env.TWILIO_WHATSAPP_FROM) {
     try {
-      await twilioClient.messages.create({
-        body: `Your Maharaja Agrasen Foundation verification code is: *${generatedCode}*.
+      const generatedCode = crypto.randomInt(100000, 999999).toString();
+      const expiresAt = Date.now() + 10 * 60 * 1000;
+      const challengeToken = signOtpChallenge(normalized, generatedCode, expiresAt, 0);
+      const cookieStore = await cookies();
+      cookieStore.set("otp_challenge", challengeToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 10 * 60,
+      });
 
-Valid for 10 minutes.
-- Maharaja Agrasen Foundation Limited Singapore`,
+      await twilioClient.messages.create({
+        body: `Your Maharaja Agrasen Foundation verification code is: *${generatedCode}*.\n\nValid for 10 minutes.\n- Maharaja Agrasen Foundation Limited Singapore`,
         from: process.env.TWILIO_WHATSAPP_FROM,
         to: `whatsapp:${normalized}`,
       });
@@ -150,14 +182,23 @@ Valid for 10 minutes.
       };
     } catch (err: any) {
       console.error("[TWILIO WHATSAPP ERROR]", err);
-      return {
-        success: false,
-        error: `Failed to dispatch WhatsApp OTP: ${err.message}`,
-      };
+      return { success: false, error: `Failed to dispatch OTP: ${err.message}` };
     }
   }
 
-  // 3. Fallback if gateway is not configured
+  // 4. No gateway configured — silent cookie fallback for dev
+  const generatedCode = crypto.randomInt(100000, 999999).toString();
+  const expiresAt = Date.now() + 10 * 60 * 1000;
+  const challengeToken = signOtpChallenge(normalized, generatedCode, expiresAt, 0);
+  const cookieStore = await cookies();
+  cookieStore.set("otp_challenge", challengeToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 10 * 60,
+  });
+  console.warn("[OTP DEV FALLBACK] No gateway configured. Code:", generatedCode);
   return {
     success: true,
     message: "A 6-digit verification passcode has been dispatched.",
@@ -188,6 +229,33 @@ export async function verifyOtp(input: VerifyOtpInput) {
     return { success: false, error: "OTP expired or not requested. Please click Send OTP." };
   }
 
+  // Route: Twilio Verify API check (phone OTP path)
+  if (challengeCookie.startsWith("verify_api:")) {
+    const expectedRecipient = challengeCookie.slice("verify_api:".length);
+    if (expectedRecipient !== normalized) {
+      return { success: false, error: "Contact details do not match the OTP request." };
+    }
+    if (!twilioClient || !process.env.TWILIO_VERIFY_SERVICE_SID) {
+      return { success: false, error: "Verification service not configured." };
+    }
+    try {
+      const check = await twilioClient.verify.v2
+        .services(process.env.TWILIO_VERIFY_SERVICE_SID)
+        .verificationChecks.create({ to: normalized, code: enteredOtp });
+
+      if (check.status !== "approved") {
+        return { success: false, error: "Invalid OTP code. Please check the SMS and try again." };
+      }
+
+      cookieStore.delete("otp_challenge");
+      return { success: true, verifiedAt: new Date().toISOString(), message: "Identity verified successfully." };
+    } catch (err: any) {
+      console.error("[TWILIO VERIFY CHECK ERROR]", err);
+      return { success: false, error: "Invalid or expired OTP code. Please request a new one." };
+    }
+  }
+
+  // Route: HMAC cookie verification (email OTP or WhatsApp fallback path)
   const challenge = verifyOtpChallenge(challengeCookie);
   if (!challenge) {
     return { success: false, error: "Verification token expired. Please request a new OTP." };
