@@ -8,7 +8,7 @@ import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
 import { registerHousehold, checkContactRegistration } from "@/actions/register";
 import { sendOtp, verifyOtp } from "@/actions/otp";
-import { getSession } from "@/actions/auth";
+import { getSession, clearSession } from "@/actions/auth";
 
 function calculateAge(dobStr: string): number | null {
   if (!dobStr || !dobStr.trim()) return null;
@@ -32,21 +32,18 @@ function SignupContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [successCode, setSuccessCode] = useState("");
+  const [currentSession, setCurrentSession] = useState<any>(null);
 
-  // Check if already authenticated and redirect to dashboard
+  // Check if session exists to display top notice
   useEffect(() => {
-    async function checkAuth() {
+    async function loadAuth() {
       const session = await getSession();
       if (session) {
-        if (session.role === "admin") {
-          router.push("/admin/moderation");
-        } else {
-          router.push("/dashboard");
-        }
+        setCurrentSession(session);
       }
     }
-    checkAuth();
-  }, [router]);
+    loadAuth();
+  }, []);
 
   // Step 1: Contact Verification State
   const [contactType, setContactType] = useState<"phone" | "email">(
@@ -410,6 +407,33 @@ function SignupContent() {
             Free forever • Trusted verification • 18 Gotras lineage • Privacy-first
           </p>
         </div>
+
+        {/* Active Session Notice Banner */}
+        {currentSession && (
+          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-brand-accent/40 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in">
+            <div className="text-xs text-brand-primary text-center sm:text-left">
+              <span>You are currently signed in as <strong>{currentSession.contact}</strong>.</span>
+              <span className="block text-[11px] text-body-muted mt-0.5">
+                Registering below will create a new family record and switch your active login session.
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link href="/dashboard" className="px-4 py-1.5 rounded-full text-xs font-bold text-white va-btn-join shadow-sm">
+                Go to Dashboard →
+              </Link>
+              <button
+                type="button"
+                onClick={async () => {
+                  await clearSession();
+                  setCurrentSession(null);
+                }}
+                className="px-3.5 py-1.5 rounded-full text-xs font-semibold text-body-muted hover:text-red-700 bg-white border border-brand-accent/30"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Dynamic Progress Bar */}
         <WizardProgressBar currentStep={step} totalSteps={5} />
