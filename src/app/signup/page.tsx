@@ -573,9 +573,6 @@ function SignupContent() {
                         {otpError}
                       </div>
                     )}
-                    <span className="text-[10px] text-body-muted block mt-1.5">
-                      💡 Testing Note: You can also use universal bypass OTP <strong>123456</strong>.
-                    </span>
                   </div>
                 )}
               </div>

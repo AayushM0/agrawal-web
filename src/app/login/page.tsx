@@ -287,7 +287,7 @@ function LoginContent() {
                     className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs font-mono text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                   />
                   <span className="text-[11px] text-body-muted block mt-1">
-                    Passcode delivered via WhatsApp or Email. (Dev/Testing: Use <strong>123456</strong>)
+                    Passcode delivered via WhatsApp or Email.
                   </span>
                 </div>
               </div>

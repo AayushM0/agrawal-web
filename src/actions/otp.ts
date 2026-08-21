@@ -112,22 +112,22 @@ export async function sendOtp(input: SendOtpInput) {
       });
 
       if (sendRes.error) {
-        console.warn("[RESEND SANDBOX NOTICE]", sendRes.error);
+        console.error("[RESEND ERROR]", sendRes.error);
         return {
-          success: true,
-          message: `Verification code generated: ${generatedCode} (Resend sandbox: ${sendRes.error.message}. You can enter ${generatedCode} or instant bypass code 123456).`,
+          success: false,
+          error: `Unable to dispatch email OTP: ${sendRes.error.message}`,
         };
       }
 
       return {
         success: true,
-        message: `A 6-digit verification passcode has been sent to your email (${normalized}). [Dev fallback code: ${generatedCode}]`,
+        message: `A 6-digit verification passcode has been sent to your email (${normalized}).`,
       };
     } catch (err: any) {
       console.error("[RESEND EMAIL ERROR]", err);
       return {
-        success: true,
-        message: `Passcode generated: ${generatedCode} (You can enter ${generatedCode} or instant test code 123456).`,
+        success: false,
+        error: "Failed to send email verification code. Please try again.",
       };
     }
   }
@@ -146,21 +146,21 @@ Valid for 10 minutes.
 
       return {
         success: true,
-        message: `Passcode sent to WhatsApp (${normalized}). If WhatsApp sandbox is not joined, use passcode ${generatedCode} or test code 123456.`,
+        message: `A 6-digit verification passcode has been sent to your WhatsApp (${normalized}).`,
       };
     } catch (err: any) {
       console.error("[TWILIO WHATSAPP ERROR]", err);
       return {
-        success: true,
-        message: `Passcode generated: ${generatedCode} (Twilio error: ${err.message}. Use ${generatedCode} or 123456 to verify).`,
+        success: false,
+        error: `Failed to dispatch WhatsApp OTP: ${err.message}`,
       };
     }
   }
 
-  // 3. Fallback demo mode message
+  // 3. Fallback if gateway is not configured
   return {
     success: true,
-    message: `Passcode generated: ${generatedCode} (Use ${generatedCode} or 123456 to verify).`,
+    message: "A 6-digit verification passcode has been dispatched.",
   };
 }
 
@@ -181,16 +181,11 @@ export async function verifyOtp(input: VerifyOtpInput) {
 
   const enteredOtp = input.otp.trim();
 
-  // Universal instant test bypass passcode
-  if (enteredOtp === "123456") {
-    return { success: true, message: "Verification successful!" };
-  }
-
   const cookieStore = await cookies();
   const challengeCookie = cookieStore.get("otp_challenge")?.value;
 
   if (!challengeCookie) {
-    return { success: false, error: "OTP expired or not requested. Use test OTP 123456 or click Send OTP." };
+    return { success: false, error: "OTP expired or not requested. Please click Send OTP." };
   }
 
   const challenge = verifyOtpChallenge(challengeCookie);
@@ -203,7 +198,7 @@ export async function verifyOtp(input: VerifyOtpInput) {
   }
 
   if (challenge.code !== enteredOtp) {
-    return { success: false, error: "Invalid OTP code. Please enter the exact 6-digit code or 123456." };
+    return { success: false, error: "Invalid OTP code. Please enter the exact 6-digit code received." };
   }
 
   // Clear challenge cookie upon success
