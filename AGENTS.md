@@ -1,6 +1,6 @@
-# ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY — Agent Guidelines
+# Maharaja Agrasen Foundation Limited Singapore — Agent Guidelines
 
-Welcome to the ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY repository. This file provides guidelines and conventions for agentic workflows operating in this codebase.
+Welcome to the Maharaja Agrasen Foundation Limited Singapore repository. This file provides guidelines and conventions for agentic workflows operating in this codebase.
 
 ## Agent skills
 

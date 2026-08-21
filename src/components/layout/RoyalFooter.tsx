@@ -17,8 +17,8 @@ export default function RoyalFooter() {
                 className="object-contain drop-shadow-[0_2px_8px_rgba(217,83,30,0.18)]"
               />
               <div>
-                <h3 className="text-sm sm:text-base font-extrabold text-brand-primary uppercase leading-tight">
-                  ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY
+                <h3 className="text-sm sm:text-base font-extrabold text-brand-primary leading-tight">
+                  Maharaja Agrasen Foundation Limited Singapore
                 </h3>
                 <p className="text-xs text-brand-gold font-semibold">One Community • One Platform • One Global Family</p>
               </div>

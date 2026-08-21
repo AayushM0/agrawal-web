@@ -268,7 +268,7 @@ function SignupContent() {
               Registration Submitted Successfully!
             </h1>
             <p className="text-xs sm:text-sm text-body-text leading-relaxed mb-6">
-              Thank you for registering your family in the <strong>ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY</strong>. Your submission is now in the community moderation queue. Once approved by our team, your household profile will go live.
+              Thank you for registering your family under the <strong>Maharaja Agrasen Foundation Limited Singapore</strong> platform. Your submission is now in the community moderation queue. Once approved by our team, your household profile will go live.
             </p>
             <div className="p-3 sm:p-4 rounded-xl bg-canvas-warm border border-brand-accent/30 text-xs font-mono text-brand-primary mb-6">
               Reference ID: <strong>#{successCode}</strong> • Gotra: <strong>{gotra}</strong>
@@ -906,7 +906,7 @@ function SignupContent() {
                     className="mt-0.5 w-4 h-4 rounded text-brand-primary focus:ring-brand-primary"
                   />
                   <span className="text-xs text-amber-950 leading-relaxed">
-                    I confirm that I am authorized to register these details for my family in the <strong>ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY</strong>, and I agree to the community <Link href="/terms" className="underline font-bold">Terms of Service</Link> and <Link href="/privacy" className="underline font-bold">Privacy Policy</Link>.
+                    I confirm that I am authorized to register these details for my family under the <strong>Maharaja Agrasen Foundation Limited Singapore</strong> platform, and I agree to the community <Link href="/terms" className="underline font-bold">Terms of Service</Link> and <Link href="/privacy" className="underline font-bold">Privacy Policy</Link>.
                   </span>
                 </label>
               </div>

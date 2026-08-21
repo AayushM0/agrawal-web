@@ -1,4 +1,4 @@
-# ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY — Domain Context & Glossary
+# Maharaja Agrasen Foundation Limited Singapore — Domain Context & Glossary
 
 ## Core Ubiquitous Language & Domain Concepts
 

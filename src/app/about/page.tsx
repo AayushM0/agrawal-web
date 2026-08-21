@@ -13,7 +13,7 @@ export default function AboutPage() {
           About Maharaja Agrasen Global Platform
         </h1>
         <p className="text-base text-body-text leading-relaxed mb-6">
-          The ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY is an international community initiative commissioned by the Maharaja Agrasen Foundation Limited Singapore. Our goal is to create a trusted global ecosystem where Agrawals across all countries can connect, collaborate, and grow together.
+          The Maharaja Agrasen Foundation Limited Singapore is an international community initiative dedicated to creating a trusted global ecosystem where Agrawals across all countries can connect, collaborate, and grow together.
         </p>
         
         <div className="bg-white border border-brand-accent/30 rounded-2xl p-6 shadow-warm mb-8">

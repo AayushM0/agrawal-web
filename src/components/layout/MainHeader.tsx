@@ -53,13 +53,13 @@ export default function MainHeader() {
           </div>
           <div>
             <span className="inline-block text-[8px] sm:text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full va-badge-gold mb-0.5">
-              ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY
+              Maharaja Agrasen Foundation
             </span>
-            <h2 className="text-xs sm:text-base font-extrabold text-brand-primary leading-tight tracking-tight uppercase">
-              ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY
+            <h2 className="text-xs sm:text-base font-extrabold text-brand-primary leading-tight tracking-tight">
+              Maharaja Agrasen Foundation Limited Singapore
             </h2>
             <p className="text-[9px] sm:text-[11px] text-body-muted font-medium truncate max-w-[200px] sm:max-w-none">
-              Maharaja Agrasen Foundation Limited Singapore
+              One Community • One Platform • One Global Family
             </p>
           </div>
         </Link>

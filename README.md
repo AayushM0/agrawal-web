@@ -1,4 +1,4 @@
-# ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY (अंतर्राष्ट्रीय अग्रवाल समाज निर्देशिका)
+# Maharaja Agrasen Foundation Limited Singapore (महाराजा अग्रसेन फाउंडेशन लिमिटेड सिंगापुर)
 
 > One Community • One Platform • One Global Family | एक समाज • एक मंच • एक परिवार  
 > Initiated under Maharaja Agrasen Foundation Limited Singapore (Sohan Lal Jindal *"Singapore Wale"*).

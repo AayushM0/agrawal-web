@@ -1,4 +1,4 @@
--- PostgreSQL + PostGIS Schema for ANTARRASHTRIYA AGARWAL SAMAJ DIRECTORY (v1)
+-- PostgreSQL + PostGIS Schema for Maharaja Agrasen Foundation Limited Singapore (v1)
 -- Exactly aligns with TRD.md and ARCHITECTURE.md
 
 -- Extensions
