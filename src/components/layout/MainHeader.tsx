@@ -15,15 +15,11 @@ export default function MainHeader() {
 
   useEffect(() => {
     setMobileMenuOpen(false);
-    // Only re-verify session if entering auth or dashboard routes
-    const isAuthTransition = pathname === "/login" || pathname === "/signup" || pathname === "/dashboard" || pathname.startsWith("/admin");
-    if (!session || isAuthTransition) {
-      getSession().then((current) => {
-        setSession(current);
-        setIsLoading(false);
-      });
-    }
-  }, [pathname, session]);
+    getSession().then((current) => {
+      setSession(current);
+      setIsLoading(false);
+    });
+  }, [pathname]);
 
   const handleLogout = async () => {
     await clearSession();
