@@ -108,6 +108,41 @@ class FallbackStore {
     }
     return false;
   }
+  async updateMemberProfile(memberId: string, updates: Partial<Member>): Promise<boolean> {
+    for (const h of this.households.values()) {
+      const m = h.members.find((mem) => mem.id === memberId || (mem as any).id?.toString() === memberId);
+      if (m) {
+        if (updates.fullName !== undefined) m.fullName = updates.fullName;
+        if (updates.fatherName !== undefined) m.fatherName = updates.fatherName;
+        if (updates.photoUrl !== undefined) m.photoUrl = updates.photoUrl;
+        if (updates.dob !== undefined) m.dob = updates.dob;
+        if (updates.gender !== undefined) m.gender = updates.gender;
+        if (updates.maritalStatus !== undefined) m.maritalStatus = updates.maritalStatus;
+        if (updates.currentCity !== undefined) m.currentCity = updates.currentCity;
+        if (updates.currentCountry !== undefined) m.currentCountry = updates.currentCountry;
+        if (updates.profession !== undefined) m.profession = updates.profession;
+        if (updates.bio !== undefined) m.bio = updates.bio;
+        if (updates.visibility) {
+          m.visibility = { ...m.visibility, ...updates.visibility };
+        }
+        if (m.relationToHead === "self") {
+          h.headName = m.fullName;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+  async updateHouseholdProfile(householdId: string, updates: { nativePlace?: string; gotra?: string; headName?: string }): Promise<boolean> {
+    const h = this.households.get(householdId) || Array.from(this.households.values()).find(item => item.id === householdId || item.householdCode === householdId);
+    if (h) {
+      if (updates.nativePlace !== undefined) h.nativePlace = updates.nativePlace;
+      if (updates.gotra !== undefined) h.gotra = updates.gotra;
+      if (updates.headName !== undefined) h.headName = updates.headName;
+      return true;
+    }
+    return false;
+  }
   async checkContactExists(contact: string, excludeMemberId?: string): Promise<{ exists: boolean; type?: "head" | "member"; name?: string; householdCode?: string }> {
     const clean = (contact || "").trim().toLowerCase();
     if (!clean || clean.length < 5) return { exists: false };
@@ -536,6 +571,75 @@ export const db = {
     } catch (e) {
       console.warn("DB Error in checkContactExists, using fallback store:", e);
       return fallbackStore.checkContactExists(contact, excludeMemberId);
+    }
+  },
+
+  async updateMemberProfile(memberId: string, updates: Partial<Member>): Promise<boolean> {
+    fallbackStore.updateMemberProfile(memberId, updates);
+    if (!pool) return true;
+    try {
+      const safeDob = updates.dob ? sanitizeDate(updates.dob) : null;
+      const res = await pool.query(
+        `UPDATE members 
+         SET full_name = COALESCE($2, full_name),
+             father_name = COALESCE($3, father_name),
+             photo_url = COALESCE($4, photo_url),
+             dob = COALESCE($5, dob),
+             gender = COALESCE($6, gender),
+             marital_status = COALESCE($7, marital_status),
+             current_city = COALESCE($8, current_city),
+             current_country = COALESCE($9, current_country),
+             profession_freetext = COALESCE($10, profession_freetext),
+             bio = COALESCE($11, bio),
+             visibility_contact = COALESCE($12, visibility_contact),
+             visibility_dob = COALESCE($13, visibility_dob),
+             visibility_photo = COALESCE($14, visibility_photo)
+         WHERE id::text = $1 OR id = $1
+         RETURNING id, household_id;`,
+        [
+          memberId,
+          updates.fullName?.trim() || null,
+          updates.fatherName?.trim() || null,
+          updates.photoUrl !== undefined ? updates.photoUrl : null,
+          safeDob,
+          updates.gender || null,
+          updates.maritalStatus || null,
+          updates.currentCity?.trim() || null,
+          updates.currentCountry?.trim() || null,
+          updates.profession?.trim() || null,
+          updates.bio !== undefined ? updates.bio : null,
+          updates.visibility?.contactInfo || null,
+          updates.visibility?.dob || null,
+          updates.visibility?.photo || null,
+        ]
+      );
+      if (res.rows.length > 0 && updates.fullName && updates.relationToHead === "self") {
+        await pool.query("UPDATE households SET head_name = $1 WHERE id = $2;", [updates.fullName.trim(), res.rows[0].household_id]);
+      }
+      return res.rows.length > 0;
+    } catch (e) {
+      console.warn("DB Error in updateMemberProfile, using fallback store:", e);
+      return true;
+    }
+  },
+
+  async updateHouseholdProfile(householdId: string, updates: { nativePlace?: string; gotra?: string; headName?: string }): Promise<boolean> {
+    fallbackStore.updateHouseholdProfile(householdId, updates);
+    if (!pool) return true;
+    try {
+      const res = await pool.query(
+        `UPDATE households 
+         SET native_place = COALESCE($2, native_place),
+             gotra = COALESCE($3, gotra),
+             head_name = COALESCE($4, head_name)
+         WHERE id::text = $1 OR household_code = $1
+         RETURNING id;`,
+        [householdId, updates.nativePlace?.trim() || null, updates.gotra?.trim() || null, updates.headName?.trim() || null]
+      );
+      return res.rows.length > 0;
+    } catch (e) {
+      console.warn("DB Error in updateHouseholdProfile, using fallback store:", e);
+      return true;
     }
   },
 };
