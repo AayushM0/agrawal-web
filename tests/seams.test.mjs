@@ -114,3 +114,15 @@ test("Seam 8: OTP must use native fetch and implement rate limiting", () => {
   assert.ok(otpCode.includes("fetch("), "Must use native fetch for external API calls");
   assert.ok(otpCode.includes("rateLimits") || otpCode.includes("RateLimit"), "Must implement rate limiting on OTP attempts");
 });
+
+// --- SEAM 9: Global Error Boundaries ---
+test("Seam 9: Next.js root error.tsx must exist and be client-side", () => {
+  const errorFileExists = fs.existsSync(path.join(webRoot, "src/app/error.tsx"));
+  assert.ok(errorFileExists, "src/app/error.tsx boundary must exist");
+  
+  if (errorFileExists) {
+    const errorCode = fs.readFileSync(path.join(webRoot, "src/app/error.tsx"), "utf8");
+    assert.ok(errorCode.includes("use client"), "error.tsx must be a Client Component");
+    assert.ok(errorCode.includes("error") && errorCode.includes("reset"), "error.tsx must accept error and reset props");
+  }
+});
