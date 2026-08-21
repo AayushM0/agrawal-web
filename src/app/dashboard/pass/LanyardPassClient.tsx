@@ -18,8 +18,6 @@ interface PassData {
   roleLabel: string;
   memberSince: number;
   photoUrl: string;
-  qrSvg: string;
-  profileUrl: string;
   allMembers: PassMember[] | null;
   currentMemberId: string;
 }
@@ -28,7 +26,7 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
   const router = useRouter();
   const {
     fullName, fatherName, gotra, householdCode, nativePlace,
-    currentCity, roleLabel, memberSince, photoUrl, qrSvg,
+    currentCity, roleLabel, memberSince, photoUrl,
     allMembers, currentMemberId,
   } = passData;
 
@@ -150,7 +148,7 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
             >
               {/* Member identity row */}
               <div
-                className="w-full flex items-center gap-3 mt-[-20px] bg-white border border-stone-200 rounded-xl p-3"
+                className="w-full flex items-center gap-3 mt-1 bg-white border border-stone-200 rounded-xl p-3"
                 style={{ boxShadow: "0 4px 12px rgba(0,0,0,.06)" }}
               >
                 <div className="relative shrink-0">
@@ -228,27 +226,19 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
                 </div>
               </div>
 
-              {/* QR + Household code */}
+              {/* Household code (QR removed) */}
               <div
-                className="w-full grid bg-white border border-stone-200 rounded-xl p-3 items-center gap-3"
-                style={{ gridTemplateColumns: "1fr 80px", boxShadow: "0 1px 3px rgba(0,0,0,.03)" }}
+                className="w-full bg-white border border-stone-200 rounded-xl p-3 flex flex-col items-center justify-center text-center gap-1"
+                style={{ boxShadow: "0 1px 3px rgba(0,0,0,.03)" }}
               >
-                <div className="flex flex-col gap-1.5">
-                  <div
-                    className="border border-dashed border-stone-300 rounded px-2 py-1 font-mono text-[11px] text-stone-700"
-                    style={{ background: "#f5f5f4" }}
-                  >
-                    HOUSEHOLD CODE:<br />
-                    <strong className="text-[#9a3412] font-extrabold">{householdCode}</strong>
-                  </div>
-                  <p className="text-[9px] text-stone-400 leading-snug">
-                    Scan QR to verify live community directory record.
-                  </p>
-                </div>
+                <span className="text-[10px] text-stone-500 font-bold uppercase tracking-wider">
+                  Household Code
+                </span>
                 <div
-                  className="w-[76px] h-[76px] p-1 bg-white border border-stone-200 rounded flex items-center justify-center"
-                  dangerouslySetInnerHTML={{ __html: qrSvg }}
-                />
+                  className="w-full border border-dashed border-stone-300 rounded-lg px-3 py-2 font-mono text-sm tracking-[1px] text-stone-700 bg-[#f5f5f4]"
+                >
+                  <strong className="text-[#9a3412] font-extrabold">{householdCode}</strong>
+                </div>
               </div>
             </div>
 

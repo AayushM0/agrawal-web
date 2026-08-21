@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { getCurrentHouseholdDashboard } from "@/actions/dashboard";
-import QRCode from "qrcode";
 import LanyardPassClient from "./LanyardPassClient";
 
 export default async function PassPage({
@@ -28,15 +27,6 @@ export default async function PassPage({
   if (!member) member = household.members.find((m) => m.relationToHead === "self");
   if (!member) redirect("/dashboard");
 
-  // Generate QR SVG server-side — points to public directory listing
-  const profileUrl = `${process.env.NEXT_PUBLIC_BASE_URL || "https://agarwal-directory.vercel.app"}/directory/${household.id}`;
-  const qrSvg = await QRCode.toString(profileUrl, {
-    type: "svg",
-    width: 80,
-    margin: 1,
-    color: { dark: "#1c1917", light: "#ffffff" },
-  });
-
   // Format date nicely
   const memberSince = new Date(household.createdAt).getFullYear();
   const roleLabel =
@@ -50,13 +40,10 @@ export default async function PassPage({
     gotra: household.gotra,
     householdCode: household.householdCode,
     nativePlace: household.nativePlace,
-    currentCity: [member.currentCity, member.currentCountry].filter(Boolean).join(", "),
+    currentCity: member.currentCity,
     roleLabel,
     memberSince,
     photoUrl: member.photoUrl || "",
-    qrSvg,
-    profileUrl,
-    // show all members for the switcher (head only)
     allMembers: isHead
       ? household.members.map((m) => ({ id: m.id, fullName: m.fullName, relationToHead: m.relationToHead }))
       : null,
