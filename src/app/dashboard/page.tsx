@@ -11,6 +11,31 @@ import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
 import LocationSelector from "@/components/LocationSelector";
 
+function calculateAge(dobStr?: string): number | null {
+  if (!dobStr || !dobStr.trim()) return null;
+  const birthDate = new Date(dobStr.trim());
+  if (isNaN(birthDate.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age >= 0 ? age : null;
+}
+
+function maskContact(contact?: string | null): string {
+  if (!contact) return "Not provided";
+  const clean = contact.trim();
+  if (clean.includes("@")) {
+    const [local, domain] = clean.split("@");
+    if (local.length <= 2) return `${local.slice(0, 1)}••••@${domain}`;
+    return `${local.slice(0, 1)}••••${local.slice(-1)}@${domain}`;
+  }
+  if (clean.length <= 4) return "••••";
+  return clean.slice(0, 3) + " •••••• " + clean.slice(-4);
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [household, setHousehold] = useState<Household | null>(null);
@@ -236,14 +261,14 @@ export default function DashboardPage() {
               <p className="text-xs text-body-muted mt-1">
                 Gotra: <strong>{household.gotra || "Not specified"}</strong> • Native Place: <strong>{household.nativePlace || "Not specified"}</strong>
                 {household.verifiedContact && (
-                  <span className="block sm:inline sm:ml-1">• Registered Contact: <strong>{household.verifiedContact}</strong></span>
+                  <span className="block sm:inline sm:ml-1">• Registered Contact: <strong>{maskContact(household.verifiedContact)}</strong></span>
                 )}
               </p>
             </div>
 
             <div className="flex flex-wrap sm:flex-col items-start sm:items-end gap-2">
               <span className="text-xs font-mono font-bold bg-canvas-warm border border-brand-accent px-3 py-1 rounded-full text-brand-primary">
-                #{household.householdCode}
+                #{household.serialNo || household.householdCode}
               </span>
               {isLive && (
                 <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300">
@@ -319,10 +344,10 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-5 pb-4 border-b border-brand-accent/20">
             <div>
               <h2 className="text-base sm:text-lg font-extrabold text-brand-primary">
-                Family Members & Profile Management
+                Family Members &amp; Profile Management
               </h2>
               <p className="text-xs text-body-muted">
-                You can edit personal details, profession, bio, and privacy settings anytime. Phone & Email are permanently locked.
+                You can edit personal details, profession, bio, and privacy settings anytime. Phone &amp; Email are permanently masked.
               </p>
             </div>
           </div>
@@ -335,6 +360,7 @@ export default function DashboardPage() {
                 const isClaimedBySelf = !!m.ownerLocked;
                 const isCurrentLoggedInMember = (sessionContact && (m.phone === sessionContact || m.email === sessionContact)) || (m.relationToHead === "self");
                 const canEditThisMember = isCurrentLoggedInMember || !m.ownerLocked;
+                const age = calculateAge(m.dob);
 
                 return (
                   <div
@@ -356,9 +382,14 @@ export default function DashboardPage() {
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full va-badge-gold uppercase shrink-0">
                             {m.relationToHead}
                           </span>
+                          {age !== null && (
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full shrink-0">
+                              {age} yrs
+                            </span>
+                          )}
                           {isClaimedBySelf ? (
                             <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-300 shrink-0">
-                              🔒 Self-Claimed & Locked
+                              🔒 Self-Claimed &amp; Locked
                             </span>
                           ) : (
                             <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-300 shrink-0">
@@ -368,10 +399,10 @@ export default function DashboardPage() {
                         </div>
 
                         <p className="text-xs text-body-heading truncate">
-                          {m.profession || "Profession not listed"} {m.fatherName && `• s/o ${m.fatherName}`}
+                          {m.professionTitle || m.profession || "Profession not listed"} {m.fatherName && `• s/o ${m.fatherName}`}
                         </p>
                         <p className="text-[11px] text-body-muted truncate">
-                          {m.currentCity || household.nativePlace}, {m.currentCountry || "India"} {m.dob && `• DOB: ${m.dob}`}
+                          {m.currentCity || household.nativePlace}, {m.currentCountry || "India"} {age !== null && `• Age: ${age} yrs`}
                         </p>
                       </div>
                     </div>

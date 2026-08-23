@@ -6,6 +6,33 @@ import { useParams } from "next/navigation";
 import { getMemberProfile } from "@/actions/search";
 import { revealContact } from "@/actions/reveal";
 
+function calculateAge(dobStr?: string): number | null {
+  if (!dobStr || !dobStr.trim()) return null;
+  const birthDate = new Date(dobStr.trim());
+  if (isNaN(birthDate.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age >= 0 ? age : null;
+}
+
+function maskPhone(phone?: string): string {
+  if (!phone) return "Not provided";
+  const clean = phone.trim();
+  if (clean.length <= 4) return "••••";
+  return clean.slice(0, 3) + " •••••• " + clean.slice(-4);
+}
+
+function maskEmail(email?: string): string {
+  if (!email || !email.includes("@")) return "Not provided";
+  const [local, domain] = email.split("@");
+  if (local.length <= 2) return `${local.slice(0, 1)}••••@${domain}`;
+  return `${local.slice(0, 1)}••••${local.slice(-1)}@${domain}`;
+}
+
 export default function MemberProfilePage() {
   const params = useParams();
   const rawId = params?.id as string;
@@ -78,6 +105,8 @@ export default function MemberProfilePage() {
     );
   }
 
+  const age = calculateAge(member.dob);
+
   return (
     <main className="py-12 bg-canvas-page">
       <div className="max-w-3xl mx-auto px-4">
@@ -98,9 +127,14 @@ export default function MemberProfilePage() {
             <div className="flex-1 text-center sm:text-left">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1">
                 <h1 className="text-2xl font-extrabold text-brand-primary">{member.fullName}</h1>
-                <span className="text-[11px] font-mono font-bold va-badge-gold px-2 py-0.5 rounded-full">
-                  #{member.householdCode}
+                <span className="text-[11px] font-mono font-bold va-badge-gold px-2.5 py-0.5 rounded-full">
+                  #{member.serialNo || member.householdCode}
                 </span>
+                {age !== null && (
+                  <span className="text-[11px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
+                    {age} yrs
+                  </span>
+                )}
               </div>
               <p className="text-xs font-bold text-brand-gold font-devanagari mb-1">
                 Gotra: {member.gotra} {member.relationToHead && `• Relation: ${member.relationToHead.toUpperCase()}`}
@@ -111,14 +145,19 @@ export default function MemberProfilePage() {
                 </p>
               )}
               <p className="text-xs text-body-heading font-medium">
-                {member.profession || "Profession not specified"}
+                {member.professionTitle || member.profession || "Profession not specified"}
               </p>
+              {member.professionDescription && (
+                <p className="text-[11px] text-body-muted italic mt-0.5">
+                  &quot;{member.professionDescription}&quot;
+                </p>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-6 border-b border-brand-accent/20 text-xs">
             <div>
-              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Location</span>
+              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Current Location</span>
               <p className="font-semibold text-body-heading">{member.currentCity || member.nativePlace}, {member.currentCountry || "India"}</p>
             </div>
 
@@ -133,21 +172,28 @@ export default function MemberProfilePage() {
             </div>
 
             <div>
-              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Marital Status & Gender</span>
+              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Marital Status &amp; Gender</span>
               <p className="font-semibold text-body-heading">{member.maritalStatus || "Unspecified"} • {member.gender || "Unspecified"}</p>
             </div>
 
             <div>
-              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Age</span>
+              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Calculated Age</span>
               <p className="font-semibold text-body-heading">
-                {member.visibility?.dob === "members_only" && member.dob ? member.dob : "Protected by privacy preference"}
+                {age !== null ? `${age} years` : "Not specified"}
+              </p>
+            </div>
+
+            <div>
+              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Serial Number</span>
+              <p className="font-mono font-bold text-brand-primary">
+                {member.serialNo || member.householdCode}
               </p>
             </div>
           </div>
 
           {member.bio && (
             <div className="py-6 border-b border-brand-accent/20">
-              <h3 className="text-xs font-bold uppercase text-brand-primary tracking-wider mb-2">About & Seva</h3>
+              <h3 className="text-xs font-bold uppercase text-brand-primary tracking-wider mb-2">About &amp; Seva</h3>
               <p className="text-xs text-body-text leading-relaxed">{member.bio}</p>
             </div>
           )}
@@ -155,7 +201,7 @@ export default function MemberProfilePage() {
           {/* Contact Protection Action */}
           <div className="pt-6">
             <h3 className="text-xs font-bold uppercase text-brand-primary tracking-wider mb-3">
-              Direct Community Contact
+              Direct Community Contact (Privacy Protected)
             </h3>
 
             {showContact && contactData ? (
@@ -167,15 +213,23 @@ export default function MemberProfilePage() {
                 </span>
               </div>
             ) : (
-              <div>
-                <button
-                  type="button"
-                  onClick={handleReveal}
-                  disabled={isRevealing}
-                  className="px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-maroon shadow-sm"
-                >
-                  {isRevealing ? "Verifying Access..." : "Reveal Verified Contact Info"}
-                </button>
+              <div className="space-y-3">
+                <div className="p-3.5 rounded-xl bg-canvas-warm/50 border border-brand-accent/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div>
+                    <span className="text-body-muted block text-[11px]">Contact Preview (Masked):</span>
+                    <span className="font-mono font-bold text-body-heading">
+                      {member.phone ? maskPhone(member.phone) : "•••• •••• ••••"} • {member.email ? maskEmail(member.email) : "••••@••••.com"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleReveal}
+                    disabled={isRevealing}
+                    className="px-5 py-2 rounded-full text-xs font-bold text-white va-btn-maroon shadow-sm self-start sm:self-auto"
+                  >
+                    {isRevealing ? "Verifying Access..." : "Reveal Verified Contact Info"}
+                  </button>
+                </div>
                 {revealError && (
                   <p className="text-xs text-red-600 font-semibold mt-2">{revealError}</p>
                 )}

@@ -6,6 +6,19 @@ import { useSearchParams } from "next/navigation";
 import { searchDirectory } from "@/actions/search";
 import { gotras } from "@/data/gotras";
 
+function calculateAge(dobStr?: string): number | null {
+  if (!dobStr || !dobStr.trim()) return null;
+  const birthDate = new Date(dobStr.trim());
+  if (isNaN(birthDate.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age >= 0 ? age : null;
+}
+
 function DirectoryContent() {
   const searchParams = useSearchParams();
   const initialGotra = searchParams.get("gotra") || "All";
@@ -265,20 +278,25 @@ function DirectoryContent() {
                             <h4 className="text-sm font-bold text-brand-primary leading-tight truncate">
                               {m.fullName}
                             </h4>
-                            <span className="text-[11px] text-brand-gold font-semibold font-devanagari block truncate">
-                              Gotra: {m.gotra}
-                            </span>
+                            <div className="flex items-center gap-1.5 text-[11px] text-brand-gold font-semibold font-devanagari">
+                              <span className="truncate">Gotra: {m.gotra}</span>
+                              {calculateAge(m.dob) !== null && (
+                                <span className="text-[10px] font-sans font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded">
+                                  {calculateAge(m.dob)} yrs
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
                         <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full va-badge-gold shrink-0">
-                          #{m.householdCode}
+                          #{m.serialNo || m.householdCode}
                         </span>
                       </div>
 
                       <div className="space-y-1 text-xs text-body-text mb-4">
                         <p className="flex items-center gap-1.5 text-body-heading font-medium truncate">
-                          <span className="truncate">{m.profession || "Profession not listed"}</span>
+                          <span className="truncate">{m.professionTitle || m.profession || "Profession not listed"}</span>
                         </p>
 
                         <p className="flex items-center gap-1.5 text-body-muted truncate">
