@@ -1147,16 +1147,30 @@ export default function SignupPage() {
                             </label>
                             <select
                               value={member.relationToHead}
-                              onChange={(e) => updateAdditionalMember(member.id, "relationToHead", e.target.value)}
+                              onChange={(e) => {
+                                const rel = e.target.value;
+                                updateAdditionalMember(member.id, "relationToHead", rel);
+                                if (["father", "son", "brother", "son_in_law", "grandson"].includes(rel)) {
+                                  updateAdditionalMember(member.id, "gender", "Male");
+                                } else if (["mother", "daughter", "sister", "daughter_in_law", "granddaughter"].includes(rel)) {
+                                  updateAdditionalMember(member.id, "gender", "Female");
+                                }
+                              }}
                               className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
                             >
-                              <option value="spouse">Spouse (पति/पत्नी)</option>
-                              <option value="son">Son (पुत्र)</option>
-                              <option value="daughter">Daughter (पुत्री)</option>
-                              <option value="parent">Parent (माता/पिता)</option>
+                              <option value="spouse">Spouse (पत्नी/पति)</option>
+                              <option value="son">Son (बेटा / पुत्र)</option>
+                              <option value="daughter">Daughter (बेटी / पुत्री)</option>
+                              <option value="father">Father (पिता)</option>
+                              <option value="mother">Mother (माता)</option>
+                              <option value="brother">Brother (भाई)</option>
+                              <option value="sister">Sister (बहन)</option>
+                              <option value="daughter_in_law">Daughter-in-law (बहू)</option>
+                              <option value="son_in_law">Son-in-law (दामाद)</option>
                               <option value="grandson">Grandson (पोता/दोहिता)</option>
                               <option value="granddaughter">Granddaughter (पोती/दोहिती)</option>
-                              <option value="other">Other Relative</option>
+                              <option value="parent">Parent (माता/पिता)</option>
+                              <option value="other">Other Relative (अन्य रिश्तेदार)</option>
                             </select>
                           </div>
 
