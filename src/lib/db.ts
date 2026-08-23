@@ -43,6 +43,31 @@ function sanitizeDate(dob?: string): string {
     return `${year}-01-01`;
   }
   const parsed = new Date(clean);
+    throw err;
+  }
+}
+
+// Safe helper to sanitize dates for PostgreSQL DATE columns
+function sanitizeDate(dob?: string): string {
+  if (!dob || !dob.trim()) {
+    return "1990-01-01";
+  }
+  const clean = dob.trim();
+  // If it's already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+    return clean;
+  }
+  // If it's a 4 digit year e.g. "1995"
+  if (/^\d{4}$/.test(clean)) {
+    return `${clean}-01-01`;
+  }
+  // If it's an age number e.g. "28"
+  if (/^\d{1,3}$/.test(clean)) {
+    const age = parseInt(clean, 10);
+    const year = new Date().getFullYear() - age;
+    return `${year}-01-01`;
+  }
+  const parsed = new Date(clean);
   if (!isNaN(parsed.getTime())) {
     return parsed.toISOString().split("T")[0];
   }
@@ -61,27 +86,84 @@ function sanitizeRelation(rel?: string): "self" | "spouse" | "son" | "daughter" 
   return "other";
 }
 
+let schemaEnsured = false;
+async function ensureSchema(client: any) {
+  if (schemaEnsured) return;
+  try {
+    await client.query(`
+      ALTER TABLE households ADD COLUMN IF NOT EXISTS serial_no VARCHAR(32) UNIQUE;
+      ALTER TABLE households ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'India';
+      ALTER TABLE households ADD COLUMN IF NOT EXISTS postal_code TEXT;
+      ALTER TABLE households ADD COLUMN IF NOT EXISTS state TEXT;
+      ALTER TABLE households ADD COLUMN IF NOT EXISTS city TEXT;
+      ALTER TABLE households ADD COLUMN IF NOT EXISTS full_address TEXT;
+      ALTER TABLE households ADD COLUMN IF NOT EXISTS aadhaar_number TEXT;
+      ALTER TABLE households ADD COLUMN IF NOT EXISTS pan_number TEXT;
+      ALTER TABLE households ADD COLUMN IF NOT EXISTS passport_number TEXT;
+      ALTER TABLE households ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
+
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS profession_title TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS profession_description TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS postal_code TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS state TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS full_address TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS aadhaar_number TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS pan_number TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS passport_number TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
+    `);
+    schemaEnsured = true;
+  } catch (err) {
+    console.warn("Schema migration non-fatal:", err);
+  }
+}
+
+async function generateNextSerialNo(client: any): Promise<string> {
+  try {
+    const countRes = await client.query("SELECT COUNT(*) as count FROM households;");
+    const count = parseInt(countRes.rows[0]?.count || "0", 10) + 1;
+    const part1 = String(Math.floor(count / 1000000) % 1000).padStart(3, "0");
+    const part2 = String(Math.floor(count / 1000) % 1000).padStart(3, "0");
+    const part3 = String(count % 1000).padStart(3, "0");
+    return `MAFL-${part1}-${part2}-${part3}`;
+  } catch {
+    const rand = Math.floor(100000000 + Math.random() * 900000000).toString();
+    return `MAFL-${rand.slice(0, 3)}-${rand.slice(3, 6)}-${rand.slice(6, 9)}`;
+  }
+}
+
 export const db = {
   async getHouseholds(): Promise<Household[]> {
     if (!pool) throw new Error("Database not connected");
     try {
-      const res = await pool.query("SELECT * FROM households;");
+      const res = await pool.query("SELECT * FROM households ORDER BY created_at DESC;");
       return res.rows.map(h => ({
         id: h.id,
         householdCode: h.household_code,
+        serialNo: h.serial_no || h.household_code,
         headUserId: h.head_user_id,
         headName: h.head_name,
         nativePlace: h.native_place,
         gotra: h.gotra,
+        country: h.country || "India",
+        postalCode: h.postal_code || "",
+        state: h.state || "",
+        city: h.city || "",
+        fullAddress: h.full_address || "",
+        aadhaarNumber: h.aadhaar_number,
+        panNumber: h.pan_number,
+        passportNumber: h.passport_number,
+        govtIdNumber: h.govt_id_number,
         status: h.status,
+        rejectionReason: h.rejection_reason || undefined,
         verifiedContact: h.verified_contact,
         consentAcceptedAt: h.consent_accepted_at,
         createdAt: h.created_at,
         members: []
       }));
     } catch (e) {
-    throw e;
-  }
+      throw e;
+    }
   },
 
   async deleteHousehold(id: string): Promise<boolean> {
@@ -90,8 +172,8 @@ export const db = {
       await pool.query("DELETE FROM households WHERE id = $1;", [id]);
       return true;
     } catch (e) {
-    throw e;
-  }
+      throw e;
+    }
   },
 
   async getHouseholdByContact(contact: string): Promise<Household | null> {
@@ -138,8 +220,10 @@ export const db = {
       const mRes = await pool.query(
         `SELECT id, household_id as "householdId", full_name as "fullName", relation_to_head as "relationToHead",
                 dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
-                current_country as "currentCountry", profession_freetext as "profession", phone, email,
-                father_name as "fatherName", photo_url as "photoUrl", bio,
+                current_country as "currentCountry", postal_code as "postalCode", state, full_address as "fullAddress",
+                profession_freetext as "profession", profession_title as "professionTitle", profession_description as "professionDescription",
+                phone, email, father_name as "fatherName", photo_url as "photoUrl", bio,
+                aadhaar_number as "aadhaarNumber", pan_number as "panNumber", passport_number as "passportNumber", govt_id_number as "govtIdNumber",
                 verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
                 visibility_contact, visibility_dob, visibility_photo
          FROM members WHERE household_id = $1 ORDER BY created_at ASC;`,
@@ -157,10 +241,20 @@ export const db = {
       return {
         id: h.id,
         householdCode: h.household_code,
+        serialNo: h.serial_no || h.household_code,
         headUserId: h.head_user_id,
         headName: h.head_name,
         nativePlace: h.native_place,
         gotra: h.gotra,
+        country: h.country || "India",
+        postalCode: h.postal_code || "",
+        state: h.state || "",
+        city: h.city || "",
+        fullAddress: h.full_address || "",
+        aadhaarNumber: h.aadhaar_number,
+        panNumber: h.pan_number,
+        passportNumber: h.passport_number,
+        govtIdNumber: h.govt_id_number,
         status: h.status,
         rejectionReason: h.rejection_reason || undefined,
         verifiedContact: h.verified_contact,
@@ -169,35 +263,57 @@ export const db = {
         members,
       };
     } catch (e) {
-    throw e;
-  }
+      throw e;
+    }
   },
 
   async createHousehold(household: Household): Promise<Household> {
-    // Always store in memory fallback as well to ensure immediate availability
-    
     if (!pool) return household;
     
     let client;
     try {
       client = await pool.connect();
       await client.query("BEGIN");
+      await ensureSchema(client);
       
+      const serialNo = household.serialNo || (await generateNextSerialNo(client));
+
       const insertHQuery = `
-        INSERT INTO households (id, household_code, head_user_id, head_name, native_place, gotra, status, verified_contact, consent_accepted_at)
-        VALUES (gen_random_uuid(), $1, gen_random_uuid(), $2, $3, $4, $5, $6, $7)
-        RETURNING id;
+        INSERT INTO households (
+          id, household_code, serial_no, head_user_id, head_name, native_place, gotra,
+          country, postal_code, state, city, full_address,
+          aadhaar_number, pan_number, passport_number, govt_id_number,
+          status, verified_contact, consent_accepted_at
+        )
+        VALUES (
+          gen_random_uuid(), $1, $2, gen_random_uuid(), $3, $4, $5,
+          $6, $7, $8, $9, $10,
+          $11, $12, $13, $14,
+          $15, $16, $17
+        )
+        RETURNING id, serial_no;
       `;
       const hRes = await client.query(insertHQuery, [
         household.householdCode,
+        serialNo,
         household.headName,
         household.nativePlace,
         household.gotra,
+        household.country || "India",
+        household.postalCode || null,
+        household.state || null,
+        household.city || null,
+        household.fullAddress || null,
+        household.aadhaarNumber || null,
+        household.panNumber || null,
+        household.passportNumber || null,
+        household.govtIdNumber || null,
         household.status,
         household.verifiedContact,
         household.consentAcceptedAt || new Date().toISOString(),
       ]);
       const dbHouseholdId = hRes.rows[0].id;
+      const actualSerialNo = hRes.rows[0].serial_no || serialNo;
 
       for (const m of household.members) {
         const safeDob = sanitizeDate(m.dob);
@@ -206,10 +322,18 @@ export const db = {
         const insertMQuery = `
           INSERT INTO members (
             id, household_id, full_name, relation_to_head, dob, gender, marital_status,
-            current_city, current_country, profession_freetext, phone, email, father_name, photo_url, bio,
+            current_city, current_country, postal_code, state, full_address,
+            profession_freetext, profession_title, profession_description,
+            phone, email, father_name, photo_url, bio,
+            aadhaar_number, pan_number, passport_number, govt_id_number,
             visibility_contact, visibility_dob, visibility_photo, verified_by_self, owner_locked
           ) VALUES (
-            gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+            gen_random_uuid(), $1, $2, $3, $4, $5, $6,
+            $7, $8, $9, $10, $11,
+            $12, $13, $14,
+            $15, $16, $17, $18, $19,
+            $20, $21, $22, $23,
+            $24, $25, $26, $27, $28
           );
         `;
         await client.query(insertMQuery, [
@@ -219,15 +343,24 @@ export const db = {
           safeDob,
           m.gender || "Male",
           m.maritalStatus || "Unmarried",
-          m.currentCity || household.nativePlace,
-          m.currentCountry || "India",
+          m.currentCity || household.city || household.nativePlace,
+          m.currentCountry || household.country || "India",
+          m.postalCode || household.postalCode || null,
+          m.state || household.state || null,
+          m.fullAddress || household.fullAddress || null,
           m.profession || "Not specified",
+          m.professionTitle || m.profession || null,
+          m.professionDescription || null,
           m.phone || null,
           m.email || null,
           m.fatherName || null,
           m.photoUrl || null,
           m.bio || null,
-          m.visibility?.contactInfo || "members_only",
+          m.aadhaarNumber || (m.relationToHead === "self" ? household.aadhaarNumber : null),
+          m.panNumber || (m.relationToHead === "self" ? household.panNumber : null),
+          m.passportNumber || (m.relationToHead === "self" ? household.passportNumber : null),
+          m.govtIdNumber || (m.relationToHead === "self" ? household.govtIdNumber : null),
+          m.visibility?.contactInfo || "hidden",
           m.visibility?.dob || "hidden",
           m.visibility?.photo || "public_to_members",
           m.verifiedBySelf || false,
@@ -236,13 +369,12 @@ export const db = {
       }
 
       await client.query("COMMIT");
-      return { ...household, id: dbHouseholdId };
+      return { ...household, id: dbHouseholdId, serialNo: actualSerialNo };
     } catch (e) {
       if (client) {
         try { await client.query("ROLLBACK"); } catch {}
       }
-      console.warn("DB Error in createHousehold, seamlessly saved to memory fallback:", e);
-      return household;
+      throw e;
     } finally {
       if (client) client.release();
     }
@@ -255,10 +387,11 @@ export const db = {
         SELECT 
           m.id, m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
           m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
-          m.current_country as "currentCountry", m.profession_freetext as "profession",
+          m.current_country as "currentCountry", m.postal_code as "postalCode", m.state, m.full_address as "fullAddress",
+          m.profession_freetext as "profession", m.profession_title as "professionTitle", m.profession_description as "professionDescription",
           m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
           m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
-          h.household_code as "householdCode", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
+          h.household_code as "householdCode", h.serial_no as "serialNo", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
         FROM members m
         JOIN households h ON m.household_id = h.id;
       `;
@@ -267,6 +400,7 @@ export const db = {
       return res.rows.map(r => ({
         ...r,
         dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
+        serialNo: r.serialNo || r.householdCode,
         visibility: {
           contactInfo: r.visibility_contact,
           dob: r.visibility_dob,
@@ -274,23 +408,36 @@ export const db = {
         }
       }));
     } catch (e) {
-    throw e;
-  }
+      throw e;
+    }
   },
 
   async getHouseholdById(householdId: string): Promise<any | null> {
     if (!pool) throw new Error("Database not connected");
     try {
-      const res = await pool.query("SELECT * FROM households WHERE id::text = $1 OR household_code = $1 LIMIT 1;", [householdId]);
+      const res = await pool.query(
+        "SELECT * FROM households WHERE id::text = $1 OR household_code = $1 OR serial_no = $1 LIMIT 1;",
+        [householdId]
+      );
       if (res.rows.length === 0) return null;
       const h = res.rows[0];
       return {
         id: h.id,
         householdCode: h.household_code,
+        serialNo: h.serial_no || h.household_code,
         headUserId: h.head_user_id,
         headName: h.head_name,
         nativePlace: h.native_place,
         gotra: h.gotra,
+        country: h.country || "India",
+        postalCode: h.postal_code || "",
+        state: h.state || "",
+        city: h.city || "",
+        fullAddress: h.full_address || "",
+        aadhaarNumber: h.aadhaar_number,
+        panNumber: h.pan_number,
+        passportNumber: h.passport_number,
+        govtIdNumber: h.govt_id_number,
         status: h.status,
         verifiedContact: h.verified_contact,
         consentAcceptedAt: h.consent_accepted_at,
@@ -299,14 +446,63 @@ export const db = {
     } catch (e) { throw e; }
   },
 
+  async getMemberById(memberId: string): Promise<any | null> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const query = `
+        SELECT 
+          m.id, m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
+          m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
+          m.current_country as "currentCountry", m.postal_code as "postalCode", m.state, m.full_address as "fullAddress",
+          m.profession_freetext as "profession", m.profession_title as "professionTitle", m.profession_description as "professionDescription",
+          m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
+          m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
+          m.aadhaar_number as "aadhaarNumber", m.pan_number as "panNumber", m.passport_number as "passportNumber", m.govt_id_number as "govtIdNumber",
+          h.household_code as "householdCode", h.serial_no as "serialNo", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
+        FROM members m
+        JOIN households h ON m.household_id = h.id
+        WHERE m.id::text = $1 OR h.household_code = $1 OR h.serial_no = $1 OR h.id::text = $1;
+      `;
+      const res = await pool.query(query, [memberId]);
+      if (res.rows.length === 0) return null;
+      const r = res.rows[0];
+      return {
+        ...r,
+        dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
+        serialNo: r.serialNo || r.householdCode,
+        visibility: {
+          contactInfo: r.visibility_contact,
+          dob: r.visibility_dob,
+          photo: r.visibility_photo,
+        }
+      };
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  async approveAllPendingHouseholds(): Promise<number> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const res = await pool.query(
+        "UPDATE households SET status = 'live' WHERE status = 'pending_review' RETURNING id;"
+      );
+      return res.rowCount || 0;
+    } catch (e) {
+      throw e;
+    }
+  },
+
   async getMembersByHousehold(householdId: string): Promise<any[]> {
     if (!pool) throw new Error("Database not connected");
     try {
       const res = await pool.query(
         `SELECT id, household_id as "householdId", full_name as "fullName", relation_to_head as "relationToHead",
                 dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
-                current_country as "currentCountry", profession_freetext as "profession", phone, email,
-                father_name as "fatherName", photo_url as "photoUrl", bio,
+                current_country as "currentCountry", postal_code as "postalCode", state, full_address as "fullAddress",
+                profession_freetext as "profession", profession_title as "professionTitle", profession_description as "professionDescription",
+                phone, email, father_name as "fatherName", photo_url as "photoUrl", bio,
+                aadhaar_number as "aadhaarNumber", pan_number as "panNumber", passport_number as "passportNumber", govt_id_number as "govtIdNumber",
                 verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
                 visibility_contact, visibility_dob, visibility_photo
          FROM members WHERE household_id::text = $1 ORDER BY created_at ASC;`,
@@ -320,54 +516,6 @@ export const db = {
     } catch (e) { throw e; }
   },
 
-  async getMemberById(memberId: string): Promise<any | null> {
-    if (!pool) throw new Error("Database not connected");
-    try {
-      const query = `
-        SELECT 
-          m.id, m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
-          m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
-          m.current_country as "currentCountry", m.profession_freetext as "profession",
-          m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
-          m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
-          h.household_code as "householdCode", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
-        FROM members m
-        JOIN households h ON m.household_id = h.id
-        WHERE m.id::text = $1 OR h.household_code = $1 OR h.id::text = $1;
-      `;
-      const res = await pool.query(query, [memberId]);
-      if (res.rows.length === 0) return null;
-      const r = res.rows[0];
-      return {
-        ...r,
-        dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
-        visibility: {
-          contactInfo: r.visibility_contact,
-          dob: r.visibility_dob,
-          photo: r.visibility_photo,
-        }
-      };
-    } catch (e) {
-    throw e;
-  }
-  },
-
-  async approveAllPendingHouseholds(): Promise<number> {
-    if (!pool) throw new Error("Database not connected");
-    try {
-      const res = await pool.query(
-        "UPDATE households SET status = 'live' WHERE status = 'pending_review' RETURNING id;"
-      );
-            return res.rowCount || 0;
-    } catch (e) {
-    throw e;
-  }
-  },
-
-  async updateHouseholdStatus(id: string, status: "pending_review" | "live" | "rejected", rejectionReason?: string) {
-    if (!pool) throw new Error("Database not connected");
-    try {
-      const res = await pool.query(
         "UPDATE households SET status = $1, rejection_reason = $2 WHERE id = $3 RETURNING *;",
         [status, rejectionReason || null, id]
       );

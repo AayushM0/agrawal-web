@@ -15,10 +15,20 @@ CREATE TYPE field_visibility_option AS ENUM ('public_to_members', 'members_only'
 CREATE TABLE IF NOT EXISTS households (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     household_code VARCHAR(32) NOT NULL UNIQUE,
+    serial_no VARCHAR(32) UNIQUE,
     head_user_id UUID NOT NULL,
     head_name TEXT NOT NULL,
     native_place TEXT NOT NULL,
     gotra TEXT NOT NULL,
+    country TEXT DEFAULT 'India',
+    postal_code TEXT,
+    state TEXT,
+    city TEXT,
+    full_address TEXT,
+    aadhaar_number TEXT,
+    pan_number TEXT,
+    passport_number TEXT,
+    govt_id_number TEXT,
     status household_status NOT NULL DEFAULT 'pending_review',
     rejection_reason TEXT,
     consent_accepted_at TIMESTAMPTZ NOT NULL,
@@ -37,14 +47,23 @@ CREATE TABLE IF NOT EXISTS members (
     marital_status VARCHAR(32) NOT NULL,
     current_city TEXT NOT NULL,
     current_country TEXT NOT NULL,
+    postal_code TEXT,
+    state TEXT,
+    full_address TEXT,
     coordinates GEOGRAPHY(Point, 4326),
     profession_freetext TEXT NOT NULL,
+    profession_title TEXT,
+    profession_description TEXT,
     profession_category TEXT,
     phone TEXT,
     email TEXT,
     father_name TEXT,
     photo_url TEXT,
     bio TEXT,
+    aadhaar_number TEXT,
+    pan_number TEXT,
+    passport_number TEXT,
+    govt_id_number TEXT,
     verified_by_self BOOLEAN NOT NULL DEFAULT FALSE,
     claim_token TEXT UNIQUE,
     owner_locked BOOLEAN NOT NULL DEFAULT FALSE,
@@ -64,3 +83,26 @@ CREATE INDEX IF NOT EXISTS idx_members_coordinates ON members USING gist(coordin
 CREATE INDEX IF NOT EXISTS idx_members_trgm_name ON members USING gin(full_name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_households_status ON households(status);
 CREATE INDEX IF NOT EXISTS idx_households_gotra ON households(gotra);
+CREATE INDEX IF NOT EXISTS idx_households_serial_no ON households(serial_no);
+
+-- Schema Migration Deltas
+ALTER TABLE households ADD COLUMN IF NOT EXISTS serial_no VARCHAR(32) UNIQUE;
+ALTER TABLE households ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'India';
+ALTER TABLE households ADD COLUMN IF NOT EXISTS postal_code TEXT;
+ALTER TABLE households ADD COLUMN IF NOT EXISTS state TEXT;
+ALTER TABLE households ADD COLUMN IF NOT EXISTS city TEXT;
+ALTER TABLE households ADD COLUMN IF NOT EXISTS full_address TEXT;
+ALTER TABLE households ADD COLUMN IF NOT EXISTS aadhaar_number TEXT;
+ALTER TABLE households ADD COLUMN IF NOT EXISTS pan_number TEXT;
+ALTER TABLE households ADD COLUMN IF NOT EXISTS passport_number TEXT;
+ALTER TABLE households ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
+
+ALTER TABLE members ADD COLUMN IF NOT EXISTS profession_title TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS profession_description TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS postal_code TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS state TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS full_address TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS aadhaar_number TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS pan_number TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS passport_number TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
