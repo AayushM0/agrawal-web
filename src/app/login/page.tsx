@@ -1,19 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { sendOtp, verifyOtp } from "@/actions/otp";
 import { checkContactRegistration } from "@/actions/register";
 import { getSession, createSession, verifyAdminPassword } from "@/actions/auth";
 
-function LoginContent() {
+export default function LoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialContact = searchParams.get("contact") || "";
 
   const [role, setRole] = useState<"head" | "admin">("head");
-  const [contact, setContact] = useState(initialContact);
+  const [contact, setContact] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [isSendingOtp, setIsSendingOtp] = useState(false);
@@ -29,8 +27,6 @@ function LoginContent() {
       if (stored) {
         setContact(stored);
         sessionStorage.removeItem("agrawal_login_contact");
-      } else if (initialContact) {
-        setContact(initialContact);
       }
 
       // Clean browser URL if query param is present
@@ -38,7 +34,7 @@ function LoginContent() {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
-  }, [initialContact]);
+  }, []);
 
   useEffect(() => {
     async function checkAuth() {
@@ -362,13 +358,5 @@ function LoginContent() {
         </div>
       </div>
     </main>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="p-12 text-center text-xs font-bold">Loading Member Portal...</div>}>
-      <LoginContent />
-    </Suspense>
   );
 }

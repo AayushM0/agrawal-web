@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import WizardProgressBar from "@/components/wizard/WizardProgressBar";
 import { gotras } from "@/data/gotras";
 import { Member } from "@/types/household";
@@ -46,10 +46,8 @@ function maskGovtId(id?: string): string {
   return clean.slice(0, 2) + "••••••••" + clean.slice(-2);
 }
 
-function SignupContent() {
+export default function SignupPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialContact = searchParams.get("contact") || "";
 
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,10 +67,8 @@ function SignupContent() {
   }, []);
 
   // Step 1: Contact Verification State
-  const [contactType, setContactType] = useState<"phone" | "email">(
-    initialContact && initialContact.includes("@") ? "email" : "phone"
-  );
-  const [contactValue, setContactValue] = useState(initialContact);
+  const [contactType, setContactType] = useState<"phone" | "email">("phone");
+  const [contactValue, setContactValue] = useState("");
   const [phoneDialCode, setPhoneDialCode] = useState("+91");
   const [otpValue, setOtpValue] = useState("");
   const [otpVerified, setOtpVerified] = useState(false);
@@ -83,16 +79,13 @@ function SignupContent() {
   const [alreadyRegisteredInfo, setAlreadyRegisteredInfo] = useState<{ isRegistered: boolean; householdCode?: string; headName?: string } | null>(null);
 
   useEffect(() => {
-    // 1. Read contact from sessionStorage or query param (then immediately scrub URL)
+    // 1. Read contact from sessionStorage (then immediately scrub URL if any)
     if (typeof window !== "undefined") {
       const stored = sessionStorage.getItem("agrawal_signup_contact");
       if (stored) {
         setContactValue(stored);
         setContactType(stored.includes("@") ? "email" : "phone");
         sessionStorage.removeItem("agrawal_signup_contact");
-      } else if (initialContact) {
-        setContactValue(initialContact);
-        setContactType(initialContact.includes("@") ? "email" : "phone");
       }
 
       // Clean browser URL if query param is present
@@ -100,7 +93,7 @@ function SignupContent() {
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
-  }, [initialContact]);
+  }, []);
 
   // Step 2: Head & Family Details State
   const [headName, setHeadName] = useState("");
@@ -1459,13 +1452,5 @@ function SignupContent() {
         </div>
       </div>
     </main>
-  );
-}
-
-export default function SignupPage() {
-  return (
-    <Suspense fallback={<div className="p-12 text-center text-xs font-bold">Loading Registration Portal...</div>}>
-      <SignupContent />
-    </Suspense>
   );
 }
