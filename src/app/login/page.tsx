@@ -24,8 +24,19 @@ function LoginContent() {
   const [notRegistered, setNotRegistered] = useState(false);
 
   useEffect(() => {
-    if (initialContact && !contact) {
-      setContact(initialContact);
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("agrawal_login_contact");
+      if (stored) {
+        setContact(stored);
+        sessionStorage.removeItem("agrawal_login_contact");
+      } else if (initialContact) {
+        setContact(initialContact);
+      }
+
+      // Clean browser URL if query param is present
+      if (window.location.search) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
   }, [initialContact]);
 
@@ -59,8 +70,11 @@ function LoginContent() {
       setIsSendingOtp(false);
       setNotRegistered(true);
       setErrorMessage("This contact number/email is not registered with any family yet. Redirecting to Free Registration...");
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("agrawal_signup_contact", contact.trim());
+      }
       setTimeout(() => {
-        router.push(`/signup?contact=${encodeURIComponent(contact.trim())}`);
+        router.push("/signup");
       }, 1500);
       return;
     }
@@ -305,7 +319,12 @@ function LoginContent() {
                   </div>
                 </div>
                 <Link
-                  href={`/signup?contact=${encodeURIComponent(contact.trim())}`}
+                  href="/signup"
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      sessionStorage.setItem("agrawal_signup_contact", contact.trim());
+                    }
+                  }}
                   className="block w-full py-2 px-4 rounded-xl text-xs font-bold text-center text-white va-btn-join shadow-sm mt-1"
                 >
                   Register Family Free (Sign Up) →

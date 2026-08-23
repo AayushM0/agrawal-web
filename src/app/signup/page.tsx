@@ -83,9 +83,22 @@ function SignupContent() {
   const [alreadyRegisteredInfo, setAlreadyRegisteredInfo] = useState<{ isRegistered: boolean; householdCode?: string; headName?: string } | null>(null);
 
   useEffect(() => {
-    if (initialContact && !contactValue) {
-      setContactValue(initialContact);
-      setContactType(initialContact.includes("@") ? "email" : "phone");
+    // 1. Read contact from sessionStorage or query param (then immediately scrub URL)
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("agrawal_signup_contact");
+      if (stored) {
+        setContactValue(stored);
+        setContactType(stored.includes("@") ? "email" : "phone");
+        sessionStorage.removeItem("agrawal_signup_contact");
+      } else if (initialContact) {
+        setContactValue(initialContact);
+        setContactType(initialContact.includes("@") ? "email" : "phone");
+      }
+
+      // Clean browser URL if query param is present
+      if (window.location.search) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
   }, [initialContact]);
 
@@ -140,8 +153,11 @@ function SignupContent() {
       setIsSendingOtp(false);
       setAlreadyRegisteredInfo(checkRes);
       setOtpError("This mobile/email is already registered! Redirecting to Member Login...");
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("agrawal_login_contact", contactValue.trim());
+      }
       setTimeout(() => {
-        router.push(`/login?contact=${encodeURIComponent(contactValue.trim())}`);
+        router.push("/login");
       }, 1500);
       return;
     }
