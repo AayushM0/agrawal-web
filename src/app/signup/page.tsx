@@ -1061,23 +1061,13 @@ function SignupContent() {
           {/* STEP 3: ADDITIONAL FAMILY MEMBERS (OPTIONAL) */}
           {step === 3 && (
             <form onSubmit={handleStep3Next}>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-4 border-b border-brand-accent/20">
-                <div>
-                  <h2 className="text-base sm:text-lg font-bold text-brand-primary">
-                    Step 3: Additional Family Members (Optional)
-                  </h2>
-                  <p className="text-xs text-body-muted">
-                    Adding family members is completely optional. If you live alone or wish to add relatives later, click &quot;Continue to Review&quot;.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={addAdditionalMember}
-                  className="px-4 py-2 rounded-full text-xs font-bold text-brand-primary bg-canvas-warm hover:bg-white border border-brand-accent transition-all shadow-xs shrink-0 self-start sm:self-auto"
-                >
-                  + Add Family Member (सदस्य जोड़ें)
-                </button>
+              <div className="pb-3 mb-4 border-b border-brand-accent/20">
+                <h2 className="text-base sm:text-lg font-bold text-brand-primary">
+                  Step 3: Additional Family Members (Optional)
+                </h2>
+                <p className="text-xs text-body-muted">
+                  Adding family members is completely optional. If you live alone or wish to add relatives later, click &quot;Continue to Review&quot;.
+                </p>
               </div>
 
               {step3Error && (
@@ -1306,7 +1296,7 @@ function SignupContent() {
               )}
 
               {/* Bottom Actions */}
-              <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 pt-4 border-t border-brand-accent/20">
+              <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-3 pt-4 border-t border-brand-accent/20">
                 <button
                   type="button"
                   onClick={() => setStep(2)}
@@ -1314,15 +1304,25 @@ function SignupContent() {
                 >
                   ← Back to Head Profile
                 </button>
-                <button
-                  type="submit"
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta flex items-center justify-center gap-1.5"
-                >
-                  <span>
-                    {additionalMembers.length === 0 ? "Skip & Continue to Review" : "Continue to Review & Submit"}
-                  </span>
-                  <span>→</span>
-                </button>
+
+                <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={addAdditionalMember}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold text-brand-primary bg-canvas-warm hover:bg-white border-2 border-brand-accent hover:border-brand-primary transition-all shadow-xs flex items-center justify-center gap-1.5"
+                  >
+                    <span>+ Add Family Member (सदस्य जोड़ें)</span>
+                  </button>
+                  <button
+                    type="submit"
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta flex items-center justify-center gap-1.5"
+                  >
+                    <span>
+                      {additionalMembers.length === 0 ? "Skip & Continue to Review" : "Continue to Review & Submit"}
+                    </span>
+                    <span>→</span>
+                  </button>
+                </div>
               </div>
             </form>
           )}
