@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     photoUrl: member.photoUrl,
   };
 
-  const stream = await renderToStream(React.createElement(PassPDF, { passData }));
+  const stream = await renderToStream(React.createElement(PassPDF, { passData }) as any);
   
   return new Response(stream as any, {
     headers: {

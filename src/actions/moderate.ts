@@ -43,7 +43,7 @@ async function sendWelcomeEmail(member: any, household: any) {
       photoUrl: member.photoUrl,
     };
 
-    const buffer = await renderToBuffer(React.createElement(PassPDF, { passData }));
+    const buffer = await renderToBuffer(React.createElement(PassPDF, { passData }) as any);
 
     const msg = {
       to: member.email,
