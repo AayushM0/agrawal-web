@@ -803,8 +803,8 @@ function SignupContent() {
                       </div>
 
                       {/* Photo Avatar Uploader */}
-                      <div className="flex items-center gap-4 mb-5 p-3 rounded-xl bg-white border border-brand-accent/30">
-                        <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border-2 border-brand-accent flex items-center justify-center shrink-0 shadow-sm relative">
+                      <div className="flex flex-col sm:flex-row items-center sm:items-center gap-3 sm:gap-4 mb-5 p-3 sm:p-4 rounded-xl bg-white border border-brand-accent/30 text-center sm:text-left">
+                        <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border-2 border-brand-accent flex items-center justify-center shrink-0 shadow-sm relative mx-auto sm:mx-0">
                           {member.photoUrl ? (
                             <img
                               src={member.photoUrl}
@@ -818,12 +818,12 @@ function SignupContent() {
                           )}
                         </div>
 
-                        <div className="flex-1">
-                          <label className="block text-[11px] font-bold text-body-heading mb-1">
+                        <div className="flex-1 w-full">
+                          <label className="block text-[11px] font-bold text-body-heading mb-1.5">
                             Profile Picture (प्रोफ़ाइल फोटो) {index === 0 && <span className="text-brand-gold font-normal">(Recommended)</span>}
                           </label>
-                          <div className="flex items-center gap-2">
-                            <label className="cursor-pointer px-3 py-1.5 rounded-lg text-[11px] font-bold bg-canvas-warm text-brand-primary border border-brand-accent/40 hover:bg-white transition-all">
+                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                            <label className="cursor-pointer px-3 py-1.5 rounded-lg text-[11px] font-bold bg-canvas-warm text-brand-primary border border-brand-accent/40 hover:bg-white transition-all shadow-xs">
                               {member.photoUrl ? "Change Photo" : "Upload Photo"}
                               <input
                                 type="file"
@@ -841,7 +841,7 @@ function SignupContent() {
                                 Remove
                               </button>
                             )}
-                            <span className="text-[10px] text-body-muted hidden sm:inline">
+                            <span className="text-[10px] text-body-muted block sm:inline">
                               JPG, PNG or WebP &bull; Max 2MB
                             </span>
                           </div>
@@ -850,7 +850,7 @@ function SignupContent() {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
                         {/* 1. Full Name */}
-                        <div>
+                        <div className="min-w-0">
                           <label className="block text-[11px] font-bold text-body-heading mb-1">
                             Full Name (पूरा नाम) *
                           </label>
@@ -864,7 +864,7 @@ function SignupContent() {
                         </div>
 
                         {/* 2. Father's Name */}
-                        <div>
+                        <div className="min-w-0">
                           <label className="block text-[11px] font-bold text-body-heading mb-1">
                             Father&apos;s Full Name (पिता का नाम) {index === 0 ? "*" : "(Optional)"}
                           </label>
@@ -878,7 +878,7 @@ function SignupContent() {
                         </div>
 
                         {/* 3. Relation */}
-                        <div>
+                        <div className="min-w-0">
                           <label className="block text-[11px] font-bold text-body-heading mb-1">
                             Relation to Head
                           </label>
@@ -905,7 +905,7 @@ function SignupContent() {
                         </div>
 
                         {/* 4. Phone Number */}
-                        <div>
+                        <div className="min-w-0">
                           <label className="block text-[11px] font-bold text-body-heading mb-1">
                             Mobile Phone {index === 0 ? (contactType === "phone" ? "(Step 1 Verified)" : "* (Required)") : "(Optional)"}
                           </label>
@@ -943,7 +943,7 @@ function SignupContent() {
                         </div>
 
                         {/* 5. Email Address */}
-                        <div>
+                        <div className="min-w-0">
                           <label className="block text-[11px] font-bold text-body-heading mb-1">
                             Email Address {index === 0 ? (contactType === "email" ? "(Step 1 Verified)" : "* (Required)") : "(Optional)"}
                           </label>
@@ -981,7 +981,7 @@ function SignupContent() {
                         </div>
 
                         {/* 6. Date of Birth Date Picker */}
-                        <div>
+                        <div className="min-w-0">
                           <label className="block text-[11px] font-bold text-body-heading mb-1">
                             Date of Birth (जन्म तिथि)
                           </label>
@@ -991,7 +991,7 @@ function SignupContent() {
                             min="1910-01-01"
                             value={member.dob}
                             onChange={(e) => updateMember(member.id, "dob", e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white text-body-heading focus:ring-1 focus:ring-brand-primary"
+                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white text-body-heading focus:ring-1 focus:ring-brand-primary min-w-0"
                           />
                           {calculatedAge !== null && (
                             <span className="text-[10px] text-brand-gold font-semibold block mt-0.5">
@@ -1001,7 +1001,7 @@ function SignupContent() {
                         </div>
 
                         {/* 7. Gender */}
-                        <div>
+                        <div className="min-w-0">
                           <label className="block text-[11px] font-bold text-body-heading mb-1">
                             Gender
                           </label>
@@ -1017,7 +1017,7 @@ function SignupContent() {
                         </div>
 
                         {/* 8. Marital Status (Smart Minor Check) */}
-                        <div>
+                        <div className="min-w-0">
                           <label className="block text-[11px] font-bold text-body-heading mb-1">
                             Marital Status
                           </label>
@@ -1040,7 +1040,7 @@ function SignupContent() {
                         </div>
 
                         {/* Location Selector */}
-                        <div className="sm:col-span-2">
+                        <div className="sm:col-span-2 min-w-0">
                           <LocationSelector
                             country={member.currentCountry || ""}
                             city={member.currentCity || ""}
@@ -1052,7 +1052,7 @@ function SignupContent() {
                         </div>
 
                         {/* 10. Profession */}
-                        <div className="sm:col-span-2 lg:col-span-3">
+                        <div className="sm:col-span-2 lg:col-span-3 min-w-0">
                           <label className="block text-[11px] font-bold text-body-heading mb-1">
                             Profession / Occupation / Education
                           </label>
