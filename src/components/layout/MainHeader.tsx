@@ -41,9 +41,10 @@ export default function MainHeader() {
             <Image
               src="/images/logo-transparent.png"
               alt="Maharaja Agrasen Foundation Limited Singapore Logo"
-              width={48}
-              height={48}
-              className="object-contain drop-shadow-[0_2px_8px_rgba(217,83,30,0.22)]"
+              width={120}
+              height={120}
+              quality={95}
+              className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(217,83,30,0.22)]"
               priority
             />
           </div>

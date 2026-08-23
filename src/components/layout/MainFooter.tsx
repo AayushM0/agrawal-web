@@ -10,13 +10,16 @@ export default function MainFooter() {
           {/* Col 1: Brand */}
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <Image
-                src="/images/logo-transparent.png"
-                alt="Maharaja Agrasen Foundation Limited Singapore Logo"
-                width={44}
-                height={44}
-                className="object-contain drop-shadow-[0_2px_8px_rgba(217,83,30,0.18)]"
-              />
+              <div className="w-11 h-11 shrink-0">
+                <Image
+                  src="/images/logo-transparent.png"
+                  alt="Maharaja Agrasen Foundation Limited Singapore Logo"
+                  width={110}
+                  height={110}
+                  quality={95}
+                  className="w-full h-full object-contain drop-shadow-[0_2px_8px_rgba(217,83,30,0.18)]"
+                />
+              </div>
               <div>
                 <h3 className="text-xs sm:text-sm font-extrabold text-brand-primary leading-tight">
                   Maharaja Agrasen Foundation Limited Singapore
