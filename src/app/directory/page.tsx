@@ -86,11 +86,11 @@ function DirectoryContent() {
               </svg>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
               <button
                 type="button"
                 onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-                className={`lg:hidden flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-3 rounded-full text-xs font-bold transition-all ${
+                className={`lg:hidden flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-3 rounded-full text-xs font-bold transition-all ${
                   mobileFiltersOpen || activeFiltersCount > 0
                     ? "bg-brand-primary text-white shadow-sm"
                     : "bg-canvas-warm text-brand-primary border border-brand-accent/40 hover:bg-white"
@@ -107,7 +107,7 @@ function DirectoryContent() {
               <button
                 type="button"
                 onClick={() => setNearMeActive(!nearMeActive)}
-                className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full text-xs font-bold transition-all ${
+                className={`flex items-center justify-center gap-1.5 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full text-xs font-bold transition-all ${
                   nearMeActive
                     ? "bg-brand-primary text-white shadow-md"
                     : "bg-canvas-warm text-brand-primary border border-brand-accent/40 hover:bg-white"
