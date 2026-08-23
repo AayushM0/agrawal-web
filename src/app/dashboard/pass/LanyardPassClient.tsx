@@ -32,24 +32,24 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
 
   return (
     <div className="min-h-screen bg-[#0d111a] flex flex-col">
-      {/* Top bar — hidden on print */}
-      <div className="no-print sticky top-0 z-50 bg-[#151a26] border-b border-white/10 px-6 py-3 flex items-center justify-between gap-4">
+      {/* Top action bar */}
+      <div className="bg-[#111622] border-b border-white/10 px-4 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sticky top-0 z-40 no-print">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/dashboard")}
-            className="text-gray-400 hover:text-white text-sm flex items-center gap-1"
+            className="text-gray-400 hover:text-white text-xs sm:text-sm flex items-center gap-1 transition-colors"
           >
             ← Back to Dashboard
           </button>
           <span className="text-gray-600">|</span>
-          <h1 className="text-white font-bold text-sm">Member Identity Pass</h1>
+          <h1 className="text-white font-bold text-xs sm:text-sm">Member Identity Pass</h1>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
           {/* Member switcher — only for head */}
           {allMembers && allMembers.length > 1 && (
             <select
-              className="bg-[#222a3a] border border-white/15 text-gray-200 text-sm rounded-lg px-3 py-2 outline-none"
+              className="flex-1 sm:flex-initial bg-[#222a3a] border border-white/15 text-gray-200 text-xs sm:text-sm rounded-lg px-3 py-2 outline-none"
               value={currentMemberId}
               onChange={(e) =>
                 router.push(`/dashboard/pass?memberId=${e.target.value}`)
@@ -66,7 +66,7 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
           <a
             href={`/api/pass/pdf?memberId=${currentMemberId}`}
             download={`ID_Card_${fullName.replace(/\s+/g, "_")}.pdf`}
-            className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-all"
+            className="flex-1 sm:flex-initial justify-center bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-sm"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="6 9 6 2 18 2 18 9"></polyline>
@@ -79,12 +79,12 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
       </div>
 
       {/* Stage */}
-      <main className="flex-1 flex flex-col items-center justify-start py-10 px-4 bg-[radial-gradient(circle_at_center_top,#192233_0%,#090c12_85%)]">
+      <main className="flex-1 flex flex-col items-center justify-start py-8 sm:py-10 px-3 sm:px-4 bg-[radial-gradient(circle_at_center_top,#192233_0%,#090c12_85%)]">
         {/* Lanyard rig */}
-        <div className="flex flex-col items-center">
+        <div className="w-full flex flex-col items-center">
           {/* Strap */}
           <div
-            className="w-[52px] h-[100px] flex items-center justify-center rounded-t-sm overflow-hidden"
+            className="w-[52px] h-[80px] sm:h-[100px] flex items-center justify-center rounded-t-sm overflow-hidden"
             style={{
               background:
                 "repeating-linear-gradient(45deg,rgba(255,255,255,.08) 0,rgba(255,255,255,.08) 1px,transparent 0,transparent 4px), linear-gradient(to right,#701a75,#9f1239 35%,#b45309 65%,#701a75)",
@@ -92,10 +92,10 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
             }}
           >
             <span
-              className="text-[9px] font-extrabold tracking-[2px] text-yellow-200 uppercase whitespace-nowrap opacity-95"
+              className="text-[8px] sm:text-[9px] font-extrabold tracking-[2px] text-yellow-200 uppercase whitespace-nowrap opacity-95"
               style={{ writingMode: "vertical-rl" }}
             >
-              MAHARAJA AGRASEN FOUNDATION LIMITED SINGAPORE
+              MAHARAJA AGRASEN FOUNDATION
             </span>
           </div>
 
@@ -109,7 +109,7 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
           {/* ── CARD ── */}
           <div
             id="lanyard-card"
-            className="w-[340px] rounded-2xl overflow-hidden mt-[-6px]"
+            className="w-full max-w-[340px] rounded-2xl overflow-hidden mt-[-6px] min-w-0"
             style={{
               background: "#ffffff",
               color: "#1f2937",
