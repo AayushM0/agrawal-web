@@ -9,10 +9,9 @@ interface WizardProgressBarProps {
 
 const stepNames = [
   "Contact Verification",
-  "Gotra & Ancestry",
-  "Family Members",
-  "Privacy Preferences",
-  "Consent & Review",
+  "Gotra & Native Place",
+  "Members & Identity",
+  "Review & Submission",
 ];
 
 export default function WizardProgressBar({

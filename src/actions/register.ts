@@ -11,6 +11,15 @@ export interface RegisterHouseholdInput {
   verifiedContact: string;
   gotra: string;
   nativePlace: string;
+  country?: string;
+  postalCode?: string;
+  state?: string;
+  city?: string;
+  fullAddress?: string;
+  aadhaarNumber?: string;
+  panNumber?: string;
+  passportNumber?: string;
+  govtIdNumber?: string;
   members: Omit<Member, "id" | "verifiedBySelf" | "ownerLocked">[];
   consentAccepted: boolean;
 }
@@ -39,7 +48,7 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
   }
 
   if (!cleanNativePlace || cleanNativePlace.length < 2 || cleanNativePlace.length > 100) {
-    return { success: false, error: "Ancestral native place must be between 2 and 100 characters." };
+    return { success: false, error: "Ancestral native place (मूल निवास) must be between 2 and 100 characters." };
   }
 
   // 3. 18 Gotras Validation
@@ -62,7 +71,7 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     return { success: false, error: "A valid verified mobile number or email address is required." };
   }
 
-  // 5. Unique Contact Check (Prevent duplicate households per TRD §2)
+  // 5. Unique Contact Check (Prevent duplicate households)
   const existing = await db.getHouseholdByContact(canonicalContact);
   if (existing) {
     return {
@@ -76,7 +85,6 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     return { success: false, error: "At least one family member (Head of Household) must be added." };
   }
 
-  // Mandatory Father's Name & Dual Contact Check for Head of Household (Member[0])
   const head = input.members[0];
   const headFatherName = head.fatherName?.trim();
   if (!headFatherName || headFatherName.length < 2 || headFatherName.length > 100) {
@@ -91,6 +99,46 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
   const headEmail = head.email?.trim();
   if (!headEmail || !headEmail.includes("@") || headEmail.length < 5) {
     return { success: false, error: "A valid email address is required for Head of Household." };
+  }
+
+  // Address validation
+  const country = input.country?.trim() || head.currentCountry?.trim() || "India";
+  const postalCode = input.postalCode?.trim() || head.postalCode?.trim() || "";
+  const state = input.state?.trim() || head.state?.trim() || "";
+  const city = input.city?.trim() || head.currentCity?.trim() || "";
+  const fullAddress = input.fullAddress?.trim() || head.fullAddress?.trim() || "";
+
+  if (!postalCode || postalCode.length < 3) {
+    return { success: false, error: "A valid Postal/PIN code is required." };
+  }
+  if (!city || city.length < 2) {
+    return { success: false, error: "City / District is required." };
+  }
+  if (!fullAddress || fullAddress.length < 5) {
+    return { success: false, error: "Complete residential address is required." };
+  }
+
+  // Country-Specific Government ID Validation
+  const isIndia = country.toLowerCase() === "india" || country.toUpperCase() === "IN";
+  const cleanAadhaar = input.aadhaarNumber?.replace(/[^0-9]/g, "") || head.aadhaarNumber?.replace(/[^0-9]/g, "");
+  const cleanPan = input.panNumber?.trim().toUpperCase() || head.panNumber?.trim().toUpperCase();
+  const cleanPassport = input.passportNumber?.trim().toUpperCase() || head.passportNumber?.trim().toUpperCase();
+  const cleanGovtId = input.govtIdNumber?.trim().toUpperCase() || head.govtIdNumber?.trim().toUpperCase();
+
+  if (isIndia) {
+    if (!cleanAadhaar || cleanAadhaar.length !== 12) {
+      return { success: false, error: "A valid 12-digit Aadhaar Number is required for Indian residents." };
+    }
+    if (!cleanPan || !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
+      return { success: false, error: "A valid 10-character PAN Number (e.g. ABCDE1234F) is required." };
+    }
+  } else {
+    if (!cleanPassport || cleanPassport.length < 5) {
+      return { success: false, error: "A valid Passport Number is required for international members." };
+    }
+    if (!cleanGovtId || cleanGovtId.length < 3) {
+      return { success: false, error: "A valid Government Issued ID / Tax ID is required." };
+    }
   }
 
   // Check contact conflicts for Head's Phone & Email
@@ -148,14 +196,23 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     photoUrl: m.photoUrl?.trim() || undefined,
     phone: m.phone ? (m.phone.includes("@") ? m.phone.trim() : normalizePhoneNumber(m.phone)) : undefined,
     email: m.email?.trim().toLowerCase() || undefined,
-    currentCity: m.currentCity?.trim() || cleanNativePlace,
-    currentCountry: m.currentCountry?.trim() || "India",
+    currentCity: m.currentCity?.trim() || city || cleanNativePlace,
+    currentCountry: m.currentCountry?.trim() || country,
+    postalCode: m.postalCode?.trim() || postalCode,
+    state: m.state?.trim() || state,
+    fullAddress: m.fullAddress?.trim() || fullAddress,
     profession: m.profession?.trim() || "",
+    professionTitle: m.professionTitle?.trim() || m.profession?.trim() || "",
+    professionDescription: m.professionDescription?.trim() || undefined,
+    aadhaarNumber: idx === 0 ? cleanAadhaar : (m.aadhaarNumber?.replace(/[^0-9]/g, "") || undefined),
+    panNumber: idx === 0 ? cleanPan : (m.panNumber?.trim().toUpperCase() || undefined),
+    passportNumber: idx === 0 ? cleanPassport : (m.passportNumber?.trim().toUpperCase() || undefined),
+    govtIdNumber: idx === 0 ? cleanGovtId : (m.govtIdNumber?.trim().toUpperCase() || undefined),
     id: `m-${Date.now()}-${idx}`,
     verifiedBySelf: idx === 0, // Head is self-verified on signup
     ownerLocked: idx === 0,
-    visibility: m.visibility || {
-      contactInfo: "members_only",
+    visibility: {
+      contactInfo: "hidden",
       dob: "hidden",
       photo: "public_to_members",
     },
@@ -168,6 +225,15 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     headName: cleanHeadName,
     nativePlace: cleanNativePlace,
     gotra: canonicalGotra,
+    country,
+    postalCode,
+    state,
+    city,
+    fullAddress,
+    aadhaarNumber: isIndia ? cleanAadhaar : undefined,
+    panNumber: isIndia ? cleanPan : undefined,
+    passportNumber: !isIndia ? cleanPassport : undefined,
+    govtIdNumber: !isIndia ? cleanGovtId : undefined,
     status: "pending_review",
     verifiedContact: canonicalContact,
     consentAcceptedAt: new Date().toISOString(),
@@ -175,7 +241,7 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     members: structuredMembers,
   };
 
-  await db.createHousehold(newHousehold);
+  const created = await db.createHousehold(newHousehold);
 
   // Automatically establish logged-in session for the newly registered Head of Household
   await createSession({
@@ -187,10 +253,12 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
 
   return {
     success: true,
-    householdCode,
+    householdCode: created.serialNo || householdCode,
+    serialNo: created.serialNo || householdCode,
     message: "Registration submitted successfully into community moderation queue.",
   };
 }
+
 export async function checkContactRegistration(contact: string) {
   if (!contact || contact.trim().length < 5) {
     return { isRegistered: false };
@@ -204,7 +272,7 @@ export async function checkContactRegistration(contact: string) {
   if (existing) {
     return {
       isRegistered: true,
-      householdCode: existing.householdCode,
+      householdCode: existing.serialNo || existing.householdCode,
       headName: existing.headName,
     };
   }
