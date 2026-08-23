@@ -1,3 +1,5 @@
+'use server';
+
 import { db } from "../lib/db";
 import { getSession } from "./auth";
 import { Household } from "@/types/household";
