@@ -47,6 +47,7 @@ async function sendWelcomeEmail(member: any, household: any) {
       fullName: member.fullName,
       gotra: household.gotra,
       householdCode: household.householdCode,
+      serialNo: household.serialNo || household.householdCode,
       currentCity: member.currentCity,
       roleLabel: member.relationToHead,
       photoUrl: member.photoUrl,
@@ -65,8 +66,8 @@ async function sendWelcomeEmail(member: any, household: any) {
       body: JSON.stringify({
         from: "Maharaja Agrasen Foundation <onboarding@resend.dev>",
         to: member.email,
-        subject: "Your Official ID - Maharaja Agrasen Foundation",
-        html: "<p>Welcome! Your membership is approved. Your official ID card is attached to this email.</p>",
+        subject: `Your Official ID (${passData.serialNo}) - Maharaja Agrasen Foundation`,
+        html: `<p>Welcome! Your membership is approved. Your assigned Serial Number is <strong>${passData.serialNo}</strong>. Your official ID card is attached to this email.</p>`,
         attachments: [
           {
             filename: `ID_Card_${passData.fullName.replace(/\s+/g, "_")}.pdf`,
@@ -87,11 +88,12 @@ async function sendWelcomeEmail(member: any, household: any) {
 
 async function notifyHouseholdMembers(householdId: string, household: any) {
   const members = await db.getMembersByHousehold(householdId);
+  const serial = household.serialNo || household.householdCode;
   for (const member of members) {
     if (member.phone) {
       await sendSMS(
         member.phone,
-        `Your Maharaja Agrasen Foundation membership is approved! Download your official ID here: https://agrasenvaishakhara.com/dashboard/pass`
+        `Your Maharaja Agrasen Foundation membership is approved! Your Serial No is ${serial}. Download your official ID pass here: https://agrasenvaishakhara.com/dashboard/pass`
       );
     }
     if (member.email) {

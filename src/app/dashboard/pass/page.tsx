@@ -39,6 +39,7 @@ export default async function PassPage({
     fatherName: member.fatherName || "",
     gotra: household.gotra,
     householdCode: household.householdCode,
+    serialNo: member.serialNo || household.serialNo || household.householdCode,
     nativePlace: household.nativePlace,
     currentCity: member.currentCity,
     roleLabel,

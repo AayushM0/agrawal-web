@@ -27,6 +27,7 @@ export async function GET(request: Request) {
     fullName: member.fullName,
     gotra: member.gotra,
     householdCode: member.householdCode,
+    serialNo: member.serialNo || member.householdCode,
     currentCity: member.currentCity,
     roleLabel: member.relationToHead,
     photoUrl: member.photoUrl,

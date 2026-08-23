@@ -177,20 +177,32 @@ export default function ModerationQueuePage() {
               >
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-brand-accent/20">
                   <div>
-                    <div className="flex items-center gap-3 mb-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
                       <h2 className="text-base font-bold text-brand-primary">
                         {h.headName}
                       </h2>
                       <span className="text-xs font-bold va-badge-gold px-2.5 py-0.5 rounded-full">
                         Gotra: {h.gotra}
                       </span>
-                      <span className="text-xs font-mono font-bold text-body-muted bg-canvas-warm px-2.5 py-0.5 rounded-full border border-brand-accent/20">
-                        #{h.householdCode}
+                      <span className="text-xs font-mono font-bold text-brand-primary bg-canvas-warm px-2.5 py-0.5 rounded-full border border-brand-accent/40">
+                        #{h.serialNo || h.householdCode}
                       </span>
                     </div>
-                    <p className="text-xs text-body-muted">
-                      Native Place: <strong>{h.nativePlace}</strong> • Verified Contact: <strong>{h.verifiedContact}</strong>
-                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-body-text mt-2">
+                      <p>
+                        <strong>Ancestral Native:</strong> {h.nativePlace}
+                      </p>
+                      <p>
+                        <strong>Verified Contact:</strong> {h.verifiedContact}
+                      </p>
+                      <p className="sm:col-span-2">
+                        <strong>Residential Address:</strong> {h.fullAddress || "N/A"}, {h.city || ""}, {h.state || ""} ({h.country || "India"}) - {h.postalCode || ""}
+                      </p>
+                      <p className="sm:col-span-2 text-brand-primary font-mono text-[11px] font-bold">
+                        {h.aadhaarNumber ? `Aadhaar: ${h.aadhaarNumber} • PAN: ${h.panNumber || "N/A"}` : `Passport: ${h.passportNumber || "N/A"} • Govt ID: ${h.govtIdNumber || "N/A"}`}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-2">

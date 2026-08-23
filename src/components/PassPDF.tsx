@@ -334,11 +334,11 @@ export function PassPDF({ passData }: { passData: any }) {
               </View>
             </View>
 
-            {/* Household Code */}
+            {/* Official Serial Number (SNO) */}
             <View style={styles.codeBox}>
-              <Text style={styles.codeLabel}>HOUSEHOLD CODE</Text>
+              <Text style={styles.codeLabel}>OFFICIAL SERIAL NUMBER (SNO)</Text>
               <View style={styles.codeValueBox}>
-                <Text style={styles.codeValue}>{passData.householdCode}</Text>
+                <Text style={styles.codeValue}>{passData.serialNo || passData.householdCode}</Text>
               </View>
             </View>
           </View>

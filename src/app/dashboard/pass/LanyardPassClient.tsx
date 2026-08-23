@@ -13,6 +13,7 @@ interface PassData {
   fatherName: string;
   gotra: string;
   householdCode: string;
+  serialNo?: string;
   nativePlace: string;
   currentCity: string;
   roleLabel: string;
@@ -25,7 +26,7 @@ interface PassData {
 export default function LanyardPassClient({ passData }: { passData: PassData }) {
   const router = useRouter();
   const {
-    fullName, fatherName, gotra, householdCode, nativePlace,
+    fullName, fatherName, gotra, householdCode, serialNo, nativePlace,
     currentCity, roleLabel, memberSince, photoUrl,
     allMembers, currentMemberId,
   } = passData;
@@ -227,18 +228,18 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
                 </div>
               </div>
 
-              {/* Household code (QR removed) */}
+              {/* Official Serial Number (SNO) */}
               <div
                 className="w-full bg-white border border-stone-200 rounded-xl p-3 flex flex-col items-center justify-center text-center gap-1"
                 style={{ boxShadow: "0 1px 3px rgba(0,0,0,.03)" }}
               >
                 <span className="text-[10px] text-stone-500 font-bold uppercase tracking-wider">
-                  Household Code
+                  Official Serial Number (SNO)
                 </span>
                 <div
-                  className="w-full border border-dashed border-stone-300 rounded-lg px-3 py-2 font-mono text-sm tracking-[1px] text-stone-700 bg-[#f5f5f4]"
+                  className="w-full border border-dashed border-stone-300 rounded-lg px-3 py-2 font-mono text-sm tracking-[1.5px] text-stone-700 bg-[#f5f5f4]"
                 >
-                  <strong className="text-[#9a3412] font-extrabold">{householdCode}</strong>
+                  <strong className="text-[#9a3412] font-extrabold">{serialNo || householdCode}</strong>
                 </div>
               </div>
             </div>
