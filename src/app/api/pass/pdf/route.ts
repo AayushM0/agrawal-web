@@ -27,12 +27,12 @@ export async function GET(request: Request) {
 
   const passData = {
     fullName: member.fullName,
-    gotra: household.gotra,
-    householdCode: household.householdCode,
+    gotra: household?.gotra || member.gotra,
+    householdCode: household?.householdCode || member.householdCode,
     currentCity: member.currentCity,
     roleLabel: member.relationToHead,
     photoUrl: member.photoUrl,
-    nativePlace: household.nativePlace,
+    nativePlace: household?.nativePlace || member.nativePlace,
     fatherName: member.fatherName,
   };
 
