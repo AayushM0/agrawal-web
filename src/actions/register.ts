@@ -187,6 +187,17 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
       return { success: false, error: `Invalid marital status '${m.maritalStatus}' for member #${i + 1}.` };
     }
 
+    // Profile photo is strictly mandatory for Head and all members
+    if (!m.photoUrl || !m.photoUrl.trim() || m.photoUrl.trim().length < 10) {
+      return {
+        success: false,
+        error:
+          i === 0
+            ? "A recent profile photograph is mandatory for the Head of Household (मुखिया का फोटो अनिवार्य है)."
+            : `A profile photograph is mandatory for ${memberName} (फोटो अनिवार्य है).`,
+      };
+    }
+
     // Check contact conflicts for additional members
     if (i > 0) {
       if (m.phone && m.phone.trim()) {

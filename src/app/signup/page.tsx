@@ -207,6 +207,10 @@ export default function SignupPage() {
     e.preventDefault();
     setStep2Error("");
 
+    if (!headPhotoUrl || !headPhotoUrl.trim()) {
+      setStep2Error("A profile photograph is mandatory for the Head of Household (मुखिया का फोटो अपलोड करना अनिवार्य है).");
+      return;
+    }
     if (!headName.trim() || headName.trim().length < 2) {
       setStep2Error("Please enter the Head of Household's full name (मुखिया का नाम).");
       return;
@@ -343,6 +347,10 @@ export default function SignupPage() {
       const m = additionalMembers[i];
       if (!m.fullName.trim() || m.fullName.trim().length < 2) {
         setStep3Error(`Please enter a valid Full Name for Additional Family Member #${i + 1}.`);
+        return;
+      }
+      if (!m.photoUrl || !m.photoUrl.trim()) {
+        setStep3Error(`A profile photograph is mandatory for ${m.fullName || `Member #${i + 1}`} (फोटो अपलोड करना अनिवार्य है).`);
         return;
       }
       if (!m.dob || !m.dob.trim()) {
@@ -766,7 +774,7 @@ export default function SignupPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-body-heading mb-1">
-                        Profile Photo (फ़ोटो)
+                        Profile Photo (मुखिया का फोटो) *
                       </label>
                       <input
                         type="file"
@@ -774,6 +782,11 @@ export default function SignupPage() {
                         onChange={handleHeadPhotoUpload}
                         className="text-xs text-body-muted file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-canvas-warm file:text-brand-primary hover:file:bg-white"
                       />
+                      {!headPhotoUrl && (
+                        <span className="text-[10px] text-amber-700 font-semibold block mt-0.5">
+                          ⚠️ Photo upload is mandatory for official ID pass
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1121,6 +1134,33 @@ export default function SignupPage() {
                           >
                             ✕ Remove
                           </button>
+                        </div>
+
+                        {/* Member Photo Upload & Avatar Preview */}
+                        <div className="flex items-center gap-4 p-3.5 rounded-xl bg-white border border-brand-accent/30 shadow-xs">
+                          <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border-2 border-brand-accent flex items-center justify-center text-lg font-bold text-brand-primary shrink-0 shadow-xs">
+                            {member.photoUrl ? (
+                              <img src={member.photoUrl} alt={member.fullName || "Member"} className="w-full h-full object-cover" />
+                            ) : (
+                              member.fullName ? member.fullName.charAt(0).toUpperCase() : `${index + 2}`
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-body-heading mb-1">
+                              Member Profile Photo (सदस्य का फोटो) *
+                            </label>
+                            <input
+                              type="file"
+                              accept="image/png, image/jpeg, image/webp"
+                              onChange={(e) => handleMemberPhoto(member.id, e)}
+                              className="text-xs text-body-muted file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-canvas-warm file:text-brand-primary hover:file:bg-white"
+                            />
+                            {!member.photoUrl && (
+                              <span className="text-[10px] text-amber-700 font-semibold block mt-0.5">
+                                ⚠️ Photo upload is mandatory for ID pass generation
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         {/* Member Inputs Grid */}
