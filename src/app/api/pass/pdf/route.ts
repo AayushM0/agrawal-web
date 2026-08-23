@@ -32,6 +32,8 @@ export async function GET(request: Request) {
     currentCity: member.currentCity,
     roleLabel: member.relationToHead,
     photoUrl: member.photoUrl,
+    nativePlace: household.nativePlace,
+    fatherName: member.fatherName,
   };
 
   const stream = await renderToStream(React.createElement(PassPDF, { passData }) as any);

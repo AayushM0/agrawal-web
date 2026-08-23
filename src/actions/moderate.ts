@@ -36,6 +36,8 @@ async function sendWelcomeEmail(member: any, household: any) {
       currentCity: member.currentCity,
       roleLabel: member.relationToHead,
       photoUrl: member.photoUrl,
+      nativePlace: household.nativePlace,
+      fatherName: member.fatherName,
     };
 
     const buffer = await renderToBuffer(React.createElement(PassPDF, { passData }) as any);
