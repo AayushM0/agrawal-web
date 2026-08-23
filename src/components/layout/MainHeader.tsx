@@ -36,32 +36,32 @@ export default function MainHeader() {
     <header className="sticky top-0 z-50 bg-[#fffdf8]/95 backdrop-blur-md border-b border-brand-accent/25 shadow-warm transition-all">
       <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
         {/* Brand Logo & Title */}
-        <Link href="/" className="flex items-center gap-2.5 sm:gap-3.5 text-decoration-none group shrink-0">
-          <div className="relative w-11 h-11 sm:w-14 sm:h-14 shrink-0 transition-transform group-hover:scale-105">
+        <Link href="/" className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 text-decoration-none group">
+          <div className="relative w-9 h-9 sm:w-12 sm:h-12 shrink-0 transition-transform group-hover:scale-105">
             <Image
               src="/images/logo-transparent.png"
               alt="Maharaja Agrasen Foundation Limited Singapore Logo"
-              width={58}
-              height={58}
+              width={48}
+              height={48}
               className="object-contain drop-shadow-[0_2px_8px_rgba(217,83,30,0.22)]"
               priority
             />
           </div>
-          <div className="min-w-0">
-            <span className="inline-block text-[8px] sm:text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full va-badge-gold mb-0.5">
+          <div className="min-w-0 flex-1">
+            <span className="inline-block text-[8px] sm:text-[9px] font-bold tracking-wider uppercase px-1.5 sm:px-2 py-0.5 rounded-full va-badge-gold mb-0.5 whitespace-nowrap">
               Maharaja Agrasen Foundation
             </span>
-            <h2 className="text-[11px] sm:text-sm md:text-base font-extrabold text-brand-primary leading-tight tracking-tight truncate sm:whitespace-normal">
+            <h2 className="text-xs sm:text-sm md:text-base font-extrabold text-brand-primary leading-tight tracking-tight truncate">
               Maharaja Agrasen Foundation Limited Singapore
             </h2>
-            <p className="text-[9px] sm:text-[11px] text-body-muted font-medium truncate max-w-[180px] sm:max-w-none hidden xs:block">
+            <p className="text-[9px] sm:text-[11px] text-body-muted font-medium truncate hidden sm:block">
               One Community • One Platform • One Global Family
             </p>
           </div>
         </Link>
 
         {/* Desktop Navigation (hidden on mobile <768px) */}
-        <nav aria-label="Main Desktop Navigation" className="hidden md:flex items-center gap-2">
+        <nav aria-label="Main Desktop Navigation" className="hidden md:flex items-center gap-2 shrink-0">
           <Link
             href="/"
             className={`px-3 py-1.5 text-xs font-semibold rounded-full transition-colors ${
@@ -151,21 +151,28 @@ export default function MainHeader() {
           )}
         </nav>
 
-        {/* Mobile Hamburger Button */}
-        <div className="flex md:hidden items-center gap-2">
-          {!isLoggedIn && !isLoading && (
+        {/* Mobile Action Buttons & Hamburger (Always visible on phone) */}
+        <div className="flex md:hidden items-center gap-1.5 sm:gap-2 shrink-0 z-10">
+          {isLoggedIn ? (
+            <Link
+              href="/dashboard"
+              className="px-2.5 py-1.5 text-[11px] font-bold text-white bg-brand-primary rounded-full shadow-sm whitespace-nowrap"
+            >
+              Dashboard
+            </Link>
+          ) : !isLoading ? (
             <Link
               href="/signup"
-              className="px-3 py-1.5 text-[11px] font-bold text-white va-btn-join rounded-full shadow-sm"
+              className="px-2.5 py-1.5 text-[11px] font-bold text-white va-btn-join rounded-full shadow-sm whitespace-nowrap"
             >
               Join Free
             </Link>
-          )}
+          ) : null}
 
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-xl text-brand-primary hover:bg-canvas-warm border border-brand-accent/30 transition-colors"
+            className="p-1.5 sm:p-2 rounded-xl text-brand-primary hover:bg-canvas-warm border border-brand-accent/40 bg-white shadow-xs transition-colors shrink-0"
             aria-label="Toggle navigation menu"
           >
             {mobileMenuOpen ? (
