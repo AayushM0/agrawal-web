@@ -3,23 +3,37 @@
 import { db } from "../lib/db";
 import { getSession } from "./auth";
 import { Household } from "@/types/household";
-import twilio from "twilio";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { PassPDF } from "@/components/PassPDF";
 import React from "react";
 
-const twilioClient = process.env.TWILIO_ACCOUNT_SID 
-  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-  : null;
-
 async function sendSMS(phone: string, text: string) {
-  if (!twilioClient) return;
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_PHONE_NUMBER;
+  if (!sid || !token || !from || !phone) return;
+
   try {
-    await twilioClient.messages.create({
-      body: text,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: phone
+    const authHeader = "Basic " + Buffer.from(`${sid}:${token}`).toString("base64");
+    const body = new URLSearchParams({
+      Body: text,
+      From: from,
+      To: phone,
     });
+
+    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: "POST",
+      headers: {
+        "Authorization": authHeader,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("[TWILIO SMS ERROR]", err);
+    }
   } catch (e) {
     console.error("SMS failed:", e);
   }
@@ -71,6 +85,21 @@ async function sendWelcomeEmail(member: any, household: any) {
   }
 }
 
+async function notifyHouseholdMembers(householdId: string, household: any) {
+  const members = await db.getMembersByHousehold(householdId);
+  for (const member of members) {
+    if (member.phone) {
+      await sendSMS(
+        member.phone,
+        `Your Maharaja Agrasen Foundation membership is approved! Download your official ID here: https://agrasenvaishakhara.com/dashboard/pass`
+      );
+    }
+    if (member.email) {
+      await sendWelcomeEmail(member, household);
+    }
+  }
+}
+
 export async function getModerationHouseholds(): Promise<Household[]> {
   return await db.getHouseholds();
 }
@@ -83,17 +112,7 @@ export async function approveHousehold(householdId: string) {
   const updated = await db.updateHouseholdStatus(householdId, "live");
   if (!updated) return { success: false, error: "Household not found." };
   
-  // Triggers
-  const members = await db.getMembersByHousehold(householdId);
-  for (const member of members) {
-    if (member.phone) {
-      await sendSMS(member.phone, `Your Maharaja Agrasen Foundation membership is approved! Download your official ID here: https://yourdomain.com/dashboard/pass`);
-    }
-    if (member.email) {
-      await sendWelcomeEmail(member, updated);
-    }
-  }
-
+  await notifyHouseholdMembers(householdId, updated);
   return { success: true, message: `Household ${updated.householdCode} is now LIVE in the directory.` };
 }
 
@@ -103,22 +122,12 @@ export async function approveAllHouseholds() {
     return { success: false, error: "Unauthorized: Admin privileges required." };
   }
   
-  const pendingHouseholds = await db.getHouseholds();
-  const householdsToApprove = pendingHouseholds.filter((h: any) => h.status === "pending_review");
-  
+  const pending = (await db.getHouseholds()).filter((h: any) => h.status === "pending_review");
   const count = await db.approveAllPendingHouseholds();
   
-  for (const h of householdsToApprove) {
+  for (const h of pending) {
     const updated = await db.getHouseholdById(h.id);
-    const members = await db.getMembersByHousehold(h.id);
-    for (const member of members) {
-      if (member.phone) {
-        await sendSMS(member.phone, `Your Maharaja Agrasen Foundation membership is approved! Download your official ID here: https://yourdomain.com/dashboard/pass`);
-      }
-      if (member.email) {
-        await sendWelcomeEmail(member, updated);
-      }
-    }
+    await notifyHouseholdMembers(h.id, updated || h);
   }
   
   return {

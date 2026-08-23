@@ -23,16 +23,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Member not found" }, { status: 404 });
   }
 
-  const household = await db.getHouseholdById(member.householdId);
-
   const passData = {
     fullName: member.fullName,
-    gotra: household?.gotra || member.gotra,
-    householdCode: household?.householdCode || member.householdCode,
+    gotra: member.gotra,
+    householdCode: member.householdCode,
     currentCity: member.currentCity,
     roleLabel: member.relationToHead,
     photoUrl: member.photoUrl,
-    nativePlace: household?.nativePlace || member.nativePlace,
+    nativePlace: member.nativePlace,
     fatherName: member.fatherName,
   };
 
