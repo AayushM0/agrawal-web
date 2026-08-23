@@ -79,6 +79,15 @@ test("Issue 2.2: LocationSelector emits onPhoneCodeChange on country selection",
   assert.ok(locationSelectorCode.includes("phonecode"), "Must extract country phonecode");
 });
 
+test("Issue 2.3: LocationSelector auto-detects State & City from PIN code with API endpoint", () => {
+  const locationSelectorCode = fs.readFileSync(path.join(webRoot, "src/components/LocationSelector.tsx"), "utf8");
+  const pincodeRouteCode = fs.readFileSync(path.join(webRoot, "src/app/api/location/pincode/route.ts"), "utf8");
+
+  assert.ok(locationSelectorCode.includes("/api/location/pincode"), "LocationSelector must query pincode API");
+  assert.ok(locationSelectorCode.includes("Auto-detecting State & City"), "LocationSelector must display auto-detecting feedback");
+  assert.ok(pincodeRouteCode.includes("api.postalpincode.in"), "API route must query official India Post registry");
+});
+
 // ============================================================================
 // ISSUE #3 TESTS: Country-Specific Identity Verification & 4-Step Registration
 // ============================================================================

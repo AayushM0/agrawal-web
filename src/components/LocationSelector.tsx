@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Country, State, City, ICountry } from "country-state-city";
 
 interface LocationData {
@@ -56,10 +56,14 @@ export default function LocationSelector({
   const [localCity, setLocalCity] = useState(city);
   const [localAddress, setLocalAddress] = useState(fullAddress);
 
+  const [isLookingUpPostal, setIsLookingUpPostal] = useState(false);
+  const [postalLookupSuccessMsg, setPostalLookupSuccessMsg] = useState("");
+  const lastLookedUpPinRef = useRef<string>("");
+
   const states = State.getStatesOfCountry(selectedCountryCode);
   const cities = selectedStateCode ? City.getCitiesOfState(selectedCountryCode, selectedStateCode) : [];
 
-  const triggerChange = (updated: Partial<LocationData>) => {
+  const triggerChange = useCallback((updated: Partial<LocationData>) => {
     const countryObj = Country.getCountryByCode(selectedCountryCode);
     const stateObj = State.getStateByCodeAndCountry(updated.state !== undefined ? updated.state : selectedStateCode, selectedCountryCode);
     
@@ -69,7 +73,6 @@ export default function LocationSelector({
     const nextPostal = updated.postalCode !== undefined ? updated.postalCode : localPostalCode;
     const nextAddress = updated.fullAddress !== undefined ? updated.fullAddress : localAddress;
 
-    // Call with new structured object (and also legacy 2-arg support)
     onLocationChange({
       country: nextCountry,
       state: nextState,
@@ -77,7 +80,7 @@ export default function LocationSelector({
       postalCode: nextPostal,
       fullAddress: nextAddress,
     }, nextCity);
-  };
+  }, [selectedCountryCode, selectedStateCode, localCity, localPostalCode, localAddress, state, onLocationChange]);
 
   useEffect(() => {
     const countryObj = Country.getCountryByCode(selectedCountryCode);
@@ -87,10 +90,84 @@ export default function LocationSelector({
     }
   }, [selectedCountryCode, onPhoneCodeChange]);
 
+  // Automatic Pincode Lookup Handler
+  useEffect(() => {
+    const cleanPin = localPostalCode.trim().replace(/[^0-9a-zA-Z]/g, "");
+    
+    // Trigger lookup for India 6-digit PIN or other countries with >= 5 chars
+    const shouldLookup = selectedCountryCode === "IN" 
+      ? (cleanPin.length === 6 && /^\d{6}$/.test(cleanPin))
+      : (cleanPin.length >= 5);
+
+    if (shouldLookup && cleanPin !== lastLookedUpPinRef.current) {
+      lastLookedUpPinRef.current = cleanPin;
+      let isSubscribed = true;
+
+      const fetchLocationFromPincode = async () => {
+        setIsLookingUpPostal(true);
+        try {
+          const res = await fetch(`/api/location/pincode?code=${encodeURIComponent(cleanPin)}&country=${encodeURIComponent(selectedCountryCode)}`);
+          if (!res.ok) {
+            setIsLookingUpPostal(false);
+            return;
+          }
+          const data = await res.json();
+          if (!isSubscribed || !data.success) {
+            setIsLookingUpPostal(false);
+            return;
+          }
+
+          const resolvedState = data.state;
+          const resolvedCity = data.city || data.district;
+
+          // Find matching state ISO in state list
+          const curStates = State.getStatesOfCountry(selectedCountryCode);
+          const matchedStateObj = curStates.find(
+            s => s.name.toLowerCase() === resolvedState.toLowerCase() || 
+                 resolvedState.toLowerCase().includes(s.name.toLowerCase()) ||
+                 s.name.toLowerCase().includes(resolvedState.toLowerCase())
+          );
+
+          if (matchedStateObj) {
+            setSelectedStateCode(matchedStateObj.isoCode);
+          }
+          if (resolvedCity) {
+            setLocalCity(resolvedCity);
+          }
+
+          setPostalLookupSuccessMsg(`✓ Auto-filled: ${resolvedCity}, ${matchedStateObj?.name || resolvedState}`);
+          setTimeout(() => {
+            if (isSubscribed) setPostalLookupSuccessMsg("");
+          }, 4500);
+
+          triggerChange({
+            state: matchedStateObj?.name || resolvedState,
+            city: resolvedCity,
+            postalCode: cleanPin,
+          });
+        } catch (err) {
+          console.warn("Pincode lookup error:", err);
+        } finally {
+          if (isSubscribed) setIsLookingUpPostal(false);
+        }
+      };
+
+      const timer = setTimeout(() => {
+        fetchLocationFromPincode();
+      }, 300);
+
+      return () => {
+        isSubscribed = false;
+        clearTimeout(timer);
+      };
+    }
+  }, [localPostalCode, selectedCountryCode, triggerChange]);
+
   const handleCountryChange = (code: string) => {
     setSelectedCountryCode(code);
     setSelectedStateCode("");
     setLocalCity("");
+    lastLookedUpPinRef.current = "";
     const countryObj = Country.getCountryByCode(code);
     const countryName = countryObj?.name || "";
     
@@ -136,20 +213,33 @@ export default function LocationSelector({
           </select>
         </div>
 
-        {/* 2. Postal / PIN Code */}
+        {/* 2. Postal / PIN Code with Auto-Lookup Indicator */}
         <div>
-          <label className="block text-[11px] font-bold text-body-heading mb-1">
-            Postal / PIN Code (पिन कोड / पोस्टल कोड) *
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-[11px] font-bold text-body-heading">
+              Postal / PIN Code (पिन कोड) *
+            </label>
+            {isLookingUpPostal && (
+              <span className="text-[10px] text-brand-primary font-semibold animate-pulse">
+                🔍 Auto-detecting State & City...
+              </span>
+            )}
+            {postalLookupSuccessMsg && !isLookingUpPostal && (
+              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                {postalLookupSuccessMsg}
+              </span>
+            )}
+          </div>
           <input
             type="text"
+            maxLength={10}
             value={localPostalCode}
             onChange={(e) => {
               setLocalPostalCode(e.target.value);
               triggerChange({ postalCode: e.target.value });
             }}
-            placeholder={selectedCountryCode === "IN" ? "e.g. 110001 or 302001" : "e.g. 238801 or 90210"}
-            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
+            placeholder={selectedCountryCode === "IN" ? "e.g. 110001 or 302001 (auto-fills state/city)" : "e.g. 238801 or 90210"}
+            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none font-mono"
           />
         </div>
       </div>
@@ -199,6 +289,9 @@ export default function LocationSelector({
               {cities.map(c => (
                 <option key={c.name} value={c.name}>{c.name}</option>
               ))}
+              {localCity && !cities.some(c => c.name.toLowerCase() === localCity.toLowerCase()) && (
+                <option value={localCity}>{localCity}</option>
+              )}
             </select>
           ) : (
             <input
