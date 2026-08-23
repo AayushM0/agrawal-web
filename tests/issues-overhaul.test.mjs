@@ -88,8 +88,8 @@ test("Issue 3.1: 4-Step Progress Bar reflects new streamlined wizard", () => {
   
   assert.ok(!progressBarCode.includes("Privacy Preferences"), "Must not include removed Privacy step");
   assert.ok(progressBarCode.includes("Contact Verification"), "Must include Step 1");
-  assert.ok(progressBarCode.includes("Gotra & Native Place"), "Must include Step 2");
-  assert.ok(progressBarCode.includes("Members & Identity"), "Must include Step 3");
+  assert.ok(progressBarCode.includes("Head & Family Details"), "Must include Step 2 Head & Family Details");
+  assert.ok(progressBarCode.includes("Additional Members (Optional)"), "Must include Step 3 Optional Members");
   assert.ok(progressBarCode.includes("Review & Submission"), "Must include Step 4");
 });
 
@@ -113,10 +113,11 @@ test("Issue 3.2: Registration Server Action enforces country-branched IDs and ma
   assert.ok(registerActionCode.includes("serialNo:"), "Must return serialNo on registration");
 });
 
-test("Issue 3.3: Signup UI places '+ Add Another Family Member' at the bottom of the list", () => {
+test("Issue 3.3: Signup UI captures Head in Step 2 and provides optional member additions in Step 3", () => {
   const signupPageCode = fs.readFileSync(path.join(webRoot, "src/app/signup/page.tsx"), "utf8");
   
-  assert.ok(signupPageCode.includes("+ Add Another Family Member"), "Must contain add member CTA");
+  assert.ok(signupPageCode.includes("+ Add Family Member"), "Must contain add member CTA");
+  assert.ok(signupPageCode.includes("Head of Household Profile (मुखिया की जानकारी)"), "Step 2 must capture Head profile");
   assert.ok(signupPageCode.includes("Profession Description (एक पंक्ति में विवरण)"), "Must capture 1-line profession description");
   assert.ok(signupPageCode.includes("Example:"), "Must provide profession description example");
 });

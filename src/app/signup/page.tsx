@@ -12,7 +12,7 @@ import { sendOtp, verifyOtp } from "@/actions/otp";
 import { getSession, clearSession } from "@/actions/auth";
 import LocationSelector from "@/components/LocationSelector";
 
-function calculateAge(dobStr: string): number | null {
+function calculateAge(dobStr?: string): number | null {
   if (!dobStr || !dobStr.trim()) return null;
   const birthDate = new Date(dobStr.trim());
   if (isNaN(birthDate.getTime())) return null;
@@ -37,6 +37,13 @@ function maskEmail(email?: string): string {
   const [local, domain] = email.split("@");
   if (local.length <= 2) return `${local.slice(0, 1)}••••@${domain}`;
   return `${local.slice(0, 1)}••••${local.slice(-1)}@${domain}`;
+}
+
+function maskGovtId(id?: string): string {
+  if (!id) return "••••";
+  const clean = id.trim();
+  if (clean.length <= 4) return "••••";
+  return clean.slice(0, 2) + "••••••••" + clean.slice(-2);
 }
 
 function SignupContent() {
@@ -82,8 +89,16 @@ function SignupContent() {
     }
   }, [initialContact]);
 
-  // Step 2: Gotra, Native Place & Address State
+  // Step 2: Head & Family Details State
   const [headName, setHeadName] = useState("");
+  const [headFatherName, setHeadFatherName] = useState("");
+  const [headPhotoUrl, setHeadPhotoUrl] = useState("");
+  const [headDob, setHeadDob] = useState("");
+  const [headGender, setHeadGender] = useState("Male");
+  const [headMaritalStatus, setHeadMaritalStatus] = useState("Married");
+  const [headProfessionTitle, setHeadProfessionTitle] = useState("");
+  const [headProfessionDescription, setHeadProfessionDescription] = useState("");
+
   const [gotra, setGotra] = useState(gotras[0].name); // 'Garg' default
   const [nativePlace, setNativePlace] = useState("");
   const [country, setCountry] = useState("India");
@@ -98,66 +113,14 @@ function SignupContent() {
   const [step2Error, setStep2Error] = useState("");
 
   const isIndia = country.toLowerCase() === "india" || country.toUpperCase() === "IN";
+  const headAge = calculateAge(headDob);
 
-  // Step 3: Family Members State
-  const [members, setMembers] = useState<Member[]>([
-    {
-      id: "m-1",
-      fullName: "",
-      relationToHead: "self",
-      fatherName: "",
-      photoUrl: "",
-      phone: "",
-      email: "",
-      dob: "",
-      gender: "Male",
-      maritalStatus: "Married",
-      currentCity: "",
-      currentCountry: "India",
-      profession: "",
-      professionTitle: "",
-      professionDescription: "",
-      verifiedBySelf: true,
-      ownerLocked: true,
-      visibility: {
-        contactInfo: "hidden",
-        dob: "hidden",
-        photo: "public_to_members",
-      },
-    },
-  ]);
+  // Step 3: Additional Family Members State (Optional)
+  const [additionalMembers, setAdditionalMembers] = useState<Member[]>([]);
   const [step3Error, setStep3Error] = useState("");
-  const [contactFieldErrors, setContactFieldErrors] = useState<{ [key: string]: string }>({});
 
   // Step 4: Consent State
   const [consentGiven, setConsentGiven] = useState(false);
-
-  // Synchronize head name, address, and contact with member[0]
-  useEffect(() => {
-    if (members.length > 0) {
-      setMembers((prev) => {
-        const copy = [...prev];
-        const headPhone = contactType === "phone" ? contactValue : (copy[0].phone || "");
-        const headEmail = contactType === "email" ? contactValue : (copy[0].email || "");
-        copy[0] = {
-          ...copy[0],
-          fullName: headName || copy[0].fullName,
-          currentCity: city || copy[0].currentCity || nativePlace,
-          currentCountry: country || copy[0].currentCountry,
-          postalCode: postalCode || copy[0].postalCode,
-          state: state || copy[0].state,
-          fullAddress: fullAddress || copy[0].fullAddress,
-          phone: headPhone,
-          email: headEmail,
-          aadhaarNumber: isIndia ? aadhaarNumber : undefined,
-          panNumber: isIndia ? panNumber : undefined,
-          passportNumber: !isIndia ? passportNumber : undefined,
-          govtIdNumber: !isIndia ? govtIdNumber : undefined,
-        };
-        return copy;
-      });
-    }
-  }, [headName, nativePlace, country, postalCode, state, city, fullAddress, aadhaarNumber, panNumber, passportNumber, govtIdNumber, contactValue, contactType, isIndia]);
 
   // Step 1 Handlers
   const handleSendOtp = async () => {
@@ -205,7 +168,7 @@ function SignupContent() {
     setIsVerifyingOtp(false);
     if (res.success) {
       setOtpVerified(true);
-      setOtpMessage("✓ Contact verified successfully! Auto-advancing...");
+      setOtpMessage("✓ Contact verified successfully! Auto-advancing to Head & Family Details...");
       setTimeout(() => {
         setStep(2);
       }, 400);
@@ -214,11 +177,41 @@ function SignupContent() {
     }
   };
 
+  // Head Photo Upload Handler
+  const handleHeadPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Please select an image smaller than 2MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (loadEvt) => {
+      const dataUrl = loadEvt.target?.result as string;
+      setHeadPhotoUrl(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Step 2 Validation & Transition
-  const handleStep2Next = () => {
+  const handleStep2Next = (e: React.FormEvent) => {
+    e.preventDefault();
     setStep2Error("");
+
     if (!headName.trim() || headName.trim().length < 2) {
-      setStep2Error("Please enter the Head of Household's full name.");
+      setStep2Error("Please enter the Head of Household's full name (मुखिया का नाम).");
+      return;
+    }
+    if (!headFatherName.trim() || headFatherName.trim().length < 2) {
+      setStep2Error("Father's Name (पिता का नाम) is mandatory for the Head of Household.");
+      return;
+    }
+    if (!headDob.trim()) {
+      setStep2Error("Please enter a valid Date of Birth (जन्म तिथि) for the Head of Household.");
+      return;
+    }
+    if (!headProfessionTitle.trim() || headProfessionTitle.trim().length < 2) {
+      setStep2Error("Profession Title (व्यवसाय / पद) is required.");
       return;
     }
     if (!gotra.trim()) {
@@ -267,19 +260,19 @@ function SignupContent() {
     setStep(3);
   };
 
-  // Step 3 Helpers
-  const addMember = () => {
+  // Step 3 Additional Members Handlers
+  const addAdditionalMember = () => {
     const newMember: Member = {
       id: `m-${Date.now()}`,
       fullName: "",
-      relationToHead: "son",
+      relationToHead: "spouse",
       fatherName: "",
       photoUrl: "",
       phone: "",
       email: "",
       dob: "",
-      gender: "Male",
-      maritalStatus: "Unmarried",
+      gender: "Female",
+      maritalStatus: "Married",
       currentCity: city || nativePlace || "",
       currentCountry: country || "India",
       postalCode: postalCode || "",
@@ -288,6 +281,10 @@ function SignupContent() {
       profession: "",
       professionTitle: "",
       professionDescription: "",
+      aadhaarNumber: "",
+      panNumber: "",
+      passportNumber: "",
+      govtIdNumber: "",
       verifiedBySelf: false,
       ownerLocked: false,
       visibility: {
@@ -296,33 +293,23 @@ function SignupContent() {
         photo: "public_to_members",
       },
     };
-    setMembers([...members, newMember]);
+    setAdditionalMembers([...additionalMembers, newMember]);
   };
 
-  const updateMember = (id: string, field: keyof Member, value: any) => {
-    setMembers(
-      members.map((m) => {
+  const removeAdditionalMember = (id: string) => {
+    setAdditionalMembers(additionalMembers.filter((m) => m.id !== id));
+  };
+
+  const updateAdditionalMember = (id: string, field: keyof Member, value: any) => {
+    setAdditionalMembers(
+      additionalMembers.map((m) => {
         if (m.id !== id) return m;
-        const updated = { ...m, [field]: value };
-        
-        // Smart Minor Check: If DOB is entered and age < 18, lock maritalStatus to "Unmarried"
-        if (field === "dob") {
-          const age = calculateAge(value);
-          if (age !== null && age < 18) {
-            updated.maritalStatus = "Unmarried";
-          }
-        }
-        return updated;
+        return { ...m, [field]: value };
       })
     );
   };
 
-  const removeMember = (id: string) => {
-    if (members.length <= 1) return;
-    setMembers(members.filter((m) => m.id !== id));
-  };
-
-  const handlePhotoUpload = (memberId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMemberPhoto = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
@@ -332,138 +319,141 @@ function SignupContent() {
     const reader = new FileReader();
     reader.onload = (loadEvt) => {
       const dataUrl = loadEvt.target?.result as string;
-      updateMember(memberId, "photoUrl", dataUrl);
+      updateAdditionalMember(id, "photoUrl", dataUrl);
     };
     reader.readAsDataURL(file);
   };
 
-  const checkContactField = async (memberId: string, field: "phone" | "email", val: string) => {
-    const key = `${memberId}_${field}`;
-    const clean = val.trim();
-    if (!clean || clean.length < 5) {
-      setContactFieldErrors((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-      return;
-    }
-
-    const avail = await checkContactAvailability(clean, memberId);
-    if (!avail.available && avail.conflict) {
-      setContactFieldErrors((prev) => ({
-        ...prev,
-        [key]: `This ${field} is already registered (${avail.conflict?.name ? `under ${avail.conflict.name}` : `#${avail.conflict?.householdCode}`}).`,
-      }));
-    } else {
-      setContactFieldErrors((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
-    }
-  };
-
-  const handleStep3Next = async () => {
+  // Step 3 Validation & Transition
+  const handleStep3Next = async (e: React.FormEvent) => {
+    e.preventDefault();
     setStep3Error("");
-    for (let i = 0; i < members.length; i++) {
-      if (!members[i].fullName?.trim() || members[i].fullName.trim().length < 2) {
-        setStep3Error(`Please enter a valid full name for Member #${i + 1}.`);
+
+    // Validate any added members
+    for (let i = 0; i < additionalMembers.length; i++) {
+      const m = additionalMembers[i];
+      if (!m.fullName.trim() || m.fullName.trim().length < 2) {
+        setStep3Error(`Please enter a valid Full Name for Additional Family Member #${i + 1}.`);
         return;
       }
-      if (!members[i].dob?.trim()) {
-        setStep3Error(`Please select the Date of Birth for Member #${i + 1} (${members[i].fullName || 'Member'}).`);
+      if (!m.dob || !m.dob.trim()) {
+        setStep3Error(`Please enter Date of Birth for ${m.fullName || `Member #${i + 1}`}.`);
         return;
       }
-    }
-
-    // Head of Household mandatory validations
-    const head = members[0];
-    if (!head.fatherName?.trim() || head.fatherName.trim().length < 2) {
-      setStep3Error("Father's Full Name (पिता का नाम) is required for Head of Household.");
-      return;
-    }
-
-    const headPhone = (contactType === "phone" ? contactValue : head.phone)?.trim();
-    if (!headPhone || headPhone.replace(/[^0-9]/g, "").length < 7) {
-      setStep3Error("A valid Mobile Phone number is required for Head of Household.");
-      return;
-    }
-
-    const headEmail = (contactType === "email" ? contactValue : head.email)?.trim();
-    if (!headEmail || !headEmail.includes("@") || headEmail.length < 5) {
-      setStep3Error("A valid Email Address is required for Head of Household.");
-      return;
-    }
-
-    if (!head.profession?.trim()) {
-      setStep3Error("Please specify the profession or occupation for Head of Household.");
-      return;
-    }
-
-    // Check for any active contact duplicate errors
-    const errorKeys = Object.keys(contactFieldErrors);
-    if (errorKeys.length > 0) {
-      setStep3Error("Please correct the duplicate mobile number or email before continuing.");
-      return;
+      if (m.phone && m.phone.trim()) {
+        const checkPhone = await checkContactAvailability(m.phone.trim(), m.id);
+        if (!checkPhone.available && checkPhone.conflict) {
+          setStep3Error(`Phone '${m.phone}' for ${m.fullName} is already registered under #${checkPhone.conflict.householdCode}.`);
+          return;
+        }
+      }
+      if (m.email && m.email.trim()) {
+        const checkEmail = await checkContactAvailability(m.email.trim(), m.id);
+        if (!checkEmail.available && checkEmail.conflict) {
+          setStep3Error(`Email '${m.email}' for ${m.fullName} is already registered under #${checkEmail.conflict.householdCode}.`);
+          return;
+        }
+      }
     }
 
     setStep(4);
   };
 
+  // Step 4 Final Submit
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!consentGiven) {
       alert("Please accept the community guidelines consent.");
       return;
     }
+
     setIsSubmitting(true);
 
-    const payloadMembers = members.map((m, idx) => {
-      if (idx === 0) {
-        return {
-          ...m,
-          phone: contactType === "phone" ? contactValue : (m.phone || "").trim(),
-          email: contactType === "email" ? contactValue : (m.email || "").trim(),
-          fatherName: (m.fatherName || "").trim(),
-          photoUrl: m.photoUrl || undefined,
-          professionTitle: m.professionTitle?.trim() || m.profession?.trim(),
-          professionDescription: m.professionDescription?.trim() || undefined,
-        };
-      }
-      return {
-        ...m,
-        phone: m.phone ? m.phone.trim() : undefined,
-        email: m.email ? m.email.trim() : undefined,
-        fatherName: m.fatherName ? m.fatherName.trim() : undefined,
-        photoUrl: m.photoUrl || undefined,
-        professionTitle: m.professionTitle?.trim() || m.profession?.trim(),
-        professionDescription: m.professionDescription?.trim() || undefined,
-      };
-    });
+    const headMember: Member = {
+      id: "m-1",
+      fullName: headName.trim(),
+      relationToHead: "self",
+      fatherName: headFatherName.trim(),
+      photoUrl: headPhotoUrl || undefined,
+      phone: contactType === "phone" ? contactValue.trim() : undefined,
+      email: contactType === "email" ? contactValue.trim() : undefined,
+      dob: headDob.trim(),
+      gender: headGender as any,
+      maritalStatus: headMaritalStatus as any,
+      currentCity: city.trim() || nativePlace.trim(),
+      currentCountry: country.trim(),
+      postalCode: postalCode.trim(),
+      state: state.trim(),
+      fullAddress: fullAddress.trim(),
+      profession: headProfessionTitle.trim(),
+      professionTitle: headProfessionTitle.trim(),
+      professionDescription: headProfessionDescription.trim() || undefined,
+      aadhaarNumber: isIndia ? aadhaarNumber.trim() : undefined,
+      panNumber: isIndia ? panNumber.trim().toUpperCase() : undefined,
+      passportNumber: !isIndia ? passportNumber.trim() : undefined,
+      govtIdNumber: !isIndia ? govtIdNumber.trim() : undefined,
+      verifiedBySelf: true,
+      ownerLocked: true,
+      visibility: {
+        contactInfo: "hidden",
+        dob: "hidden",
+        photo: "public_to_members",
+      },
+    };
+
+    const structuredAdditionalMembers: Member[] = additionalMembers.map((m) => ({
+      ...m,
+      fullName: m.fullName.trim(),
+      fatherName: m.fatherName ? m.fatherName.trim() : undefined,
+      photoUrl: m.photoUrl || undefined,
+      phone: m.phone ? m.phone.trim() : undefined,
+      email: m.email ? m.email.trim() : undefined,
+      dob: m.dob.trim(),
+      currentCity: m.currentCity?.trim() || city.trim(),
+      currentCountry: m.currentCountry?.trim() || country.trim(),
+      postalCode: m.postalCode?.trim() || postalCode.trim(),
+      state: m.state?.trim() || state.trim(),
+      fullAddress: m.fullAddress?.trim() || fullAddress.trim(),
+      profession: m.professionTitle?.trim() || m.profession?.trim() || "Unspecified",
+      professionTitle: m.professionTitle?.trim() || undefined,
+      professionDescription: m.professionDescription?.trim() || undefined,
+      aadhaarNumber: m.aadhaarNumber?.trim() || undefined,
+      panNumber: m.panNumber?.trim() || undefined,
+      passportNumber: m.passportNumber?.trim() || undefined,
+      govtIdNumber: m.govtIdNumber?.trim() || undefined,
+      verifiedBySelf: false,
+      ownerLocked: false,
+      visibility: {
+        contactInfo: "hidden",
+        dob: "hidden",
+        photo: "public_to_members",
+      },
+    }));
+
+    const allMembersPayload = [headMember, ...structuredAdditionalMembers];
 
     try {
       const res = await registerHousehold({
-        headName,
-        verifiedContact: contactValue,
+        headName: headName.trim(),
+        verifiedContact: contactValue.trim(),
         gotra,
-        nativePlace,
-        country,
-        postalCode,
-        state,
-        city,
-        fullAddress,
-        aadhaarNumber: isIndia ? aadhaarNumber : undefined,
-        panNumber: isIndia ? panNumber : undefined,
-        passportNumber: !isIndia ? passportNumber : undefined,
-        govtIdNumber: !isIndia ? govtIdNumber : undefined,
-        members: payloadMembers,
+        nativePlace: nativePlace.trim(),
+        country: country.trim(),
+        postalCode: postalCode.trim(),
+        state: state.trim(),
+        city: city.trim(),
+        fullAddress: fullAddress.trim(),
+        aadhaarNumber: isIndia ? aadhaarNumber.trim() : undefined,
+        panNumber: isIndia ? panNumber.trim().toUpperCase() : undefined,
+        passportNumber: !isIndia ? passportNumber.trim() : undefined,
+        govtIdNumber: !isIndia ? govtIdNumber.trim() : undefined,
+        members: allMembersPayload,
         consentAccepted: consentGiven,
       });
 
       setIsSubmitting(false);
       if (res.success) {
-        setSuccessCode(res.serialNo || res.householdCode || "MAFL-000-000-000");
+        setSuccessCode(res.serialNo || res.householdCode || "MAFL-000-000-001");
         setIsSuccess(true);
       } else {
         alert(res.error || "Registration failed. Please check inputs.");
@@ -475,6 +465,7 @@ function SignupContent() {
     }
   };
 
+  // SUCCESS SCREEN
   if (isSuccess) {
     return (
       <main className="py-12 sm:py-20 bg-canvas-page min-h-[70vh] flex items-center">
@@ -484,19 +475,25 @@ function SignupContent() {
               ✓
             </div>
             <span className="inline-block text-xs font-bold uppercase va-badge-pending px-3 py-1 rounded-full mb-3">
-              Status: Under Review (Pending Moderation)
+              Application Submitted For Verification
             </span>
-            <h1 className="text-xl sm:text-3xl font-black text-brand-primary mb-3">
-              Registration Submitted Successfully!
+            <h1 className="text-xl sm:text-2xl font-black text-brand-primary mb-2">
+              Registration Received Successfully!
             </h1>
-            <p className="text-xs sm:text-sm text-body-text leading-relaxed mb-6">
-              Thank you for registering your family under the <strong>Maharaja Agrasen Foundation Limited Singapore</strong> platform. Your submission is now in the community moderation queue.
+            <p className="text-xs sm:text-sm text-body-text mb-6 leading-relaxed">
+              Your household submission has been securely registered in the community verification queue. Once approved by a moderator, your family will become visible in the worldwide Agarwal Directory.
             </p>
-            
-            <div className="p-4 sm:p-5 rounded-2xl bg-canvas-warm border-2 border-brand-accent/40 text-xs font-mono text-brand-primary mb-6 space-y-1">
-              <span className="text-[10px] uppercase font-bold text-body-muted tracking-wider block">Assigned Serial Number</span>
-              <div className="text-xl sm:text-2xl font-black text-brand-primary tracking-widest">{successCode}</div>
-              <div className="text-[11px] text-body-muted font-sans mt-1">Gotra: <strong>{gotra}</strong> • Head: <strong>{headName}</strong></div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-canvas-warm border border-brand-accent/40 mb-6">
+              <span className="text-[11px] font-bold text-body-muted block mb-1">
+                Your Official Assigned Serial Number (क्रमांक)
+              </span>
+              <div className="font-mono text-xl sm:text-2xl font-extrabold text-brand-primary tracking-wider select-all">
+                #{successCode}
+              </div>
+              <span className="text-[10px] text-body-muted mt-1 block">
+                Save this official serial number for logging in and referencing your family card.
+              </span>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -600,7 +597,7 @@ function SignupContent() {
                         }}
                         className="text-brand-primary focus:ring-brand-primary"
                       />
-                      <span>Mobile Number (SMS / WhatsApp)</span>
+                      <span className="font-semibold text-body-heading">Mobile (SMS OTP)</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -618,25 +615,21 @@ function SignupContent() {
                         }}
                         className="text-brand-primary focus:ring-brand-primary"
                       />
-                      <span>Email Address</span>
+                      <span className="font-semibold text-body-heading">Email Address (Email OTP)</span>
                     </label>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-body-heading mb-1.5">
-                    {contactType === "phone" ? "Mobile Number with Country Code" : "Email Address"}
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    {contactType === "phone" ? "Mobile Phone Number" : "Email Address"} *
                   </label>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type={contactType === "phone" ? "tel" : "email"}
                       value={contactValue}
-                      onChange={(e) => {
-                        setContactValue(e.target.value);
-                        setOtpVerified(false);
-                        setOtpError("");
-                        setAlreadyRegisteredInfo(null);
-                      }}
+                      disabled={otpVerified}
+                      onChange={(e) => setContactValue(e.target.value)}
                       placeholder={contactType === "phone" ? `${phoneDialCode} 98765 43210` : "head@example.com"}
                       className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                     />
@@ -668,7 +661,7 @@ function SignupContent() {
 
                     <div className="flex flex-col sm:flex-row gap-2 pt-1">
                       <Link
-                        href={`/login`}
+                        href="/login"
                         className="px-5 py-2.5 rounded-xl text-xs font-bold text-white va-btn-join text-center shadow-sm"
                       >
                         Sign In to Your Household Dashboard →
@@ -719,21 +712,20 @@ function SignupContent() {
                 </div>
               </div>
 
-              {/* Dev bypass note */}
               <div className="text-[11px] text-body-muted text-center pt-3 border-t border-brand-accent/20">
                 🔒 Protected by End-to-End Rate Limiting &amp; Secure Verification.
               </div>
             </div>
           )}
 
-          {/* STEP 2: GOTRA, NATIVE PLACE, ADDRESS & GOVERNMENT ID */}
+          {/* STEP 2: HEAD & FAMILY DETAILS */}
           {step === 2 && (
-            <div>
+            <form onSubmit={handleStep2Next}>
               <h2 className="text-base sm:text-lg font-bold text-brand-primary mb-1">
-                Step 2: Gotra, Ancestry & Residential Address
+                Step 2: Head &amp; Family Details (मुखिया एवं परिवार विवरण)
               </h2>
               <p className="text-xs text-body-muted mb-6">
-                Establish your 18-Gotras ancestry, ancestral roots, and verified residential address.
+                Provide comprehensive profile, lineage, address, and government identification for the Head of Household.
               </p>
 
               {step2Error && (
@@ -742,58 +734,203 @@ function SignupContent() {
                 </div>
               )}
 
-              <div className="space-y-4 mb-6">
-                {/* 1. Head of Household Full Name */}
-                <div>
-                  <label className="block text-xs font-bold text-body-heading mb-1">
-                    Head of Household Full Name (मुखिया का नाम) *
-                  </label>
-                  <input
-                    type="text"
-                    value={headName}
-                    onChange={(e) => setHeadName(e.target.value)}
-                    placeholder="e.g. Ramesh Kumar Agarwal"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
-                  />
-                </div>
-
-                {/* 2. Gotra & Ancestral Native Place */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
-                    <label className="block text-xs font-bold text-body-heading mb-1">
-                      Family Gotra (गोत्र) *
-                    </label>
-                    <select
-                      value={gotra}
-                      onChange={(e) => setGotra(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none font-semibold"
-                    >
-                      {gotras.map((g) => (
-                        <option key={g.name} value={g.name}>
-                          {g.name} ({g.devanagari})
-                        </option>
-                      ))}
-                    </select>
+              <div className="space-y-5 mb-6">
+                {/* SECTION A: Head Personal Profile */}
+                <div className="p-4 rounded-2xl border border-brand-accent/30 bg-canvas-warm/20 space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-brand-accent/20">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-brand-primary">
+                      👤 Head of Household Profile (मुखिया की जानकारी)
+                    </h3>
+                    <span className="text-[10px] font-bold va-badge-gold px-2 py-0.5 rounded-full">
+                      Primary Representative
+                    </span>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-body-heading mb-1">
-                      Ancestral Native Place (मूल निवास / पैतृक स्थान) *
-                    </label>
-                    <input
-                      type="text"
-                      value={nativePlace}
-                      onChange={(e) => setNativePlace(e.target.value)}
-                      placeholder="e.g. Agroha, Hisar / Sikar / Jhunjhunu"
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
-                    />
+                  {/* Photo Upload & Preview */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border-2 border-brand-accent flex items-center justify-center text-xl font-bold text-brand-primary shrink-0 shadow-sm">
+                      {headPhotoUrl ? (
+                        <img src={headPhotoUrl} alt="Head Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        headName ? headName.charAt(0).toUpperCase() : "H"
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-body-heading mb-1">
+                        Profile Photo (फ़ोटो)
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/webp"
+                        onChange={handleHeadPhotoUpload}
+                        className="text-xs text-body-muted file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-canvas-warm file:text-brand-primary hover:file:bg-white"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Name & Father Name */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-bold text-body-heading mb-1">
+                        Full Name of Household Head (मुखिया का पूरा नाम) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={headName}
+                        onChange={(e) => setHeadName(e.target.value)}
+                        placeholder="e.g. Ramesh Kumar Agarwal"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-body-heading mb-1">
+                        Father&apos;s Full Name (पिता का नाम) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={headFatherName}
+                        onChange={(e) => setHeadFatherName(e.target.value)}
+                        placeholder="e.g. Late Shri Omprakash Agarwal"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* DOB, Age, Gender, Marital Status */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-body-heading">
+                          Date of Birth (जन्म तिथि) *
+                        </label>
+                        {headAge !== null && (
+                          <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded">
+                            {headAge} yrs
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="date"
+                        required
+                        value={headDob}
+                        onChange={(e) => setHeadDob(e.target.value)}
+                        className="w-full px-3.5 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-body-heading mb-1">
+                        Gender (लिंग) *
+                      </label>
+                      <select
+                        value={headGender}
+                        onChange={(e) => setHeadGender(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
+                      >
+                        <option value="Male">Male (पुरुष)</option>
+                        <option value="Female">Female (महिला)</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-body-heading mb-1">
+                        Marital Status (वैवाहिक स्थिति) *
+                      </label>
+                      <select
+                        value={headMaritalStatus}
+                        onChange={(e) => setHeadMaritalStatus(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
+                      >
+                        <option value="Married">Married (विवाहित)</option>
+                        <option value="Unmarried">Unmarried (अविवाहित)</option>
+                        <option value="Widowed">Widowed (विधवा/विधुर)</option>
+                        <option value="Divorced">Divorced</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Profession Title & 1-line Description */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-bold text-body-heading mb-1">
+                        Profession Title (व्यवसाय / पद) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={headProfessionTitle}
+                        onChange={(e) => setHeadProfessionTitle(e.target.value)}
+                        placeholder="e.g. Chartered Accountant / Business Owner"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-body-heading mb-1">
+                        Profession Description (एक पंक्ति में विवरण)
+                      </label>
+                      <input
+                        type="text"
+                        value={headProfessionDescription}
+                        onChange={(e) => setHeadProfessionDescription(e.target.value)}
+                        placeholder="e.g. Senior Partner at Singhania & Co., dealing in Corporate Tax"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
+                      />
+                      <span className="text-[10px] text-body-muted mt-0.5 block">
+                        Example: &quot;Managing Director of AG Textiles Pvt Ltd, exporting cotton fabrics&quot;
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* 3. Cascading Location Selector */}
+                {/* SECTION B: Family Lineage & Ancestral Origin */}
+                <div className="p-4 rounded-2xl border border-brand-accent/30 bg-canvas-warm/20 space-y-3.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-brand-primary pb-1 border-b border-brand-accent/20">
+                    🏛️ Lineage &amp; Ancestral Origin (वंश एवं मूल निवास)
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                      <label className="block text-xs font-bold text-body-heading mb-1">
+                        Family Gotra (गोत्र) *
+                      </label>
+                      <select
+                        value={gotra}
+                        onChange={(e) => setGotra(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none font-semibold"
+                      >
+                        {gotras.map((g) => (
+                          <option key={g.name} value={g.name}>
+                            {g.name} ({g.devanagari})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-body-heading mb-1">
+                        Ancestral Native Place (मूल निवास / पैतृक स्थान) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={nativePlace}
+                        onChange={(e) => setNativePlace(e.target.value)}
+                        placeholder="e.g. Agroha, Hisar / Sikar / Jhunjhunu"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECTION C: 5-Tier Cascading Location Selector */}
                 <div className="p-4 rounded-2xl border border-brand-accent/30 bg-canvas-warm/20">
-                  <h3 className="text-xs font-bold text-brand-primary mb-3">
-                    Current Residential Location (वर्तमान निवास स्थान)
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-brand-primary mb-3 pb-1 border-b border-brand-accent/20">
+                    📍 Current Residential Address (वर्तमान निवास स्थान)
                   </h3>
                   <LocationSelector
                     country={country}
@@ -814,11 +951,11 @@ function SignupContent() {
                   />
                 </div>
 
-                {/* 4. Country-Specific Government Identity Verification */}
+                {/* SECTION D: Country-Specific Government Identity Verification */}
                 <div className="p-4 rounded-2xl border border-brand-accent/30 bg-canvas-warm/30 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-brand-primary">
-                      Identity Verification (पहचान प्रमाणन) *
+                  <div className="flex items-center justify-between pb-1 border-b border-brand-accent/20">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-brand-primary">
+                      🛡️ Government Identity Verification (पहचान प्रमाणन) *
                     </h3>
                     <span className="text-[10px] font-semibold text-brand-gold uppercase tracking-wider">
                       {isIndia ? "India (Aadhaar + PAN)" : "International (Passport + ID)"}
@@ -850,7 +987,7 @@ function SignupContent() {
                           value={panNumber}
                           onChange={(e) => setPanNumber(e.target.value.toUpperCase())}
                           placeholder="e.g. ABCDE1234F"
-                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none font-mono uppercase"
+                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none uppercase font-mono"
                         />
                       </div>
                     </div>
@@ -864,511 +1001,429 @@ function SignupContent() {
                           type="text"
                           value={passportNumber}
                           onChange={(e) => setPassportNumber(e.target.value.toUpperCase())}
-                          placeholder="e.g. E1234567"
-                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none font-mono uppercase"
+                          placeholder="e.g. E12345678"
+                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none uppercase font-mono"
                         />
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-body-heading mb-1">
-                          Govt-Issued ID / Tax ID *
+                          Government ID / Tax ID *
                         </label>
                         <input
                           type="text"
                           value={govtIdNumber}
                           onChange={(e) => setGovtIdNumber(e.target.value.toUpperCase())}
-                          placeholder="e.g. NRIC / SSN / National ID"
-                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none font-mono uppercase"
+                          placeholder="e.g. S1234567A / NRIC / SSN"
+                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none uppercase font-mono"
                         />
                       </div>
                     </div>
                   )}
-                  <p className="text-[10px] text-body-muted">
-                    🔒 All government identification documents are stored encrypted and masked for strict administrative compliance.
-                  </p>
                 </div>
               </div>
 
+              {/* Navigation Action Buttons */}
               <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 pt-4 border-t border-brand-accent/20">
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold text-body-heading bg-canvas-warm hover:bg-white border border-brand-accent/30"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold text-body-heading bg-canvas-warm hover:bg-white border border-brand-accent/30 transition-all"
                 >
-                  ← Back to Verification
+                  ← Back to Contact
                 </button>
                 <button
-                  type="button"
-                  onClick={handleStep2Next}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-maroon shadow-md"
+                  type="submit"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta flex items-center justify-center gap-1.5"
                 >
-                  Continue to Family Members →
+                  <span>Continue to Family Members (Optional)</span>
+                  <span>→</span>
                 </button>
               </div>
-            </div>
+            </form>
           )}
 
-          {/* STEP 3: FAMILY MEMBERS & PROFESSION */}
+          {/* STEP 3: ADDITIONAL FAMILY MEMBERS (OPTIONAL) */}
           {step === 3 && (
-            <div>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <form onSubmit={handleStep3Next}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-4 border-b border-brand-accent/20">
                 <div>
-                  <h2 className="text-base sm:text-lg font-bold text-brand-primary mb-0.5">
-                    Step 3: Family Members &amp; Profiles
+                  <h2 className="text-base sm:text-lg font-bold text-brand-primary">
+                    Step 3: Additional Family Members (Optional)
                   </h2>
                   <p className="text-xs text-body-muted">
-                    Complete your profile and add family members living in your household.
+                    Adding family members is completely optional. If you live alone or wish to add relatives later, click &quot;Continue to Review&quot;.
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={addAdditionalMember}
+                  className="px-4 py-2 rounded-full text-xs font-bold text-brand-primary bg-canvas-warm hover:bg-white border border-brand-accent transition-all shadow-xs shrink-0 self-start sm:self-auto"
+                >
+                  + Add Family Member (सदस्य जोड़ें)
+                </button>
               </div>
 
               {step3Error && (
-                <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
+                <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
                   ⚠️ {step3Error}
                 </div>
               )}
 
-              <div className="space-y-5 mb-6">
-                {members.map((member, index) => {
-                  const calculatedAge = calculateAge(member.dob);
-                  const isMinor = calculatedAge !== null && calculatedAge < 18;
+              {/* Members Cards List */}
+              {additionalMembers.length === 0 ? (
+                <div className="p-8 rounded-2xl border-2 border-dashed border-brand-accent/40 bg-canvas-warm/30 text-center mb-6">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-900 flex items-center justify-center text-xl font-bold mx-auto mb-3">
+                    👨‍👩‍👧‍👦
+                  </div>
+                  <h3 className="text-sm font-bold text-brand-primary mb-1">
+                    No Additional Family Members Added
+                  </h3>
+                  <p className="text-xs text-body-muted max-w-md mx-auto mb-4 leading-relaxed">
+                    You can proceed to register as a single-member household under <strong>{headName || "Head of Household"}</strong>, or click below to add spouse, children, and parents.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={addAdditionalMember}
+                    className="px-5 py-2.5 rounded-full text-xs font-bold text-brand-primary bg-white border border-brand-accent hover:bg-canvas-warm shadow-xs"
+                  >
+                    + Add Spouse, Children, or Parents
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-6 mb-6">
+                  {additionalMembers.map((member, index) => {
+                    const memberAge = calculateAge(member.dob);
+                    const isMinor = memberAge !== null && memberAge < 18;
 
-                  return (
-                    <div
-                      key={member.id}
-                      className="p-4 sm:p-5 rounded-2xl border border-brand-accent/30 bg-canvas-warm/20 relative"
-                    >
-                      <div className="flex items-center justify-between mb-4 pb-2 border-b border-brand-accent/20">
-                        <span className="text-xs font-bold text-brand-primary">
-                          Member #{index + 1} {index === 0 && "(Head of Household - मुखिया)"}
-                        </span>
-                        {index > 0 && (
+                    return (
+                      <div
+                        key={member.id}
+                        className="p-5 rounded-2xl border-2 border-brand-accent/30 bg-canvas-warm/20 relative animate-in fade-in space-y-4"
+                      >
+                        {/* Member Card Header */}
+                        <div className="flex items-center justify-between pb-3 border-b border-brand-accent/20">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-brand-primary text-white text-xs font-bold flex items-center justify-center">
+                              {index + 2}
+                            </span>
+                            <h3 className="text-sm font-bold text-brand-primary">
+                              {member.fullName || `Family Member #${index + 2}`}
+                            </h3>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full va-badge-gold uppercase">
+                              {member.relationToHead}
+                            </span>
+                          </div>
+
                           <button
                             type="button"
-                            onClick={() => removeMember(member.id)}
-                            className="text-xs font-semibold text-red-600 hover:text-red-800"
+                            onClick={() => removeAdditionalMember(member.id)}
+                            className="text-xs font-bold text-red-600 hover:text-red-800 transition-colors"
                           >
-                            ✕ Remove Member
+                            ✕ Remove
                           </button>
-                        )}
-                      </div>
-
-                      {/* Photo Avatar Uploader */}
-                      <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 mb-5 p-3 sm:p-4 rounded-xl bg-white border border-brand-accent/30 text-center sm:text-left">
-                        <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border-2 border-brand-accent flex items-center justify-center shrink-0 shadow-sm relative mx-auto sm:mx-0">
-                          {member.photoUrl ? (
-                            <img
-                              src={member.photoUrl}
-                              alt={member.fullName || "Member"}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-lg font-extrabold text-brand-primary">
-                              {member.fullName ? member.fullName.charAt(0).toUpperCase() : (index === 0 ? "H" : "M")}
-                            </span>
-                          )}
                         </div>
 
-                        <div className="flex-1 w-full">
-                          <label className="block text-[11px] font-bold text-body-heading mb-1.5">
-                            Profile Picture (प्रोफ़ाइल फोटो) {index === 0 ? "* (Required for Pass)" : "(Recommended)"}
-                          </label>
-                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-                            <label className="cursor-pointer px-3 py-1.5 rounded-lg text-[11px] font-bold bg-canvas-warm text-brand-primary border border-brand-accent/40 hover:bg-white transition-all shadow-xs">
-                              {member.photoUrl ? "Change Photo" : "Upload Photo"}
-                              <input
-                                type="file"
-                                accept="image/png, image/jpeg, image/webp"
-                                className="hidden"
-                                onChange={(e) => handlePhotoUpload(member.id, e)}
-                              />
+                        {/* Member Inputs Grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs">
+                          {/* 1. Full Name */}
+                          <div className="min-w-0">
+                            <label className="block text-[11px] font-bold text-body-heading mb-1">
+                              Full Name (पूरा नाम) *
                             </label>
-                            {member.photoUrl && (
-                              <button
-                                type="button"
-                                onClick={() => updateMember(member.id, "photoUrl", "")}
-                                className="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-red-600 hover:bg-red-50"
+                            <input
+                              type="text"
+                              required
+                              value={member.fullName}
+                              onChange={(e) => updateAdditionalMember(member.id, "fullName", e.target.value)}
+                              placeholder="e.g. Sunita Agarwal"
+                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                            />
+                          </div>
+
+                          {/* 2. Relation */}
+                          <div className="min-w-0">
+                            <label className="block text-[11px] font-bold text-body-heading mb-1">
+                              Relation to Head (संबंध) *
+                            </label>
+                            <select
+                              value={member.relationToHead}
+                              onChange={(e) => updateAdditionalMember(member.id, "relationToHead", e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                            >
+                              <option value="spouse">Spouse (पति/पत्नी)</option>
+                              <option value="son">Son (पुत्र)</option>
+                              <option value="daughter">Daughter (पुत्री)</option>
+                              <option value="parent">Parent (माता/पिता)</option>
+                              <option value="grandson">Grandson (पोता/दोहिता)</option>
+                              <option value="granddaughter">Granddaughter (पोती/दोहिती)</option>
+                              <option value="other">Other Relative</option>
+                            </select>
+                          </div>
+
+                          {/* 3. Father Name */}
+                          <div className="min-w-0">
+                            <label className="block text-[11px] font-bold text-body-heading mb-1">
+                              Father&apos;s Name (पिता का नाम)
+                            </label>
+                            <input
+                              type="text"
+                              value={member.fatherName || ""}
+                              onChange={(e) => updateAdditionalMember(member.id, "fatherName", e.target.value)}
+                              placeholder={member.relationToHead === "son" || member.relationToHead === "daughter" ? (headName || "e.g. Ramesh Agarwal") : "e.g. Late Shri..."}
+                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                            />
+                          </div>
+
+                          {/* 4. DOB & Age Badge */}
+                          <div className="min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-[11px] font-bold text-body-heading">
+                                Date of Birth *
+                              </label>
+                              {memberAge !== null && (
+                                <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded">
+                                  {memberAge} yrs
+                                </span>
+                              )}
+                            </div>
+                            <input
+                              type="date"
+                              required
+                              value={member.dob || ""}
+                              onChange={(e) => updateAdditionalMember(member.id, "dob", e.target.value)}
+                              className="w-full px-3 py-1.5 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                            />
+                          </div>
+
+                          {/* 5. Gender */}
+                          <div className="min-w-0">
+                            <label className="block text-[11px] font-bold text-body-heading mb-1">
+                              Gender (लिंग) *
+                            </label>
+                            <select
+                              value={member.gender}
+                              onChange={(e) => updateAdditionalMember(member.id, "gender", e.target.value)}
+                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                            >
+                              <option value="Female">Female (महिला)</option>
+                              <option value="Male">Male (पुरुष)</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          </div>
+
+                          {/* 6. Marital Status */}
+                          <div className="min-w-0">
+                            <label className="block text-[11px] font-bold text-body-heading mb-1">
+                              Marital Status (वैवाहिक स्थिति) *
+                            </label>
+                            {isMinor ? (
+                              <div className="w-full px-3 py-2 rounded-lg border border-brand-accent/20 text-xs bg-gray-100 text-body-muted font-semibold">
+                                Unmarried (Minor)
+                              </div>
+                            ) : (
+                              <select
+                                value={member.maritalStatus}
+                                onChange={(e) => updateAdditionalMember(member.id, "maritalStatus", e.target.value)}
+                                className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
                               >
-                                Remove
-                              </button>
+                                <option value="Married">Married (विवाहित)</option>
+                                <option value="Unmarried">Unmarried (अविवाहित)</option>
+                                <option value="Widowed">Widowed (विधवा/विधुर)</option>
+                                <option value="Divorced">Divorced</option>
+                              </select>
                             )}
-                            <span className="text-[10px] text-body-muted block sm:inline">
-                              JPG, PNG or WebP &bull; Max 2MB
+                          </div>
+
+                          {/* 7. Profession Title */}
+                          <div className="min-w-0">
+                            <label className="block text-[11px] font-bold text-body-heading mb-1">
+                              Profession Title (व्यवसाय)
+                            </label>
+                            <input
+                              type="text"
+                              value={member.professionTitle || member.profession || ""}
+                              onChange={(e) => {
+                                updateAdditionalMember(member.id, "professionTitle", e.target.value);
+                                updateAdditionalMember(member.id, "profession", e.target.value);
+                              }}
+                              placeholder={isMinor ? "e.g. Student" : "e.g. Doctor / Homemaker"}
+                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                            />
+                          </div>
+
+                          {/* 8. Phone (Optional) */}
+                          <div className="min-w-0">
+                            <label className="block text-[11px] font-bold text-body-heading mb-1">
+                              Direct Phone (Optional)
+                            </label>
+                            <input
+                              type="tel"
+                              value={member.phone || ""}
+                              onChange={(e) => updateAdditionalMember(member.id, "phone", e.target.value)}
+                              placeholder="+91 98765 43210"
+                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                            />
+                            <span className="text-[9px] text-body-muted block mt-0.5">
+                              Can be used for member login.
                             </span>
+                          </div>
+
+                          {/* 9. Email (Optional) */}
+                          <div className="min-w-0">
+                            <label className="block text-[11px] font-bold text-body-heading mb-1">
+                              Direct Email (Optional)
+                            </label>
+                            <input
+                              type="email"
+                              value={member.email || ""}
+                              onChange={(e) => updateAdditionalMember(member.id, "email", e.target.value)}
+                              placeholder="member@example.com"
+                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                            />
                           </div>
                         </div>
                       </div>
+                    );
+                  })}
+                </div>
+              )}
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                        {/* 1. Full Name */}
-                        <div className="min-w-0">
-                          <label className="block text-[11px] font-bold text-body-heading mb-1">
-                            Full Name (पूरा नाम) *
-                          </label>
-                          <input
-                            type="text"
-                            value={member.fullName}
-                            onChange={(e) => updateMember(member.id, "fullName", e.target.value)}
-                            placeholder="e.g. Rahul Agarwal"
-                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                          />
-                        </div>
-
-                        {/* 2. Father's Name */}
-                        <div className="min-w-0">
-                          <label className="block text-[11px] font-bold text-body-heading mb-1">
-                            Father&apos;s Full Name (पिता का नाम) {index === 0 ? "*" : "(Optional)"}
-                          </label>
-                          <input
-                            type="text"
-                            value={member.fatherName || ""}
-                            onChange={(e) => updateMember(member.id, "fatherName", e.target.value)}
-                            placeholder="e.g. Shri Ramesh Kumar Agarwal"
-                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                          />
-                        </div>
-
-                        {/* 3. Relation */}
-                        <div className="min-w-0">
-                          <label className="block text-[11px] font-bold text-body-heading mb-1">
-                            Relation to Head (संबंध) *
-                          </label>
-                          <select
-                            value={member.relationToHead}
-                            disabled={index === 0}
-                            onChange={(e) => updateMember(member.id, "relationToHead", e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                          >
-                            <option value="self">Self (Head - मुखिया)</option>
-                            <option value="spouse">Spouse (पत्नी/पति)</option>
-                            <option value="son">Son (बेटा)</option>
-                            <option value="daughter">Daughter (बेटी)</option>
-                            <option value="father">Father (पिता)</option>
-                            <option value="mother">Mother (माता)</option>
-                            <option value="brother">Brother (भाई)</option>
-                            <option value="sister">Sister (बहन)</option>
-                            <option value="daughter_in_law">Daughter-in-law (बहू)</option>
-                            <option value="son_in_law">Son-in-law (दामाद)</option>
-                            <option value="grandson">Grandson (पोता/दोहिता)</option>
-                            <option value="granddaughter">Granddaughter (पोती/दोहिती)</option>
-                            <option value="other">Other Relative</option>
-                          </select>
-                        </div>
-
-                        {/* 4. Phone Number (Optional for family members) */}
-                        <div className="min-w-0">
-                          <label className="block text-[11px] font-bold text-body-heading mb-1">
-                            Mobile Phone {index === 0 ? "* (Verified)" : "(Optional - for Claim Login)"}
-                          </label>
-                          {index === 0 && contactType === "phone" ? (
-                            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-300 bg-emerald-50 text-xs font-semibold text-emerald-900">
-                              <span>📱 {contactValue}</span>
-                              <span className="ml-auto text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">✓ Verified</span>
-                            </div>
-                          ) : (
-                            <div>
-                              <input
-                                type="tel"
-                                value={member.phone || ""}
-                                onChange={(e) => {
-                                  updateMember(member.id, "phone", e.target.value);
-                                  if (contactFieldErrors[`${member.id}_phone`]) {
-                                    checkContactField(member.id, "phone", e.target.value);
-                                  }
-                                }}
-                                onBlur={(e) => checkContactField(member.id, "phone", e.target.value)}
-                                placeholder="e.g. +91 98765 43210"
-                                className={`w-full px-3 py-2 rounded-lg border text-xs bg-white focus:ring-1 focus:ring-brand-primary ${
-                                  contactFieldErrors[`${member.id}_phone`]
-                                    ? "border-red-400 bg-red-50/50"
-                                    : "border-brand-accent/40"
-                                }`}
-                              />
-                              {contactFieldErrors[`${member.id}_phone`] && (
-                                <span className="text-[10px] text-red-600 font-semibold block mt-1">
-                                  ⚠️ {contactFieldErrors[`${member.id}_phone`]}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 5. Email Address (Optional for family members) */}
-                        <div className="min-w-0">
-                          <label className="block text-[11px] font-bold text-body-heading mb-1">
-                            Email Address {index === 0 ? "* (Verified)" : "(Optional)"}
-                          </label>
-                          {index === 0 && contactType === "email" ? (
-                            <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-300 bg-emerald-50 text-xs font-semibold text-emerald-900">
-                              <span>✉️ {contactValue}</span>
-                              <span className="ml-auto text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">✓ Verified</span>
-                            </div>
-                          ) : (
-                            <div>
-                              <input
-                                type="email"
-                                value={member.email || ""}
-                                onChange={(e) => {
-                                  updateMember(member.id, "email", e.target.value);
-                                  if (contactFieldErrors[`${member.id}_email`]) {
-                                    checkContactField(member.id, "email", e.target.value);
-                                  }
-                                }}
-                                onBlur={(e) => checkContactField(member.id, "email", e.target.value)}
-                                placeholder="e.g. member@example.com"
-                                className={`w-full px-3 py-2 rounded-lg border text-xs bg-white focus:ring-1 focus:ring-brand-primary ${
-                                  contactFieldErrors[`${member.id}_email`]
-                                    ? "border-red-400 bg-red-50/50"
-                                    : "border-brand-accent/40"
-                                }`}
-                              />
-                              {contactFieldErrors[`${member.id}_email`] && (
-                                <span className="text-[10px] text-red-600 font-semibold block mt-1">
-                                  ⚠️ {contactFieldErrors[`${member.id}_email`]}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 6. Date of Birth with Live Age Calculation */}
-                        <div className="min-w-0">
-                          <label className="block text-[11px] font-bold text-body-heading mb-1">
-                            Date of Birth (जन्म तिथि) *
-                          </label>
-                          <input
-                            type="date"
-                            max={new Date().toISOString().split("T")[0]}
-                            min="1910-01-01"
-                            value={member.dob}
-                            onChange={(e) => updateMember(member.id, "dob", e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white text-body-heading focus:ring-1 focus:ring-brand-primary min-w-0"
-                          />
-                          {calculatedAge !== null && (
-                            <span className="text-[10px] text-brand-gold font-bold block mt-0.5">
-                              Calculated Age: {calculatedAge} yrs {isMinor ? "• Minor (<18)" : "• Adult"}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* 7. Gender */}
-                        <div className="min-w-0">
-                          <label className="block text-[11px] font-bold text-body-heading mb-1">
-                            Gender (लिंग) *
-                          </label>
-                          <select
-                            value={member.gender}
-                            onChange={(e) => updateMember(member.id, "gender", e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                          >
-                            <option value="Male">Male (पुरुष)</option>
-                            <option value="Female">Female (महिला)</option>
-                            <option value="Other">Other</option>
-                          </select>
-                        </div>
-
-                        {/* 8. Marital Status */}
-                        <div className="min-w-0">
-                          <label className="block text-[11px] font-bold text-body-heading mb-1">
-                            Marital Status (वैवाहिक स्थिति) *
-                          </label>
-                          {isMinor ? (
-                            <div className="w-full px-3 py-2 rounded-lg border border-brand-accent/20 text-xs bg-gray-100 text-body-muted font-semibold">
-                              Unmarried (Age &lt; 18)
-                            </div>
-                          ) : (
-                            <select
-                              value={member.maritalStatus}
-                              onChange={(e) => updateMember(member.id, "maritalStatus", e.target.value)}
-                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                            >
-                              <option value="Married">Married (विवाहित)</option>
-                              <option value="Unmarried">Unmarried (अविवाहित)</option>
-                              <option value="Widowed">Widowed (विधवा/विधुर)</option>
-                              <option value="Divorced">Divorced</option>
-                            </select>
-                          )}
-                        </div>
-
-                        {/* 9. Profession Title */}
-                        <div className="min-w-0">
-                          <label className="block text-[11px] font-bold text-body-heading mb-1">
-                            Profession Title (व्यवसाय / पद) *
-                          </label>
-                          <input
-                            type="text"
-                            value={member.professionTitle || member.profession}
-                            onChange={(e) => {
-                              updateMember(member.id, "professionTitle", e.target.value);
-                              updateMember(member.id, "profession", e.target.value);
-                            }}
-                            placeholder={isMinor ? "e.g. Student" : "e.g. Chartered Accountant / Business Owner"}
-                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                          />
-                        </div>
-
-                        {/* 10. Profession Description with Example */}
-                        <div className="sm:col-span-2 lg:col-span-3 min-w-0">
-                          <label className="block text-[11px] font-bold text-body-heading mb-1">
-                            Profession Description (एक पंक्ति में विवरण)
-                          </label>
-                          <input
-                            type="text"
-                            value={member.professionDescription || ""}
-                            onChange={(e) => updateMember(member.id, "professionDescription", e.target.value)}
-                            placeholder="e.g. Senior Partner at Singhania & Co., dealing in Corporate Tax & Auditing"
-                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                          />
-                          <span className="text-[10px] text-body-muted mt-0.5 block">
-                            Example: &quot;Managing Director of AG Textiles Pvt Ltd, exporting cotton fabrics to SE Asia&quot;
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Bottom "+ Add Family Member" CTA */}
-              <div className="mb-6 p-4 rounded-2xl border-2 border-dashed border-brand-accent/50 bg-canvas-warm/30 text-center">
-                <p className="text-xs text-body-muted mb-3">
-                  Have more family members living in your household? You can add children, parents, and relatives now or later from your dashboard.
-                </p>
-                <button
-                  type="button"
-                  onClick={addMember}
-                  className="px-6 py-2.5 rounded-full text-xs font-bold text-brand-primary bg-white border border-brand-accent hover:bg-canvas-warm transition-all shadow-sm"
-                >
-                  + Add Another Family Member (परिवार का सदस्य जोड़ें)
-                </button>
-              </div>
-
+              {/* Bottom Actions */}
               <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 pt-4 border-t border-brand-accent/20">
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold text-body-heading bg-canvas-warm hover:bg-white border border-brand-accent/30"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold text-body-heading bg-canvas-warm hover:bg-white border border-brand-accent/30 transition-all"
                 >
-                  ← Back to Origin & Address
+                  ← Back to Head Profile
                 </button>
                 <button
-                  type="button"
-                  onClick={handleStep3Next}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-maroon shadow-md"
+                  type="submit"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta flex items-center justify-center gap-1.5"
                 >
-                  Review &amp; Final Submission →
+                  <span>
+                    {additionalMembers.length === 0 ? "Skip & Continue to Review" : "Continue to Review & Submit"}
+                  </span>
+                  <span>→</span>
                 </button>
               </div>
-            </div>
+            </form>
           )}
 
-          {/* STEP 4: REVIEW & FINAL SUBMISSION (Masked Privacy by Default) */}
+          {/* STEP 4: REVIEW & SUBMISSION */}
           {step === 4 && (
             <div>
               <h2 className="text-base sm:text-lg font-bold text-brand-primary mb-1">
-                Step 4: Review Registration & Community Consent
+                Step 4: Review Registration &amp; Submit
               </h2>
               <p className="text-xs text-body-muted mb-6">
-                Verify your family details before submission. Contacts are permanently masked across the directory for privacy.
+                Please verify all household and family member details before final submission.
               </p>
 
-              {/* Summary Review Card */}
-              <div className="p-4 sm:p-5 rounded-2xl border border-brand-accent/30 bg-canvas-warm/40 mb-6 space-y-4">
-                <div className="flex items-center gap-3 pb-3 border-b border-brand-accent/20">
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border border-brand-accent flex items-center justify-center shrink-0">
-                    {members[0]?.photoUrl ? (
-                      <img src={members[0].photoUrl} alt={headName} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-base font-extrabold text-brand-primary">{headName ? headName.charAt(0) : "H"}</span>
-                    )}
+              <div className="space-y-4 mb-6">
+                {/* 1. Head Card Summary */}
+                <div className="p-4 sm:p-5 rounded-2xl border border-brand-accent/40 bg-canvas-warm/30 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-brand-accent/20">
+                    <span className="text-xs font-bold uppercase tracking-wider text-brand-primary">
+                      👑 Head of Household Profile
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      Verified Contact
+                    </span>
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-brand-primary">{headName}</h3>
-                      <span className="text-[10px] font-mono font-bold bg-brand-gold/20 text-brand-primary px-2 py-0.5 rounded-md">
-                        MAFL-000-000-000
-                      </span>
+
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
+                    <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border border-brand-accent flex items-center justify-center text-lg font-bold text-brand-primary shrink-0">
+                      {headPhotoUrl ? (
+                        <img src={headPhotoUrl} alt={headName} className="w-full h-full object-cover" />
+                      ) : (
+                        headName ? headName.charAt(0) : "H"
+                      )}
                     </div>
-                    <p className="text-[11px] text-body-muted">
-                      Father: <strong>{members[0]?.fatherName || "Not specified"}</strong> &bull; Gotra: <strong>{gotra}</strong>
+
+                    <div className="flex-1 text-center sm:text-left text-xs space-y-1">
+                      <h3 className="text-sm font-extrabold text-brand-primary">
+                        {headName} {headAge !== null && <span className="font-normal text-xs text-body-muted font-sans">({headAge} yrs)</span>}
+                      </h3>
+                      <p className="text-body-heading font-medium">
+                        Father: <strong>{headFatherName}</strong> • Gotra: <strong className="text-brand-gold font-devanagari">{gotra}</strong>
+                      </p>
+                      <p className="text-body-muted">
+                        Native Place: <strong>{nativePlace}</strong> • Profession: <strong>{headProfessionTitle}</strong>
+                      </p>
+                      <p className="text-body-muted">
+                        Address: <strong>{fullAddress}, {city}, {state} ({country}) - {postalCode}</strong>
+                      </p>
+                      <p className="text-brand-primary font-mono text-[11px] font-bold pt-1">
+                        {isIndia ? `Aadhaar: ${maskGovtId(aadhaarNumber)} • PAN: ${maskGovtId(panNumber)}` : `Passport: ${maskGovtId(passportNumber)} • Govt ID: ${maskGovtId(govtIdNumber)}`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Additional Members Summary */}
+                <div className="p-4 sm:p-5 rounded-2xl border border-brand-accent/30 bg-canvas-warm/20 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-brand-accent/20">
+                    <span className="text-xs font-bold uppercase tracking-wider text-brand-primary">
+                      👨‍👩‍👧‍👦 Additional Family Members ({additionalMembers.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setStep(3)}
+                      className="text-[11px] font-bold text-brand-primary hover:underline"
+                    >
+                      ✏️ Edit Members
+                    </button>
+                  </div>
+
+                  {additionalMembers.length === 0 ? (
+                    <p className="text-xs text-body-muted italic py-2">
+                      None added (Registering as single-member Head of Household).
                     </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="text-body-muted block text-[11px]">Ancestral Native Place:</span>
-                    <strong className="text-brand-primary">{nativePlace}</strong>
-                  </div>
-                  <div>
-                    <span className="text-body-muted block text-[11px]">Residential Location:</span>
-                    <strong className="text-brand-primary">{city}, {state} ({country}) - {postalCode}</strong>
-                  </div>
-                  <div>
-                    <span className="text-body-muted block text-[11px]">Primary Contact (Masked):</span>
-                    <strong className="text-brand-primary">
-                      {contactType === "phone" ? maskPhone(contactValue) : maskEmail(contactValue)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-body-muted block text-[11px]">Identity Document:</span>
-                    <strong className="text-brand-primary">
-                      {isIndia ? `Aadhaar (•••• •••• ${aadhaarNumber.slice(-4)}) • PAN (${panNumber.slice(0, 2)}•••••${panNumber.slice(-1)})` : `Passport (${passportNumber.slice(0, 2)}••••) • ID (${govtIdNumber})`}
-                    </strong>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-brand-accent/20">
-                  <span className="text-body-muted block text-[11px] mb-2">Registered Household Members ({members.length}):</span>
-                  <div className="space-y-2">
-                    {members.map((m, idx) => {
-                      const age = calculateAge(m.dob);
-                      return (
-                        <div key={m.id} className="text-xs bg-white border border-brand-accent/30 p-2.5 rounded-xl flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {m.photoUrl ? (
-                              <img src={m.photoUrl} alt="" className="w-6 h-6 rounded-full object-cover" />
-                            ) : (
-                              <div className="w-6 h-6 rounded-full bg-brand-accent/30 text-brand-primary flex items-center justify-center text-[10px] font-bold">
-                                {m.fullName ? m.fullName.charAt(0) : "M"}
-                              </div>
-                            )}
-                            <div>
-                              <span className="font-bold text-body-heading">{m.fullName || `Member #${idx + 1}`}</span>
-                              <span className="text-[11px] text-body-muted ml-1.5">({m.relationToHead})</span>
-                              {m.professionTitle && <span className="text-[10px] text-brand-gold block">{m.professionTitle}</span>}
-                            </div>
+                  ) : (
+                    <div className="space-y-2 text-xs">
+                      {additionalMembers.map((m, idx) => (
+                        <div
+                          key={m.id}
+                          className="p-3 rounded-xl bg-white border border-brand-accent/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                        >
+                          <div>
+                            <span className="font-bold text-brand-primary">{idx + 1}. {m.fullName}</span>
+                            <span className="text-body-muted ml-2">({m.relationToHead})</span>
+                            <span className="text-body-muted ml-2">• DOB: {m.dob}</span>
                           </div>
-                          <div className="text-right">
-                            <span className="text-[11px] font-bold text-brand-primary">{age !== null ? `${age} yrs` : "Age N/A"}</span>
-                            <span className="text-[10px] text-body-muted block">{m.gender}</span>
+                          <div className="text-[11px] text-body-muted">
+                            {m.professionTitle || m.profession || "Unspecified"}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Consent Box */}
+                <div className="p-4 rounded-2xl bg-amber-50 border border-brand-gold/40 text-xs">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={consentGiven}
+                      onChange={(e) => setConsentGiven(e.target.checked)}
+                      className="mt-0.5 rounded text-brand-primary focus:ring-brand-primary border-brand-accent"
+                    />
+                    <span className="text-body-text leading-relaxed">
+                      I confirm that all information provided is accurate and complies with the community charter of the <strong>Maharaja Agrasen Foundation Limited Singapore</strong>. I consent to my family&apos;s inclusion in the global directory after verification.
+                    </span>
+                  </label>
                 </div>
               </div>
 
-              {/* Consent Checkbox */}
-              <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 mb-6">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={consentGiven}
-                    onChange={(e) => setConsentGiven(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded text-brand-primary focus:ring-brand-primary"
-                  />
-                  <span className="text-xs text-amber-950 leading-relaxed">
-                    I confirm that I am authorized to register these details for my family under the <strong>Maharaja Agrasen Foundation Limited Singapore</strong> platform, and I agree to the community <Link href="/terms" className="underline font-bold">Terms of Service</Link> and <Link href="/privacy" className="underline font-bold">Privacy Policy</Link>.
-                  </span>
-                </label>
-              </div>
-
+              {/* Action Buttons */}
               <div className="flex flex-col-reverse sm:flex-row justify-between gap-3 pt-4 border-t border-brand-accent/20">
                 <button
                   type="button"
                   onClick={() => setStep(3)}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold text-body-heading bg-canvas-warm hover:bg-white border border-brand-accent/30"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold text-body-heading bg-canvas-warm hover:bg-white border border-brand-accent/30 transition-all"
                 >
                   ← Back to Members
                 </button>

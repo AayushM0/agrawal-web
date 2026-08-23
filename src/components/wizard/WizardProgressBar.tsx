@@ -9,8 +9,8 @@ interface WizardProgressBarProps {
 
 const stepNames = [
   "Contact Verification",
-  "Gotra & Native Place",
-  "Members & Identity",
+  "Head & Family Details",
+  "Additional Members (Optional)",
   "Review & Submission",
 ];
 
