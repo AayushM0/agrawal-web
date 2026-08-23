@@ -4,7 +4,6 @@ import { db } from "../lib/db";
 import { getSession } from "./auth";
 import { Household } from "@/types/household";
 import twilio from "twilio";
-import sgMail from "@sendgrid/mail";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { PassPDF } from "@/components/PassPDF";
 import React from "react";
@@ -12,10 +11,6 @@ import React from "react";
 const twilioClient = process.env.TWILIO_ACCOUNT_SID 
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
-
-if (process.env.SENDGRID_API_KEY) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-}
 
 async function sendSMS(phone: string, text: string) {
   if (!twilioClient) return;
@@ -31,7 +26,7 @@ async function sendSMS(phone: string, text: string) {
 }
 
 async function sendWelcomeEmail(member: any, household: any) {
-  if (!process.env.SENDGRID_API_KEY || !member.email) return;
+  if (!process.env.RESEND_API_KEY || !member.email) return;
 
   try {
     const passData = {
@@ -45,22 +40,30 @@ async function sendWelcomeEmail(member: any, household: any) {
 
     const buffer = await renderToBuffer(React.createElement(PassPDF, { passData }) as any);
 
-    const msg = {
-      to: member.email,
-      from: "noreply@yourdomain.com",
-      subject: "Your Official ID - Maharaja Agrasen Foundation",
-      text: "Welcome! Your membership is approved. Your official ID card is attached to this email.",
-      attachments: [
-        {
-          content: buffer.toString("base64"),
-          filename: `ID_Card_${passData.fullName.replace(/\s+/g, "_")}.pdf`,
-          type: "application/pdf",
-          disposition: "attachment",
-        }
-      ],
-    };
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: "Maharaja Agrasen Foundation <onboarding@resend.dev>",
+        to: member.email,
+        subject: "Your Official ID - Maharaja Agrasen Foundation",
+        html: "<p>Welcome! Your membership is approved. Your official ID card is attached to this email.</p>",
+        attachments: [
+          {
+            filename: `ID_Card_${passData.fullName.replace(/\s+/g, "_")}.pdf`,
+            content: buffer.toString("base64"),
+          }
+        ]
+      })
+    });
 
-    await sgMail.send(msg);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error("[RESEND EMAIL ERROR]", err);
+    }
   } catch (e) {
     console.error("Email failed:", e);
   }
