@@ -99,6 +99,8 @@ export default function SignupPage() {
   const [headName, setHeadName] = useState("");
   const [headFatherName, setHeadFatherName] = useState("");
   const [headPhotoUrl, setHeadPhotoUrl] = useState("");
+  const [headPhone, setHeadPhone] = useState("");
+  const [headEmail, setHeadEmail] = useState("");
   const [headDob, setHeadDob] = useState("");
   const [headGender, setHeadGender] = useState("Male");
   const [headMaritalStatus, setHeadMaritalStatus] = useState("Married");
@@ -203,7 +205,7 @@ export default function SignupPage() {
   };
 
   // Step 2 Validation & Transition
-  const handleStep2Next = (e: React.FormEvent) => {
+  const handleStep2Next = async (e: React.FormEvent) => {
     e.preventDefault();
     setStep2Error("");
 
@@ -219,6 +221,33 @@ export default function SignupPage() {
       setStep2Error("Father's Name (पिता का नाम) is mandatory for the Head of Household.");
       return;
     }
+
+    const effectivePhone = contactType === "phone" ? contactValue.trim() : headPhone.trim();
+    const effectiveEmail = contactType === "email" ? contactValue.trim() : headEmail.trim();
+
+    if (!effectivePhone || effectivePhone.replace(/[^0-9]/g, "").length < 7) {
+      setStep2Error("A valid Mobile Phone Number is strictly mandatory for the Head of Household.");
+      return;
+    }
+    if (!effectiveEmail || !effectiveEmail.includes("@") || effectiveEmail.length < 5) {
+      setStep2Error("A valid Email Address is strictly mandatory for the Head of Household.");
+      return;
+    }
+
+    if (contactType === "phone" && headEmail.trim()) {
+      const checkMail = await checkContactAvailability(headEmail.trim());
+      if (!checkMail.available && checkMail.conflict) {
+        setStep2Error(`Email '${headEmail}' is already registered in the directory (${checkMail.conflict.name ? `associated with ${checkMail.conflict.name}` : `#${checkMail.conflict.householdCode}`}).`);
+        return;
+      }
+    } else if (contactType === "email" && headPhone.trim()) {
+      const checkPh = await checkContactAvailability(headPhone.trim());
+      if (!checkPh.available && checkPh.conflict) {
+        setStep2Error(`Mobile number '${headPhone}' is already registered in the directory (${checkPh.conflict.name ? `associated with ${checkPh.conflict.name}` : `#${checkPh.conflict.householdCode}`}).`);
+        return;
+      }
+    }
+
     if (!headDob.trim()) {
       setStep2Error("Please enter a valid Date of Birth (जन्म तिथि) for the Head of Household.");
       return;
@@ -386,14 +415,17 @@ export default function SignupPage() {
 
     setIsSubmitting(true);
 
+    const effectiveHeadPhone = contactType === "phone" ? contactValue.trim() : headPhone.trim();
+    const effectiveHeadEmail = contactType === "email" ? contactValue.trim() : headEmail.trim();
+
     const headMember: Member = {
       id: "m-1",
       fullName: headName.trim(),
       relationToHead: "self",
       fatherName: headFatherName.trim(),
       photoUrl: headPhotoUrl || undefined,
-      phone: contactType === "phone" ? contactValue.trim() : undefined,
-      email: contactType === "email" ? contactValue.trim() : undefined,
+      phone: effectiveHeadPhone,
+      email: effectiveHeadEmail,
       dob: headDob.trim(),
       gender: headGender as any,
       maritalStatus: headMaritalStatus as any,
@@ -817,6 +849,63 @@ export default function SignupPage() {
                         onChange={(e) => setHeadFatherName(e.target.value)}
                         placeholder="e.g. Late Shri Omprakash Agarwal"
                         className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Contact Section: Both Phone and Email are Strictly Mandatory */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                    {/* Mobile Phone Number */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-body-heading">
+                          Mobile Phone Number (मोबाइल नंबर) *
+                        </label>
+                        {contactType === "phone" && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            ✓ Verified in Step 1
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="tel"
+                        required
+                        readOnly={contactType === "phone"}
+                        value={contactType === "phone" ? contactValue : headPhone}
+                        onChange={(e) => setHeadPhone(e.target.value)}
+                        placeholder="e.g. +91 9876543210"
+                        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-body-heading outline-none ${
+                          contactType === "phone"
+                            ? "bg-emerald-50/40 border-emerald-300 text-emerald-900 font-semibold cursor-not-allowed"
+                            : "bg-white border-brand-accent/40 focus:ring-1 focus:ring-brand-primary"
+                        }`}
+                      />
+                    </div>
+
+                    {/* Email Address */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-body-heading">
+                          Email Address (ईमेल आईडी) *
+                        </label>
+                        {contactType === "email" && (
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                            ✓ Verified in Step 1
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="email"
+                        required
+                        readOnly={contactType === "email"}
+                        value={contactType === "email" ? contactValue : headEmail}
+                        onChange={(e) => setHeadEmail(e.target.value)}
+                        placeholder="e.g. ramesh.agarwal@example.com"
+                        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-body-heading outline-none ${
+                          contactType === "email"
+                            ? "bg-emerald-50/40 border-emerald-300 text-emerald-900 font-semibold cursor-not-allowed"
+                            : "bg-white border-brand-accent/40 focus:ring-1 focus:ring-brand-primary"
+                        }`}
                       />
                     </div>
                   </div>

@@ -162,6 +162,16 @@ test("Issue 3.6: Mandatory profile photograph for Head and all family members", 
   assert.ok(signupPageCode.includes("m.photoUrl.trim()"), "Signup Step 3 must enforce member photo upload");
 });
 
+test("Issue 3.7: Both Mobile Phone and Email Address are strictly mandatory for Head of Household", () => {
+  const registerActionCode = fs.readFileSync(path.join(webRoot, "src/actions/register.ts"), "utf8");
+  const signupPageCode = fs.readFileSync(path.join(webRoot, "src/app/signup/page.tsx"), "utf8");
+
+  assert.ok(registerActionCode.includes("A valid mobile phone number is strictly mandatory for the Head of Household"), "Backend must enforce mandatory Head phone");
+  assert.ok(registerActionCode.includes("A valid email address is strictly mandatory for the Head of Household"), "Backend must enforce mandatory Head email");
+  assert.ok(signupPageCode.includes("effectivePhone"), "Signup Step 2 must validate effective phone");
+  assert.ok(signupPageCode.includes("effectiveEmail"), "Signup Step 2 must validate effective email");
+});
+
 // ============================================================================
 // ISSUE #4 TESTS: Default Contact Masking & Dynamic Age Computation
 // ============================================================================

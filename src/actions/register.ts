@@ -91,14 +91,16 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     return { success: false, error: "Father's Full Name (पिता का नाम) is required for Head of Household." };
   }
 
-  const headPhone = head.phone?.trim() || (isPhone ? canonicalContact : undefined);
-  if (isPhone && (!headPhone || headPhone.replace(/[^0-9]/g, "").length < 7)) {
-    return { success: false, error: "A valid mobile phone number is required for Head of Household." };
+  const rawHeadPhone = head.phone?.trim() || (isPhone ? canonicalContact : undefined);
+  const headPhone = rawHeadPhone ? (rawHeadPhone.includes("@") ? undefined : normalizePhoneNumber(rawHeadPhone)) : undefined;
+  if (!headPhone || headPhone.replace(/[^0-9]/g, "").length < 7) {
+    return { success: false, error: "A valid mobile phone number is strictly mandatory for the Head of Household." };
   }
 
-  const headEmail = head.email?.trim() || (!isPhone ? canonicalContact : undefined);
-  if (!isPhone && (!headEmail || !headEmail.includes("@") || headEmail.length < 5)) {
-    return { success: false, error: "A valid email address is required for Head of Household." };
+  const rawHeadEmail = head.email?.trim() || (!isPhone ? canonicalContact : undefined);
+  const headEmail = rawHeadEmail ? rawHeadEmail.toLowerCase() : undefined;
+  if (!headEmail || !headEmail.includes("@") || headEmail.length < 5) {
+    return { success: false, error: "A valid email address is strictly mandatory for the Head of Household." };
   }
 
   // Address validation
@@ -142,29 +144,25 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
   }
 
   // Check contact conflicts for Head's Phone & Email
-  if (headPhone) {
-    const phoneConflict = await db.checkContactExists(headPhone);
-    if (phoneConflict.exists && phoneConflict.type === "head") {
-      const existingH = await db.getHouseholdByContact(canonicalContact);
-      if (!existingH || existingH.householdCode !== phoneConflict.householdCode) {
-        return {
-          success: false,
-          error: `The mobile number '${headPhone}' is already registered in the directory (${phoneConflict.name ? `under ${phoneConflict.name}` : `#${phoneConflict.householdCode}`}).`,
-        };
-      }
+  const phoneConflict = await db.checkContactExists(headPhone);
+  if (phoneConflict.exists && phoneConflict.type === "head") {
+    const existingH = await db.getHouseholdByContact(canonicalContact);
+    if (!existingH || existingH.householdCode !== phoneConflict.householdCode) {
+      return {
+        success: false,
+        error: `The mobile number '${headPhone}' is already registered in the directory (${phoneConflict.name ? `under ${phoneConflict.name}` : `#${phoneConflict.householdCode}`}).`,
+      };
     }
   }
 
-  if (headEmail) {
-    const emailConflict = await db.checkContactExists(headEmail);
-    if (emailConflict.exists && emailConflict.type === "head") {
-      const existingH = await db.getHouseholdByContact(canonicalContact);
-      if (!existingH || existingH.householdCode !== emailConflict.householdCode) {
-        return {
-          success: false,
-          error: `The email address '${headEmail}' is already registered in the directory (${emailConflict.name ? `under ${emailConflict.name}` : `#${emailConflict.householdCode}`}).`,
-        };
-      }
+  const emailConflict = await db.checkContactExists(headEmail);
+  if (emailConflict.exists && emailConflict.type === "head") {
+    const existingH = await db.getHouseholdByContact(canonicalContact);
+    if (!existingH || existingH.householdCode !== emailConflict.householdCode) {
+      return {
+        success: false,
+        error: `The email address '${headEmail}' is already registered in the directory (${emailConflict.name ? `under ${emailConflict.name}` : `#${emailConflict.householdCode}`}).`,
+      };
     }
   }
 
