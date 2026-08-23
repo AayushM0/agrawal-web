@@ -10,12 +10,15 @@
     "test": "node tests/seams.test.mjs"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.7.0",
+    "@sendgrid/mail": "^8.1.6",
     "@types/pg": "^8.23.1",
     "country-state-city": "^3.2.1",
     "next": "^15.3.9",
     "pg": "^8.23.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "twilio": "^6.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
