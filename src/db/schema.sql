@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS households (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     household_code VARCHAR(32) NOT NULL UNIQUE,
     head_user_id UUID NOT NULL,
+    head_name TEXT NOT NULL,
     native_place TEXT NOT NULL,
     gotra TEXT NOT NULL,
     status household_status NOT NULL DEFAULT 'pending_review',
