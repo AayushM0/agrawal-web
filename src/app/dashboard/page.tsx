@@ -589,8 +589,18 @@ export default function DashboardPage() {
                   <LocationSelector
                     country={editingMember.currentCountry || ""}
                     city={editingMember.currentCity || ""}
-                    onLocationChange={(country, city) => 
-                      setEditingMember({ ...editingMember, currentCountry: country, currentCity: city })
+                    postalCode={editingMember.postalCode || ""}
+                    state={editingMember.state || ""}
+                    fullAddress={editingMember.fullAddress || ""}
+                    onLocationChange={(locData: any) => 
+                      setEditingMember({ 
+                        ...editingMember, 
+                        currentCountry: typeof locData === 'string' ? locData : locData.country, 
+                        currentCity: typeof locData === 'string' ? (editingMember.currentCity || "") : locData.city,
+                        postalCode: typeof locData === 'object' ? locData.postalCode : editingMember.postalCode,
+                        state: typeof locData === 'object' ? locData.state : editingMember.state,
+                        fullAddress: typeof locData === 'object' ? locData.fullAddress : editingMember.fullAddress,
+                      })
                     }
                   />
                 </div>

@@ -43,31 +43,6 @@ function sanitizeDate(dob?: string): string {
     return `${year}-01-01`;
   }
   const parsed = new Date(clean);
-    throw err;
-  }
-}
-
-// Safe helper to sanitize dates for PostgreSQL DATE columns
-function sanitizeDate(dob?: string): string {
-  if (!dob || !dob.trim()) {
-    return "1990-01-01";
-  }
-  const clean = dob.trim();
-  // If it's already YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
-    return clean;
-  }
-  // If it's a 4 digit year e.g. "1995"
-  if (/^\d{4}$/.test(clean)) {
-    return `${clean}-01-01`;
-  }
-  // If it's an age number e.g. "28"
-  if (/^\d{1,3}$/.test(clean)) {
-    const age = parseInt(clean, 10);
-    const year = new Date().getFullYear() - age;
-    return `${year}-01-01`;
-  }
-  const parsed = new Date(clean);
   if (!isNaN(parsed.getTime())) {
     return parsed.toISOString().split("T")[0];
   }
@@ -516,27 +491,41 @@ export const db = {
     } catch (e) { throw e; }
   },
 
+  async updateHouseholdStatus(id: string, status: "live" | "rejected" | "pending_review", rejectionReason?: string): Promise<Household | null> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const res = await pool.query(
         "UPDATE households SET status = $1, rejection_reason = $2 WHERE id = $3 RETURNING *;",
         [status, rejectionReason || null, id]
       );
-            if (res.rows.length === 0) return null;
+      if (res.rows.length === 0) return null;
       const h = res.rows[0];
       return {
         id: h.id,
+        serialNo: h.serial_no,
         householdCode: h.household_code,
         headUserId: h.head_user_id,
         headName: h.head_name,
         nativePlace: h.native_place,
         gotra: h.gotra,
         status: h.status,
+        country: h.country,
+        postalCode: h.postal_code,
+        state: h.state,
+        city: h.city,
+        fullAddress: h.full_address,
+        aadhaarNumber: h.aadhaar_number,
+        panNumber: h.pan_number,
+        passportNumber: h.passport_number,
+        govtIdNumber: h.govt_id_number,
         verifiedContact: h.verified_contact,
         consentAcceptedAt: h.consent_accepted_at,
         createdAt: h.created_at,
         members: [],
       };
     } catch (e) {
-    throw e;
-  }
+      throw e;
+    }
   },
 
   async claimMember(memberId: string, contactInfo?: { phone?: string; email?: string }): Promise<boolean> {
@@ -552,11 +541,11 @@ export const db = {
          RETURNING id;`,
         [memberId, contactInfo?.phone || null, contactInfo?.email ? contactInfo.email.trim().toLowerCase() : null]
       );
-            if (res.rows.length === 0) return false;
+      if (res.rows.length === 0) return false;
       return true;
     } catch (e) {
-    throw e;
-  }
+      throw e;
+    }
   },
 
   async checkContactExists(contact: string, excludeMemberId?: string): Promise<{ exists: boolean; type?: "head" | "member"; name?: string; householdCode?: string }> {
