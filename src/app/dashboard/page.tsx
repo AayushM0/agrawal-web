@@ -376,12 +376,12 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 self-stretch sm:self-center shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-brand-accent/15">
                       {canEditThisMember && (
                         <button
                           type="button"
                           onClick={() => openEditMemberModal(m)}
-                          className="px-3.5 py-1.5 rounded-full text-xs font-bold text-white va-btn-join transition-all shadow-xs"
+                          className="flex-1 sm:flex-initial text-center px-3.5 py-1.5 rounded-full text-xs font-bold text-white va-btn-join transition-all shadow-xs"
                         >
                           ✏️ Edit Profile
                         </button>
@@ -391,7 +391,7 @@ export default function DashboardPage() {
                         <button
                           type="button"
                           onClick={() => handleCopyClaimLink(m.id)}
-                          className="px-3.5 py-1.5 rounded-full text-xs font-bold text-brand-primary bg-white border border-brand-accent hover:bg-canvas-warm transition-all"
+                          className="flex-1 sm:flex-initial text-center px-3.5 py-1.5 rounded-full text-xs font-bold text-brand-primary bg-white border border-brand-accent hover:bg-canvas-warm transition-all"
                         >
                           {copiedToken === m.id ? "✓ Link Copied!" : "Invite to Claim"}
                         </button>

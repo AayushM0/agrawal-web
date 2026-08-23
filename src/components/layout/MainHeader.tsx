@@ -47,14 +47,14 @@ export default function MainHeader() {
               priority
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <span className="inline-block text-[8px] sm:text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full va-badge-gold mb-0.5">
               Maharaja Agrasen Foundation
             </span>
-            <h2 className="text-xs sm:text-base font-extrabold text-brand-primary leading-tight tracking-tight">
+            <h2 className="text-[11px] sm:text-sm md:text-base font-extrabold text-brand-primary leading-tight tracking-tight truncate sm:whitespace-normal">
               Maharaja Agrasen Foundation Limited Singapore
             </h2>
-            <p className="text-[9px] sm:text-[11px] text-body-muted font-medium truncate max-w-[200px] sm:max-w-none">
+            <p className="text-[9px] sm:text-[11px] text-body-muted font-medium truncate max-w-[180px] sm:max-w-none hidden xs:block">
               One Community • One Platform • One Global Family
             </p>
           </div>
