@@ -143,6 +143,15 @@ test("Issue 3.4: Registration Server Action supports parent and all extended fam
   assert.ok(registerActionCode.includes("VALID_MARITAL"), "Must validate marital status case-insensitively");
 });
 
+test("Issue 3.5: Contact uniqueness, DB checks, and auto-claim for family members without separate contacts", () => {
+  const registerActionCode = fs.readFileSync(path.join(webRoot, "src/actions/register.ts"), "utf8");
+  const claimActionCode = fs.readFileSync(path.join(webRoot, "src/actions/claim.ts"), "utf8");
+
+  assert.ok(registerActionCode.includes("cannot be identical to the Head of Household's contact"), "Must block member using Head contact");
+  assert.ok(registerActionCode.includes("isAutoClaimed"), "Must automatically claim members without separate contact");
+  assert.ok(claimActionCode.includes("does not require separate claiming"), "Claim must reject auto-claimed members without separate contacts");
+});
+
 // ============================================================================
 // ISSUE #4 TESTS: Default Contact Masking & Dynamic Age Computation
 // ============================================================================
@@ -245,4 +254,5 @@ test("Issue 6.2: Admin Moderation Portal displays address, government IDs, and s
   assert.ok(moderationPageCode.includes("Aadhaar:"), "Moderation queue must display Aadhaar / PAN / Passport / Govt ID");
 
   assert.ok(moderateActionCode.includes("serialNo"), "Approval notifications must include serialNo");
+  assert.ok(moderateActionCode.includes("allAttachments"), "Approval notifications must attach ID passes for all family members");
 });

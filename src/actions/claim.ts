@@ -54,6 +54,21 @@ export async function getClaimMemberDetails(token: string) {
     return { success: false, error: "Member profile not found for this invite link." };
   }
 
+  const hasIndividualContact = Boolean((member.phone && member.phone.trim()) || (member.email && member.email.trim()));
+  if (!hasIndividualContact) {
+    return {
+      success: false,
+      error: "This family member profile is managed directly under the Head of Household and does not require separate claiming.",
+    };
+  }
+
+  if (member.ownerLocked || member.verifiedBySelf) {
+    return {
+      success: false,
+      error: "This profile has already been verified and claimed.",
+    };
+  }
+
   return {
     success: true,
     member: {
@@ -104,31 +119,59 @@ export async function verifyMemberClaim(input: VerifyMemberClaimInput | string) 
     return { success: false, error: "Member profile not found." };
   }
 
-  if (member.ownerLocked) {
+  const hasIndividualContact = Boolean((member.phone && member.phone.trim()) || (member.email && member.email.trim()));
+  if (!hasIndividualContact) {
+    return {
+      success: false,
+      error: "This family member profile is managed directly under the Head of Household and does not require separate claiming.",
+    };
+  }
+
+  if (member.ownerLocked || member.verifiedBySelf) {
     return { success: false, error: "This profile has already been claimed and locked." };
   }
 
-  // If contact and OTP are provided, verify them
-  let isPhone = true;
-  let canonicalContact = contact.trim();
-  if (contact && otp) {
-    isPhone = !contact.includes("@");
-    canonicalContact = isPhone ? normalizePhoneNumber(contact) : contact.trim().toLowerCase();
+  if (!contact || !contact.trim() || !otp || !otp.trim()) {
+    return { success: false, error: "Contact verification and 6-digit OTP passcode are required." };
+  }
 
-    // 1. Check duplicate across other households/members
-    const checkDup = await db.checkContactExists(canonicalContact, memberId);
-    if (checkDup.exists) {
+  const isPhone = !contact.includes("@");
+  const canonicalContact = isPhone ? normalizePhoneNumber(contact) : contact.trim().toLowerCase();
+
+  // 1. If member had registered phone, contact MUST match that phone
+  if (member.phone && member.phone.trim()) {
+    const memberNormPhone = member.phone.includes("@") ? member.phone.trim() : normalizePhoneNumber(member.phone);
+    if (canonicalContact !== memberNormPhone) {
       return {
         success: false,
-        error: `This ${isPhone ? "mobile number" : "email"} is already registered in the directory (${checkDup.name ? `associated with ${checkDup.name}` : `#${checkDup.householdCode}`}).`,
+        error: `This profile can only be claimed using the registered phone number ending in ...${member.phone.slice(-4)}.`,
       };
     }
+  }
 
-    // 2. Verify OTP cryptographically
-    const otpRes = await verifyOtp({ recipient: canonicalContact, otp });
-    if (!otpRes.success) {
-      return { success: false, error: otpRes.error || "Invalid OTP verification passcode." };
+  // 2. If member had registered email, contact MUST match that email
+  if (member.email && member.email.trim()) {
+    if (canonicalContact !== member.email.trim().toLowerCase()) {
+      return {
+        success: false,
+        error: `This profile can only be claimed using the registered email address.`,
+      };
     }
+  }
+
+  // 3. Check duplicate across other households/members
+  const checkDup = await db.checkContactExists(canonicalContact, memberId);
+  if (checkDup.exists) {
+    return {
+      success: false,
+      error: `This ${isPhone ? "mobile number" : "email"} is already registered in the directory (${checkDup.name ? `associated with ${checkDup.name}` : `#${checkDup.householdCode}`}).`,
+    };
+  }
+
+  // 4. Verify OTP cryptographically
+  const otpRes = await verifyOtp({ recipient: canonicalContact, otp });
+  if (!otpRes.success) {
+    return { success: false, error: otpRes.error || "Invalid OTP verification passcode." };
   }
 
   const updated = await db.claimMember(memberId, {

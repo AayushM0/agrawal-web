@@ -186,41 +186,84 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     if (m.maritalStatus && !VALID_MARITAL.has(m.maritalStatus.trim().toLowerCase())) {
       return { success: false, error: `Invalid marital status '${m.maritalStatus}' for member #${i + 1}.` };
     }
+
+    // Check contact conflicts for additional members
+    if (i > 0) {
+      if (m.phone && m.phone.trim()) {
+        const cleanMemberPhone = m.phone.trim();
+        const normMemberPhone = cleanMemberPhone.includes("@") ? cleanMemberPhone : normalizePhoneNumber(cleanMemberPhone);
+        if (normMemberPhone === canonicalContact || (headPhone && normMemberPhone === normalizePhoneNumber(headPhone))) {
+          return {
+            success: false,
+            error: `Phone for ${memberName} cannot be identical to the Head of Household's contact. Please leave phone blank if they share the household contact.`,
+          };
+        }
+        const phoneConflict = await db.checkContactExists(cleanMemberPhone);
+        if (phoneConflict.exists) {
+          return {
+            success: false,
+            error: `Phone '${cleanMemberPhone}' for ${memberName} is already registered in the directory (${phoneConflict.name ? `associated with ${phoneConflict.name}` : `#${phoneConflict.householdCode}`}).`,
+          };
+        }
+      }
+
+      if (m.email && m.email.trim()) {
+        const cleanMemberEmail = m.email.trim().toLowerCase();
+        if (cleanMemberEmail === canonicalContact || (headEmail && cleanMemberEmail === headEmail.trim().toLowerCase())) {
+          return {
+            success: false,
+            error: `Email for ${memberName} cannot be identical to the Head of Household's contact. Please leave email blank if they share the household contact.`,
+          };
+        }
+        const emailConflict = await db.checkContactExists(cleanMemberEmail);
+        if (emailConflict.exists) {
+          return {
+            success: false,
+            error: `Email '${cleanMemberEmail}' for ${memberName} is already registered in the directory (${emailConflict.name ? `associated with ${emailConflict.name}` : `#${emailConflict.householdCode}`}).`,
+          };
+        }
+      }
+    }
   }
 
   // 7. Create new Household with pending_review status
   const householdId = `h-${Date.now()}`;
   const householdCode = `AGR-2026-${Math.floor(100 + Math.random() * 900)}`;
 
-  const structuredMembers: Member[] = input.members.map((m, idx) => ({
-    ...m,
-    fullName: m.fullName.trim(),
-    relationToHead: (m.relationToHead?.toLowerCase() as any) || (idx === 0 ? "self" : "other"),
-    fatherName: m.fatherName?.trim() || undefined,
-    photoUrl: m.photoUrl?.trim() || undefined,
-    phone: m.phone ? (m.phone.includes("@") ? m.phone.trim() : normalizePhoneNumber(m.phone)) : undefined,
-    email: m.email?.trim().toLowerCase() || undefined,
-    currentCity: m.currentCity?.trim() || city || cleanNativePlace,
-    currentCountry: m.currentCountry?.trim() || country,
-    postalCode: m.postalCode?.trim() || postalCode,
-    state: m.state?.trim() || state,
-    fullAddress: m.fullAddress?.trim() || fullAddress,
-    profession: m.profession?.trim() || "",
-    professionTitle: m.professionTitle?.trim() || m.profession?.trim() || "",
-    professionDescription: m.professionDescription?.trim() || undefined,
-    aadhaarNumber: idx === 0 ? cleanAadhaar : (m.aadhaarNumber?.replace(/[^0-9]/g, "") || undefined),
-    panNumber: idx === 0 ? cleanPan : (m.panNumber?.trim().toUpperCase() || undefined),
-    passportNumber: idx === 0 ? cleanPassport : (m.passportNumber?.trim().toUpperCase() || undefined),
-    govtIdNumber: idx === 0 ? cleanGovtId : (m.govtIdNumber?.trim().toUpperCase() || undefined),
-    id: `m-${Date.now()}-${idx}`,
-    verifiedBySelf: idx === 0, // Head is self-verified on signup
-    ownerLocked: idx === 0,
-    visibility: {
-      contactInfo: "hidden",
-      dob: "hidden",
-      photo: "public_to_members",
-    },
-  }));
+  const structuredMembers: Member[] = input.members.map((m, idx) => {
+    const hasIndividualContact = Boolean((m.phone && m.phone.trim()) || (m.email && m.email.trim()));
+    const isAutoClaimed = idx === 0 || !hasIndividualContact;
+
+    return {
+      ...m,
+      fullName: m.fullName.trim(),
+      relationToHead: (m.relationToHead?.toLowerCase() as any) || (idx === 0 ? "self" : "other"),
+      fatherName: m.fatherName?.trim() || undefined,
+      photoUrl: m.photoUrl?.trim() || undefined,
+      phone: m.phone ? (m.phone.includes("@") ? m.phone.trim() : normalizePhoneNumber(m.phone)) : undefined,
+      email: m.email?.trim().toLowerCase() || undefined,
+      currentCity: m.currentCity?.trim() || city || cleanNativePlace,
+      currentCountry: m.currentCountry?.trim() || country,
+      postalCode: m.postalCode?.trim() || postalCode,
+      state: m.state?.trim() || state,
+      fullAddress: m.fullAddress?.trim() || fullAddress,
+      profession: m.profession?.trim() || "",
+      professionTitle: m.professionTitle?.trim() || m.profession?.trim() || "",
+      professionDescription: m.professionDescription?.trim() || undefined,
+      aadhaarNumber: idx === 0 ? cleanAadhaar : (m.aadhaarNumber?.replace(/[^0-9]/g, "") || undefined),
+      panNumber: idx === 0 ? cleanPan : (m.panNumber?.trim().toUpperCase() || undefined),
+      passportNumber: idx === 0 ? cleanPassport : (m.passportNumber?.trim().toUpperCase() || undefined),
+      govtIdNumber: idx === 0 ? cleanGovtId : (m.govtIdNumber?.trim().toUpperCase() || undefined),
+      id: `m-${Date.now()}-${idx}`,
+      verifiedBySelf: isAutoClaimed, // Head is self-verified; members without separate contact are auto-claimed
+      ownerLocked: isAutoClaimed,
+      visibility: {
+        contactInfo: "hidden",
+        dob: "hidden",
+        photo: "public_to_members",
+      },
+    };
+  });
 
   const newHousehold: Household = {
     id: householdId,

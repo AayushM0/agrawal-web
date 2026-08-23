@@ -89,15 +89,145 @@ async function sendWelcomeEmail(member: any, household: any) {
 async function notifyHouseholdMembers(householdId: string, household: any) {
   const members = await db.getMembersByHousehold(householdId);
   const serial = household.serialNo || household.householdCode;
+
+  // 1. Generate ID Pass PDF buffer for every family member
+  const allAttachments: { filename: string; content: string; member: any }[] = [];
   for (const member of members) {
-    if (member.phone) {
+    const roleLabel =
+      member.relationToHead === "self"
+        ? "Head of Household"
+        : member.relationToHead.charAt(0).toUpperCase() + member.relationToHead.slice(1);
+
+    const passData = {
+      fullName: member.fullName,
+      gotra: household.gotra,
+      householdCode: household.householdCode,
+      serialNo: household.serialNo || household.householdCode,
+      currentCity: member.currentCity || household.city || household.nativePlace,
+      roleLabel,
+      photoUrl: member.photoUrl,
+      nativePlace: household.nativePlace,
+      fatherName: member.fatherName,
+    };
+
+    try {
+      const buffer = await renderToBuffer(React.createElement(PassPDF, { passData }) as any);
+      allAttachments.push({
+        filename: `ID_Card_${member.fullName.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`,
+        content: buffer.toString("base64"),
+        member,
+      });
+    } catch (err) {
+      console.error("PDF generation failed for member:", member.fullName, err);
+    }
+  }
+
+  // 2. Identify primary email destination (Head email or verified household email)
+  const headMember = members.find((m) => m.relationToHead === "self");
+  const primaryEmail =
+    headMember?.email ||
+    (household.verifiedContact && household.verifiedContact.includes("@")
+      ? household.verifiedContact
+      : null);
+
+  // 3. Send Primary Welcome Email with ALL Family Member ID Pass attachments
+  if (process.env.RESEND_API_KEY && primaryEmail && allAttachments.length > 0) {
+    const memberSummaryList = members
+      .map(
+        (m, idx) =>
+          `<li><strong>#${idx + 1}: ${m.fullName}</strong> (${m.relationToHead === "self" ? "Head of Household" : m.relationToHead})</li>`
+      )
+      .join("");
+
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: "Maharaja Agrasen Foundation <onboarding@resend.dev>",
+          to: primaryEmail,
+          subject: `Household Verified - Official ID Passes for All Members (${serial}) - Maharaja Agrasen Foundation`,
+          html: `
+            <h2>Congratulations! Your Household is Approved</h2>
+            <p>Your Maharaja Agrasen Foundation household registration has been verified and approved.</p>
+            <p><strong>Assigned Serial Number:</strong> ${serial}</p>
+            <p>Official ID cards for all <strong>${members.length} registered member(s)</strong> are attached to this email:</p>
+            <ul>${memberSummaryList}</ul>
+            <p>You can also log in to your household dashboard at any time to view and download live passes for all members: <a href="https://agrasenvaishakhara.com/dashboard/pass">https://agrasenvaishakhara.com/dashboard/pass</a></p>
+          `,
+          attachments: allAttachments.map((a) => ({
+            filename: a.filename,
+            content: a.content,
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("[RESEND EMAIL ERROR]", err);
+      }
+    } catch (e) {
+      console.error("Primary household email dispatch failed:", e);
+    }
+  }
+
+  // 4. Send individual welcome email if a member has a distinct separate email
+  if (process.env.RESEND_API_KEY) {
+    for (const item of allAttachments) {
+      if (
+        item.member.email &&
+        primaryEmail &&
+        item.member.email.toLowerCase() !== primaryEmail.toLowerCase()
+      ) {
+        try {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: "Maharaja Agrasen Foundation <onboarding@resend.dev>",
+              to: item.member.email,
+              subject: `Your Official ID Card (${serial}) - Maharaja Agrasen Foundation`,
+              html: `
+                <h2>Welcome, ${item.member.fullName}!</h2>
+                <p>Your membership under household <strong>${serial}</strong> is approved.</p>
+                <p>Your official ID card is attached to this email.</p>
+              `,
+              attachments: [{ filename: item.filename, content: item.content }],
+            }),
+          });
+        } catch (e) {
+          console.error("Individual member email dispatch failed:", e);
+        }
+      }
+    }
+  }
+
+  // 5. Send SMS to household and member contacts
+  const primaryPhone =
+    headMember?.phone ||
+    (household.verifiedContact && !household.verifiedContact.includes("@")
+      ? household.verifiedContact
+      : null);
+
+  if (primaryPhone) {
+    await sendSMS(
+      primaryPhone,
+      `Your Maharaja Agrasen Foundation household membership is approved! Serial No: ${serial}. ID passes for all ${members.length} member(s) are ready at: https://agrasenvaishakhara.com/dashboard/pass`
+    );
+  }
+
+  for (const member of members) {
+    if (member.phone && member.phone !== primaryPhone) {
       await sendSMS(
         member.phone,
-        `Your Maharaja Agrasen Foundation membership is approved! Your Serial No is ${serial}. Download your official ID pass here: https://agrasenvaishakhara.com/dashboard/pass`
+        `Welcome ${member.fullName}! Your Maharaja Agrasen Foundation ID pass (${serial}) is approved. Access here: https://agrasenvaishakhara.com/dashboard/pass`
       );
-    }
-    if (member.email) {
-      await sendWelcomeEmail(member, household);
     }
   }
 }
