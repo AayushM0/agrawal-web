@@ -278,6 +278,48 @@ export const db = {
   }
   },
 
+  async getHouseholdById(householdId: string): Promise<any | null> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const res = await pool.query("SELECT * FROM households WHERE id::text = $1 OR household_code = $1 LIMIT 1;", [householdId]);
+      if (res.rows.length === 0) return null;
+      const h = res.rows[0];
+      return {
+        id: h.id,
+        householdCode: h.household_code,
+        headUserId: h.head_user_id,
+        headName: h.head_name,
+        nativePlace: h.native_place,
+        gotra: h.gotra,
+        status: h.status,
+        verifiedContact: h.verified_contact,
+        consentAcceptedAt: h.consent_accepted_at,
+        createdAt: h.created_at,
+      };
+    } catch (e) { throw e; }
+  },
+
+  async getMembersByHousehold(householdId: string): Promise<any[]> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const res = await pool.query(
+        `SELECT id, household_id as "householdId", full_name as "fullName", relation_to_head as "relationToHead",
+                dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
+                current_country as "currentCountry", profession_freetext as "profession", phone, email,
+                father_name as "fatherName", photo_url as "photoUrl", bio,
+                verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
+                visibility_contact, visibility_dob, visibility_photo
+         FROM members WHERE household_id::text = $1 ORDER BY created_at ASC;`,
+        [householdId]
+      );
+      return res.rows.map(m => ({
+        ...m,
+        dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString() : String(m.dob)) : "",
+        visibility: { contactInfo: m.visibility_contact, dob: m.visibility_dob, photo: m.visibility_photo }
+      }));
+    } catch (e) { throw e; }
+  },
+
   async getMemberById(memberId: string): Promise<any | null> {
     if (!pool) throw new Error("Database not connected");
     try {
