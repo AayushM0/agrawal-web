@@ -25,13 +25,13 @@ export interface RegisterHouseholdInput {
 }
 
 const VALID_RELATIONS = new Set([
-  "self", "spouse", "father", "mother", "son", "daughter",
+  "self", "spouse", "parent", "father", "mother", "son", "daughter",
   "brother", "sister", "daughter_in_law", "son_in_law",
   "grandson", "granddaughter", "other"
 ]);
 
-const VALID_GENDERS = new Set(["Male", "Female", "Other"]);
-const VALID_MARITAL = new Set(["Married", "Unmarried", "Widowed", "Divorced"]);
+const VALID_GENDERS = new Set(["male", "female", "other"]);
+const VALID_MARITAL = new Set(["married", "unmarried", "widowed", "divorced"]);
 
 export async function registerHousehold(input: RegisterHouseholdInput) {
   // 1. Consent Validation
@@ -175,16 +175,16 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
       return { success: false, error: `Member #${i + 1} name must be between 2 and 100 characters.` };
     }
 
-    if (m.relationToHead && !VALID_RELATIONS.has(m.relationToHead.toLowerCase())) {
+    if (m.relationToHead && !VALID_RELATIONS.has(m.relationToHead.trim().toLowerCase())) {
       return { success: false, error: `Invalid relation '${m.relationToHead}' for member #${i + 1}.` };
     }
 
-    if (m.gender && !VALID_GENDERS.has(m.gender)) {
-      return { success: false, error: `Invalid gender for member #${i + 1}.` };
+    if (m.gender && !VALID_GENDERS.has(m.gender.trim().toLowerCase())) {
+      return { success: false, error: `Invalid gender '${m.gender}' for member #${i + 1}.` };
     }
 
-    if (m.maritalStatus && !VALID_MARITAL.has(m.maritalStatus)) {
-      return { success: false, error: `Invalid marital status for member #${i + 1}.` };
+    if (m.maritalStatus && !VALID_MARITAL.has(m.maritalStatus.trim().toLowerCase())) {
+      return { success: false, error: `Invalid marital status '${m.maritalStatus}' for member #${i + 1}.` };
     }
   }
 

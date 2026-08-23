@@ -131,6 +131,18 @@ test("Issue 3.3: Signup UI captures Head in Step 2 and provides optional member 
   assert.ok(signupPageCode.includes("Example:"), "Must provide profession description example");
 });
 
+test("Issue 3.4: Registration Server Action supports parent and all extended family relations", () => {
+  const registerActionCode = fs.readFileSync(path.join(webRoot, "src/actions/register.ts"), "utf8");
+  
+  assert.ok(registerActionCode.includes('"parent"'), "VALID_RELATIONS must include 'parent'");
+  assert.ok(registerActionCode.includes('"spouse"'), "VALID_RELATIONS must include 'spouse'");
+  assert.ok(registerActionCode.includes('"son"'), "VALID_RELATIONS must include 'son'");
+  assert.ok(registerActionCode.includes('"daughter"'), "VALID_RELATIONS must include 'daughter'");
+  assert.ok(registerActionCode.includes('"other"'), "VALID_RELATIONS must include 'other'");
+  assert.ok(registerActionCode.includes("VALID_GENDERS"), "Must validate gender case-insensitively");
+  assert.ok(registerActionCode.includes("VALID_MARITAL"), "Must validate marital status case-insensitively");
+});
+
 // ============================================================================
 // ISSUE #4 TESTS: Default Contact Masking & Dynamic Age Computation
 // ============================================================================
