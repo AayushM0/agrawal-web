@@ -63,8 +63,9 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
             </select>
           )}
 
-          <button
-            onClick={() => window.print()}
+          <a
+            href={`/api/pass/pdf?memberId=${currentMemberId}`}
+            download={`ID_Card_${fullName.replace(/\s+/g, "_")}.pdf`}
             className="bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-all"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -72,8 +73,8 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
               <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
               <rect x="6" y="14" width="12" height="8"></rect>
             </svg>
-            Print / Save PDF
-          </button>
+            Download PDF
+          </a>
         </div>
       </div>
 
@@ -257,7 +258,7 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
         </div>
 
         <p className="no-print mt-6 text-gray-500 text-xs">
-          Click &quot;Print / Save PDF&quot; to generate a printable pass — use &quot;Save as PDF&quot; in the print dialog.
+          Click &quot;Download PDF&quot; to generate a printable pass in CR80 ID Card format.
         </p>
       </main>
 
