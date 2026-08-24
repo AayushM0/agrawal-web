@@ -5,19 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { searchDirectory } from "@/actions/search";
 import { gotras } from "@/data/gotras";
-
-function calculateAge(dobStr?: string): number | null {
-  if (!dobStr || !dobStr.trim()) return null;
-  const birthDate = new Date(dobStr.trim());
-  if (isNaN(birthDate.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age >= 0 ? age : null;
-}
+import { calculateAge } from "@/lib/privacy";
 
 function DirectoryContent() {
   const searchParams = useSearchParams();

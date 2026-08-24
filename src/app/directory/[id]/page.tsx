@@ -5,33 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { getMemberProfile } from "@/actions/search";
 import { revealContact } from "@/actions/reveal";
-
-function calculateAge(dobStr?: string): number | null {
-  if (!dobStr || !dobStr.trim()) return null;
-  const birthDate = new Date(dobStr.trim());
-  if (isNaN(birthDate.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age >= 0 ? age : null;
-}
-
-function maskPhone(phone?: string): string {
-  if (!phone) return "Not provided";
-  const clean = phone.trim();
-  if (clean.length <= 4) return "••••";
-  return clean.slice(0, 3) + " •••••• " + clean.slice(-4);
-}
-
-function maskEmail(email?: string): string {
-  if (!email || !email.includes("@")) return "Not provided";
-  const [local, domain] = email.split("@");
-  if (local.length <= 2) return `${local.slice(0, 1)}••••@${domain}`;
-  return `${local.slice(0, 1)}••••${local.slice(-1)}@${domain}`;
-}
+import { calculateAge, maskPhone, maskEmail } from "@/lib/privacy";
 
 export default function MemberProfilePage() {
   const params = useParams();

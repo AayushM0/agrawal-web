@@ -10,31 +10,7 @@ import { saveMemberProfile, saveHouseholdInfo } from "@/actions/profile";
 import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
 import LocationSelector from "@/components/LocationSelector";
-
-function calculateAge(dobStr?: string): number | null {
-  if (!dobStr || !dobStr.trim()) return null;
-  const birthDate = new Date(dobStr.trim());
-  if (isNaN(birthDate.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const m = today.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-    age--;
-  }
-  return age >= 0 ? age : null;
-}
-
-function maskContact(contact?: string | null): string {
-  if (!contact) return "Not provided";
-  const clean = contact.trim();
-  if (clean.includes("@")) {
-    const [local, domain] = clean.split("@");
-    if (local.length <= 2) return `${local.slice(0, 1)}••••@${domain}`;
-    return `${local.slice(0, 1)}••••${local.slice(-1)}@${domain}`;
-  }
-  if (clean.length <= 4) return "••••";
-  return clean.slice(0, 3) + " •••••• " + clean.slice(-4);
-}
+import { calculateAge, maskContact } from "@/lib/privacy";
 
 export default function DashboardPage() {
   const router = useRouter();
