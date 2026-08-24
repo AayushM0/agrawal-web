@@ -1,4 +1,4 @@
-# 📜 Maharaja Agrasen Foundation Limited Singapore — System Activity & Change Log
+# 📜 Global Agrawal Directory — System Activity & Change Log
 
 > **Note**: This document is updated in real time whenever changes, bug fixes, enhancements, or architectural updates occur in the project.
 
@@ -13,16 +13,17 @@
 
 ## 🕒 Chronological Activity Log
 
-### [2026-08-20 18:52:00] — Configured Matt Pocock Engineering Skills
-- **Status**: ✅ Completed
+### [2026-08-24 22:30:00] — Security Vulnerability Remediation & Ponytail Code Deduplication
+- **Status**: ✅ Implemented & Tested (`ca8bfd6`, `ca2239a`, `be62be7`)
 - **Changes**:
-  - Initialized **Local Markdown** issue tracker under `.scratch/<feature-slug>/`.
-  - Configured canonical triage label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) in `docs/agents/triage-labels.md`.
-  - Configured single-context domain architecture rules in `docs/agents/domain.md` and initial glossary in `CONTEXT.md`.
-  - Added top-level guidelines in `AGENTS.md` and created `docs/adr/`.
+  - **Centralized Privacy Module (Issue 010)**: Created `src/lib/privacy.ts` consolidating `maskPhone`, `maskEmail`, `maskGovtId`, `maskContact`, `calculateAge`, and `sanitizeMemberProfile`. Removed duplicated utility functions across `signup`, `directory`, `directory/[id]`, and `dashboard` pages.
+  - **Admin Moderation Data Guard (Issue 011 / VULN-001)**: Enforced strict admin session verification on `getModerationHouseholds()` in `src/actions/moderate.ts`.
+  - **Server-Side PII Leakage Remediation (Issue 011 / VULN-002)**: Wire-level sanitization on `getMemberProfile()` in `src/actions/search.ts` stripping sensitive government IDs and private contacts for non-owner viewers.
+  - **PDF Pass IDOR Ownership Verification (Issue 012 / VULN-003)**: Added authorization checks to `/api/pass/pdf` allowing only profile owners, household heads, and admins to generate ID card PDFs.
+  - **Edge Secret Hardening (Issue 012 / VULN-004)**: Removed static fallback secret in `middleware.ts`, failing closed if `AUTH_SECRET` is unset.
+  - **Pincode Geocoding Validation (Issue 012 / VULN-005)**: Added 2-letter ISO regex validation on `country` query parameter in `/api/location/pincode`.
 
 ---
-### [2026-08-20 03:18:00] — Stateless OTP & Multi-Format Phone Login
 - **Status**: ✅ Deployed (`bdd548f`)
 - **Changes**:
   - **Stateless HMAC-Signed OTP Challenge**: Converted in-memory OTP store into cryptographically signed `otp_challenge` HTTP-only cookies with a 10-minute TTL to ensure 100% reliability across ephemeral Vercel Serverless instances.
