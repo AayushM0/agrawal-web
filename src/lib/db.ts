@@ -957,6 +957,27 @@ export const db = {
     }
   },
 
+  async resolveMessageReport(reportId: string, action: "dismiss" | "warn" | "suspend_chat", notes?: string): Promise<boolean> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const status = action === "dismiss" ? "dismissed" : "action_taken";
+      await pool.query(
+        "UPDATE message_reports SET status = $1, details = COALESCE($2, details) WHERE id::text = $3;",
+        [status, notes || null, reportId]
+      );
+
+      if (action === "suspend_chat") {
+        const reportRes = await pool.query("SELECT conversation_id FROM message_reports WHERE id::text = $1;", [reportId]);
+        if (reportRes.rows.length > 0 && reportRes.rows[0].conversation_id) {
+          await this.updateConversationStatus(reportRes.rows[0].conversation_id, "blocked");
+        }
+      }
+      return true;
+    } catch (e) {
+      throw e;
+    }
+  },
+
   async pruneExpiredMessages(retentionDays = 90): Promise<number> {
     if (!pool) throw new Error("Database not connected");
     try {

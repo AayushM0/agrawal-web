@@ -13,7 +13,14 @@
 
 ## 🕒 Chronological Activity Log
 
-### [2026-08-24 23:05:00] — Member-to-Member Messaging & Trust & Safety System (Issues 013, 014, 015)
+### [2026-08-24 23:25:00] — DPDP Cron Worker, Moderator Resolution & Multi-Lingual Anti-Fraud (Issues 016, 017, 018)
+- **Status**: ✅ Implemented & Tested (51/51 Tests Passing, 18 Route Production Build)
+- **Changes**:
+  - **Automated DPDP 90-Day Retention Cron (Issue 016)**: Implemented `/api/cron/prune-messages` protected by `CRON_SECRET` Bearer auth, systematically expunging unflagged messages older than 90 days.
+  - **Interactive Moderator Report Resolution (Issue 017)**: Added `getMessageReports()` and `resolveMessageReport()` Server Actions in `src/actions/moderate.ts` and `db.resolveMessageReport()` in `src/lib/db.ts`. Built interactive moderator cards in `/admin/moderation` for reviewing thread snapshots and applying 1-click actions (Dismiss, Issue Warning, Suspend Chat).
+  - **Multi-Lingual Anti-Fraud & Phishing Engine (Issue 018)**: Expanded `src/lib/anti-fraud.ts` to detect Devanagari/Hindi financial solicitation phrases and suspicious URL shorteners (`bit.ly`, `tinyurl.com`, `t.me/`, `wa.me/`).
+
+---
 - **Status**: ✅ Implemented & Verified (47/47 Tests Passing, Clean Next.js 15 Production Build)
 - **Changes**:
   - **Database Schema & Data Layer (Issue 013)**: Added `conversations`, `messages`, and `message_reports` tables to `src/db/schema.sql` and data access methods in `src/lib/db.ts` including 90-day pruning routine for DPDP compliance.

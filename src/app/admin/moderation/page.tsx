@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { approveHousehold, approveAllHouseholds, rejectHousehold, getModerationHouseholds } from "@/actions/moderate";
+import { approveHousehold, approveAllHouseholds, rejectHousehold, getModerationHouseholds, getMessageReports, resolveMessageReport } from "@/actions/moderate";
 import { Household } from "@/types/household";
 
 export default function ModerationQueuePage() {
   const [households, setHouseholds] = useState<Household[]>([]);
+  const [reports, setReports] = useState<any[]>([]);
   const [filter, setFilter] = useState<"pending" | "all" | "rejected" | "reports">("pending");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -16,8 +17,14 @@ export default function ModerationQueuePage() {
 
   const loadQueue = async () => {
     setIsLoading(true);
-    const data = await getModerationHouseholds();
+    const [data, repRes] = await Promise.all([
+      getModerationHouseholds(),
+      getMessageReports(),
+    ]);
     setHouseholds(data);
+    if (repRes.success) {
+      setReports(repRes.reports || []);
+    }
     setIsLoading(false);
   };
 
@@ -71,6 +78,15 @@ export default function ModerationQueuePage() {
       setRejectingId(null);
       setRejectReason("");
       setStatusMessage("Household flagged and rejection reason logged.");
+      setTimeout(() => setStatusMessage(""), 3000);
+    }
+  };
+
+  const handleResolveReport = async (reportId: string, action: "dismiss" | "warn" | "suspend_chat") => {
+    const res = await resolveMessageReport({ reportId, action });
+    if (res.success) {
+      setReports(reports.map((r) => (r.id === reportId ? { ...r, status: action === "dismiss" ? "dismissed" : "action_taken" } : r)));
+      setStatusMessage(`Report action "${action}" applied successfully.`);
       setTimeout(() => setStatusMessage(""), 3000);
     }
   };
@@ -152,7 +168,7 @@ export default function ModerationQueuePage() {
                     : "text-body-muted hover:text-brand-primary"
                 }`}
               >
-                🚩 Message Reports (0)
+                🚩 Message Reports ({reports.filter((r) => r.status === "pending").length})
               </button>
             </div>
           </div>
@@ -170,15 +186,84 @@ export default function ModerationQueuePage() {
             <p className="text-xs font-bold text-body-muted">Loading live moderation queue from Supabase...</p>
           </div>
         ) : filter === "reports" ? (
-          <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">
-            <div className="text-3xl mb-2">🛡️</div>
-            <p className="text-sm font-bold text-brand-primary mb-1">
-              Zero Active Message Reports
-            </p>
-            <p className="text-xs text-body-muted max-w-md mx-auto">
-              When members flag suspicious payment solicitations, phishing, or abusive chats, immutable thread snapshots will appear here for administrator audit and disciplinary action.
-            </p>
-          </div>
+          reports.length === 0 ? (
+            <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">
+              <div className="text-3xl mb-2">🛡️</div>
+              <p className="text-sm font-bold text-brand-primary mb-1">
+                Zero Active Message Reports
+              </p>
+              <p className="text-xs text-body-muted max-w-md mx-auto">
+                When members flag suspicious payment solicitations, phishing, or abusive chats, immutable thread snapshots will appear here for administrator audit and disciplinary action.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {reports.map((rep) => (
+                <div key={rep.id} className="bg-white border-2 border-red-200 rounded-3xl p-6 shadow-warm">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100 mb-4">
+                    <div>
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-800 uppercase tracking-wider">
+                        🚩 Report: {rep.reason?.replace(/_/g, " ")}
+                      </span>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Reported by: <b>{rep.reporterName}</b> (#{rep.reporterHousehold}) • Against: <b>{rep.reportedName}</b> (#{rep.reportedHousehold})
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                        rep.status === "pending" ? "bg-amber-100 text-amber-900" : "bg-gray-100 text-gray-700"
+                      }`}>
+                        Status: {rep.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {rep.details && (
+                    <div className="mb-4 p-3 bg-red-50/60 rounded-xl text-xs text-red-900">
+                      <b>Reporter Note:</b> &quot;{rep.details}&quot;
+                    </div>
+                  )}
+
+                  {rep.snapshotData && Array.isArray(rep.snapshotData) && (
+                    <div className="mb-4 bg-[#FAF6F0] p-3.5 rounded-xl border border-[#E8DCC4] text-xs">
+                      <p className="font-bold text-[#800020] mb-2">📜 Thread Snapshot at Report Time:</p>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {rep.snapshotData.map((m: any, idx: number) => (
+                          <div key={idx} className="bg-white p-2 rounded border border-gray-200">
+                            <span className="font-bold text-[#800020]">{m.senderName}: </span>
+                            <span>{m.messageBody}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {rep.status === "pending" && (
+                    <div className="flex flex-wrap gap-2 justify-end pt-2">
+                      <button
+                        onClick={() => handleResolveReport(rep.id, "dismiss")}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 transition"
+                      >
+                        Dismiss Report
+                      </button>
+                      <button
+                        onClick={() => handleResolveReport(rep.id, "warn")}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 transition"
+                      >
+                        Issue Warning
+                      </button>
+                      <button
+                        onClick={() => handleResolveReport(rep.id, "suspend_chat")}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-red-700 hover:bg-red-800 transition"
+                      >
+                        Suspend Offending Chat
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )
         ) : filteredHouseholds.length === 0 ? (
           <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">
             <p className="text-sm font-bold text-brand-primary mb-1">

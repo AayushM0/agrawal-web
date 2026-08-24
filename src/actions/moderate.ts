@@ -289,3 +289,33 @@ export async function rejectHousehold(householdId: string, rejectionReason: stri
   };
 }
 
+export async function getMessageReports() {
+  const session = await getSession();
+  if (session?.role !== "admin") {
+    return { success: false, error: "Unauthorized: Admin privileges required.", reports: [] };
+  }
+  try {
+    const reports = await db.getMessageReports();
+    return { success: true, reports };
+  } catch (err: any) {
+    return { success: false, error: err.message, reports: [] };
+  }
+}
+
+export async function resolveMessageReport(params: {
+  reportId: string;
+  action: "dismiss" | "warn" | "suspend_chat";
+  notes?: string;
+}) {
+  const session = await getSession();
+  if (session?.role !== "admin") {
+    return { success: false, error: "Unauthorized: Admin privileges required." };
+  }
+  try {
+    await db.resolveMessageReport(params.reportId, params.action, params.notes);
+    return { success: true, message: `Report ${params.action} completed successfully.` };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to resolve report." };
+  }
+}
+
