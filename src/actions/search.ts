@@ -1,6 +1,8 @@
 'use server';
 
 import { db } from "../lib/db";
+import { getSession } from "./auth";
+import { sanitizeMemberProfile } from "@/lib/privacy";
 
 export interface SearchFilters {
   query?: string;
@@ -73,8 +75,10 @@ export async function getMemberProfile(memberId: string) {
   if (!member) {
     return { success: false, error: "Member profile not found." };
   }
+  const session = await getSession();
+  const safeProfile = sanitizeMemberProfile(member, session);
   return {
     success: true,
-    data: member,
+    data: safeProfile,
   };
 }

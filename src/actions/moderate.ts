@@ -233,6 +233,10 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
 }
 
 export async function getModerationHouseholds(): Promise<Household[]> {
+  const session = await getSession();
+  if (session?.role !== "admin") {
+    return [];
+  }
   return await db.getHouseholds();
 }
 
