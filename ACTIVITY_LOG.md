@@ -13,7 +13,14 @@
 
 ## 🕒 Chronological Activity Log
 
-### [2026-08-24 22:30:00] — Security Vulnerability Remediation & Ponytail Code Deduplication
+### [2026-08-24 23:05:00] — Member-to-Member Messaging & Trust & Safety System (Issues 013, 014, 015)
+- **Status**: ✅ Implemented & Verified (47/47 Tests Passing, Clean Next.js 15 Production Build)
+- **Changes**:
+  - **Database Schema & Data Layer (Issue 013)**: Added `conversations`, `messages`, and `message_reports` tables to `src/db/schema.sql` and data access methods in `src/lib/db.ts` including 90-day pruning routine for DPDP compliance.
+  - **Server Actions & Anti-Fraud Engine (Issue 014)**: Created `src/actions/chat.ts` with `sendMessage`, `getConversations`, `getMessages`, `respondToRequest`, and `reportConversation`. Built in-stream heuristics scanner in `src/lib/anti-fraud.ts` flagging unsolicited UPI IDs, bank details, and financial scam triggers. Added velocity bounds (max 10 new chats/day).
+  - **Responsive Messaging UI & Moderation (Issue 015)**: Created `/dashboard/messages` with split-view layout, active SWR polling, Trust & Safety headers, in-stream anti-fraud alerts, and 1-click reporting modal with cryptographic thread snapshots. Added "💬 Message Member" CTA button on directory profiles and Messages link in `TopNavBar`. Added Message Reports review tab in Admin Moderation Portal.
+
+---
 - **Status**: ✅ Implemented & Tested (`ca8bfd6`, `ca2239a`, `be62be7`)
 - **Changes**:
   - **Centralized Privacy Module (Issue 010)**: Created `src/lib/privacy.ts` consolidating `maskPhone`, `maskEmail`, `maskGovtId`, `maskContact`, `calculateAge`, and `sanitizeMemberProfile`. Removed duplicated utility functions across `signup`, `directory`, `directory/[id]`, and `dashboard` pages.

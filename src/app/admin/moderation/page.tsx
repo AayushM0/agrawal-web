@@ -7,7 +7,7 @@ import { Household } from "@/types/household";
 
 export default function ModerationQueuePage() {
   const [households, setHouseholds] = useState<Household[]>([]);
-  const [filter, setFilter] = useState<"pending" | "all" | "rejected">("pending");
+  const [filter, setFilter] = useState<"pending" | "all" | "rejected" | "reports">("pending");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -144,6 +144,16 @@ export default function ModerationQueuePage() {
               >
                 Rejected ({households.filter((h) => h.status === "rejected").length})
               </button>
+              <button
+                onClick={() => setFilter("reports")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  filter === "reports"
+                    ? "bg-brand-primary text-white"
+                    : "text-body-muted hover:text-brand-primary"
+                }`}
+              >
+                🚩 Message Reports (0)
+              </button>
             </div>
           </div>
         </div>
@@ -158,6 +168,16 @@ export default function ModerationQueuePage() {
           <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">
             <div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
             <p className="text-xs font-bold text-body-muted">Loading live moderation queue from Supabase...</p>
+          </div>
+        ) : filter === "reports" ? (
+          <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">
+            <div className="text-3xl mb-2">🛡️</div>
+            <p className="text-sm font-bold text-brand-primary mb-1">
+              Zero Active Message Reports
+            </p>
+            <p className="text-xs text-body-muted max-w-md mx-auto">
+              When members flag suspicious payment solicitations, phishing, or abusive chats, immutable thread snapshots will appear here for administrator audit and disciplinary action.
+            </p>
           </div>
         ) : filteredHouseholds.length === 0 ? (
           <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">

@@ -33,6 +33,12 @@ export default function TopNavBar() {
               </Link>
             </li>
             <li>
+              <Link href="/dashboard/messages" className="hover:text-white hover:underline transition-colors flex items-center gap-1">
+                <span>💬</span>
+                <span>Messages</span>
+              </Link>
+            </li>
+            <li>
               <Link href="/#appeal" className="hover:text-white hover:underline transition-colors">
                 Founder&apos;s Appeal
               </Link>

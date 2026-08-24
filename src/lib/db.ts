@@ -83,9 +83,45 @@ async function ensureSchema(client: any) {
       ALTER TABLE members ADD COLUMN IF NOT EXISTS state TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS full_address TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS aadhaar_number TEXT;
-      ALTER TABLE members ADD COLUMN IF NOT EXISTS pan_number TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS passport_number TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
+
+      CREATE TABLE IF NOT EXISTS conversations (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          initiator_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          recipient_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          status VARCHAR(20) NOT NULL DEFAULT 'pending',
+          last_message_at TIMESTAMPTZ DEFAULT NOW(),
+          last_message_preview TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          CONSTRAINT unique_conversation_pair UNIQUE (initiator_id, recipient_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS messages (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+          sender_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          recipient_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          message_body TEXT NOT NULL,
+          is_flagged BOOLEAN NOT NULL DEFAULT FALSE,
+          flag_reason TEXT,
+          read_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS message_reports (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+          reporter_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          reported_member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          offending_message_id UUID REFERENCES messages(id),
+          reason VARCHAR(50) NOT NULL,
+          details TEXT,
+          snapshot_data JSONB,
+          status VARCHAR(20) NOT NULL DEFAULT 'pending',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
     `);
     schemaEnsured = true;
   } catch (err) {
@@ -592,7 +628,6 @@ export const db = {
     throw e;
   }
   },
-
   async updateMemberProfile(memberId: string, updates: Partial<Member>): Promise<boolean> {
         if (!pool) return true;
     try {
@@ -641,7 +676,7 @@ export const db = {
   },
 
   async updateHouseholdProfile(householdId: string, updates: { nativePlace?: string; gotra?: string; headName?: string }): Promise<boolean> {
-        if (!pool) return true;
+    if (!pool) return true;
     try {
       const res = await pool.query(
         `UPDATE households 
@@ -654,7 +689,286 @@ export const db = {
       );
       return res.rows.length > 0;
     } catch (e) {
-    throw e;
-  }
+      throw e;
+    }
+  },
+
+  // --- MEMBER-TO-MEMBER MESSAGING & TRUST/SAFETY DATA LAYER ---
+  async getOrCreateConversation(initiatorId: string, recipientId: string): Promise<any> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      // Find existing in either direction
+      const existing = await pool.query(
+        `SELECT * FROM conversations 
+         WHERE (initiator_id::text = $1 AND recipient_id::text = $2)
+            OR (initiator_id::text = $2 AND recipient_id::text = $1)
+         LIMIT 1;`,
+        [initiatorId, recipientId]
+      );
+      if (existing.rows.length > 0) {
+        return existing.rows[0];
+      }
+
+      // Create new pending conversation
+      const res = await pool.query(
+        `INSERT INTO conversations (id, initiator_id, recipient_id, status, created_at, updated_at)
+         VALUES (gen_random_uuid(), $1::uuid, $2::uuid, 'pending', NOW(), NOW())
+         RETURNING *;`,
+        [initiatorId, recipientId]
+      );
+      return res.rows[0];
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  async getConversationsForMember(memberId: string): Promise<{ active: any[]; requests: any[] }> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const query = `
+        SELECT 
+          c.id, c.initiator_id as "initiatorId", c.recipient_id as "recipientId",
+          c.status, c.last_message_at as "lastMessageAt", c.last_message_preview as "lastMessagePreview",
+          c.created_at as "createdAt", c.updated_at as "updatedAt",
+          m_init.full_name as "initiatorName", m_init.photo_url as "initiatorPhoto", m_init.current_city as "initiatorCity",
+          m_rec.full_name as "recipientName", m_rec.photo_url as "recipientPhoto", m_rec.current_city as "recipientCity",
+          h_init.gotra as "initiatorGotra", h_rec.gotra as "recipientGotra",
+          (
+            SELECT COUNT(*)::int FROM messages msg 
+            WHERE msg.conversation_id = c.id 
+              AND msg.recipient_id::text = $1 
+              AND msg.read_at IS NULL
+          ) as "unreadCount"
+        FROM conversations c
+        JOIN members m_init ON c.initiator_id = m_init.id
+        JOIN members m_rec ON c.recipient_id = m_rec.id
+        JOIN households h_init ON m_init.household_id = h_init.id
+        JOIN households h_rec ON m_rec.household_id = h_rec.id
+        WHERE c.initiator_id::text = $1 OR c.recipient_id::text = $1
+        ORDER BY c.last_message_at DESC NULLS LAST, c.updated_at DESC;
+      `;
+      const res = await pool.query(query, [memberId]);
+      const active: any[] = [];
+      const requests: any[] = [];
+
+      for (const row of res.rows) {
+        const isInitiator = String(row.initiatorId) === String(memberId);
+        const otherParticipant = {
+          id: isInitiator ? row.recipientId : row.initiatorId,
+          fullName: isInitiator ? row.recipientName : row.initiatorName,
+          photoUrl: isInitiator ? row.recipientPhoto : row.initiatorPhoto,
+          city: isInitiator ? row.recipientCity : row.initiatorCity,
+          gotra: isInitiator ? row.recipientGotra : row.initiatorGotra,
+        };
+
+        const item = {
+          id: row.id,
+          initiatorId: row.initiatorId,
+          recipientId: row.recipientId,
+          status: row.status,
+          isInitiator,
+          unreadCount: row.unreadCount || 0,
+          lastMessageAt: row.lastMessageAt,
+          lastMessagePreview: row.lastMessagePreview,
+          otherParticipant,
+        };
+
+        // Incoming message request: status is pending and caller is the recipient
+        if (row.status === "pending" && !isInitiator) {
+          requests.push(item);
+        } else if (row.status !== "declined" && row.status !== "blocked") {
+          active.push(item);
+        }
+      }
+
+      return { active, requests };
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  async getConversationById(conversationId: string): Promise<any | null> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const res = await pool.query("SELECT * FROM conversations WHERE id::text = $1 LIMIT 1;", [conversationId]);
+      if (res.rows.length === 0) return null;
+      return res.rows[0];
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  async updateConversationStatus(conversationId: string, status: "pending" | "accepted" | "declined" | "blocked"): Promise<boolean> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const res = await pool.query(
+        "UPDATE conversations SET status = $1, updated_at = NOW() WHERE id::text = $2 RETURNING id;",
+        [status, conversationId]
+      );
+      return res.rows.length > 0;
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  async insertMessage(data: {
+    conversationId: string;
+    senderId: string;
+    recipientId: string;
+    messageBody: string;
+    isFlagged?: boolean;
+    flagReason?: string;
+  }): Promise<any> {
+    if (!pool) throw new Error("Database not connected");
+    let client;
+    try {
+      client = await pool.connect();
+      await client.query("BEGIN");
+
+      const insertRes = await client.query(
+        `INSERT INTO messages (id, conversation_id, sender_id, recipient_id, message_body, is_flagged, flag_reason, created_at)
+         VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, NOW())
+         RETURNING *;`,
+        [
+          data.conversationId,
+          data.senderId,
+          data.recipientId,
+          data.messageBody.trim(),
+          data.isFlagged || false,
+          data.flagReason || null,
+        ]
+      );
+      const msg = insertRes.rows[0];
+
+      // Update conversation timestamp and preview
+      const preview = data.messageBody.trim().slice(0, 100);
+      await client.query(
+        `UPDATE conversations 
+         SET last_message_at = NOW(), last_message_preview = $1, updated_at = NOW() 
+         WHERE id::text = $2;`,
+        [preview, data.conversationId]
+      );
+
+      await client.query("COMMIT");
+      return msg;
+    } catch (e) {
+      if (client) {
+        try { await client.query("ROLLBACK"); } catch {}
+      }
+      throw e;
+    } finally {
+      if (client) client.release();
+    }
+  },
+
+  async getMessagesByConversation(conversationId: string, limit = 50, offset = 0): Promise<any[]> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const res = await pool.query(
+        `SELECT 
+           m.id, m.conversation_id as "conversationId", m.sender_id as "senderId", 
+           m.recipient_id as "recipientId", m.message_body as "messageBody",
+           m.is_flagged as "isFlagged", m.flag_reason as "flagReason", 
+           m.read_at as "readAt", m.created_at as "createdAt",
+           sender.full_name as "senderName", sender.photo_url as "senderPhoto"
+         FROM messages m
+         JOIN members sender ON m.sender_id = sender.id
+         WHERE m.conversation_id::text = $1
+         ORDER BY m.created_at ASC
+         LIMIT $2 OFFSET $3;`,
+        [conversationId, limit, offset]
+      );
+      return res.rows;
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  async markMessagesAsRead(conversationId: string, recipientId: string): Promise<number> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const res = await pool.query(
+        `UPDATE messages 
+         SET read_at = NOW() 
+         WHERE conversation_id::text = $1 
+           AND recipient_id::text = $2 
+           AND read_at IS NULL;`,
+        [conversationId, recipientId]
+      );
+      return res.rowCount || 0;
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  async createMessageReport(report: {
+    conversationId: string;
+    reporterId: string;
+    reportedMemberId: string;
+    offendingMessageId?: string;
+    reason: string;
+    details?: string;
+    snapshotData?: any;
+  }): Promise<any> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const res = await pool.query(
+        `INSERT INTO message_reports (
+           id, conversation_id, reporter_id, reported_member_id, offending_message_id, reason, details, snapshot_data, status, created_at
+         ) VALUES (
+           gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, 'pending', NOW()
+         ) RETURNING *;`,
+        [
+          report.conversationId,
+          report.reporterId,
+          report.reportedMemberId,
+          report.offendingMessageId || null,
+          report.reason,
+          report.details || null,
+          report.snapshotData ? JSON.stringify(report.snapshotData) : null,
+        ]
+      );
+      return res.rows[0];
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  async getMessageReports(): Promise<any[]> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const res = await pool.query(
+        `SELECT 
+           r.id, r.conversation_id as "conversationId", r.reporter_id as "reporterId",
+           r.reported_member_id as "reportedMemberId", r.offending_message_id as "offendingMessageId",
+           r.reason, r.details, r.snapshot_data as "snapshotData", r.status, r.created_at as "createdAt",
+           rep.full_name as "reporterName", rep_h.household_code as "reporterHousehold",
+           targ.full_name as "reportedName", targ_h.household_code as "reportedHousehold"
+         FROM message_reports r
+         JOIN members rep ON r.reporter_id = rep.id
+         JOIN households rep_h ON rep.household_id = rep_h.id
+         JOIN members targ ON r.reported_member_id = targ.id
+         JOIN households targ_h ON targ.household_id = targ_h.id
+         ORDER BY r.created_at DESC;`
+      );
+      return res.rows;
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  async pruneExpiredMessages(retentionDays = 90): Promise<number> {
+    if (!pool) throw new Error("Database not connected");
+    try {
+      const res = await pool.query(
+        `DELETE FROM messages 
+         WHERE created_at < NOW() - ($1 || ' days')::INTERVAL 
+           AND is_flagged = FALSE;`,
+        [retentionDays]
+      );
+      return res.rowCount || 0;
+    } catch (e) {
+      throw e;
+    }
   },
 };

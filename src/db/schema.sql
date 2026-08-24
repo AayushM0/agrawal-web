@@ -106,3 +106,49 @@ ALTER TABLE members ADD COLUMN IF NOT EXISTS aadhaar_number TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS pan_number TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS passport_number TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
+
+-- 3. Conversations Table (Member-to-Member Messaging)
+CREATE TABLE IF NOT EXISTS conversations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    initiator_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    recipient_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending', -- 'pending', 'accepted', 'declined', 'blocked'
+    last_message_at TIMESTAMPTZ DEFAULT NOW(),
+    last_message_preview TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT unique_conversation_pair UNIQUE (initiator_id, recipient_id)
+);
+
+-- 4. Messages Table
+CREATE TABLE IF NOT EXISTS messages (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    sender_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    recipient_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    message_body TEXT NOT NULL,
+    is_flagged BOOLEAN NOT NULL DEFAULT FALSE,
+    flag_reason TEXT,
+    read_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 5. Message Reports Table (Trust & Safety / Legal Audit Trail)
+CREATE TABLE IF NOT EXISTS message_reports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    reporter_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    reported_member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    offending_message_id UUID REFERENCES messages(id),
+    reason VARCHAR(50) NOT NULL,
+    details TEXT,
+    snapshot_data JSONB,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversations_initiator ON conversations(initiator_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_recipient ON conversations(recipient_id);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(recipient_id, read_at) WHERE read_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_message_reports_status ON message_reports(status);

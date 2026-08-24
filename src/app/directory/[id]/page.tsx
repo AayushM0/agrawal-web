@@ -126,6 +126,15 @@ export default function MemberProfilePage() {
                   &quot;{member.professionDescription}&quot;
                 </p>
               )}
+
+              <div className="mt-3 flex flex-wrap gap-2 justify-center sm:justify-start">
+                <Link
+                  href={`/dashboard/messages?recipient=${member.id}`}
+                  className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full text-xs font-bold text-[#800020] bg-[#FFF3D6] border border-[#D4AF37] hover:bg-[#FCE8B2] transition shadow-sm"
+                >
+                  <span>💬 Message Member</span>
+                </Link>
+              </div>
             </div>
           </div>
 
