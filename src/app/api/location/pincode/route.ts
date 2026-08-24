@@ -3,14 +3,19 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code")?.trim().replace(/[^0-9a-zA-Z]/g, "") || "";
-  const country = (searchParams.get("country") || "IN").toUpperCase();
+  const rawCountry = searchParams.get("country")?.trim().toUpperCase() || "IN";
+  const country = rawCountry === "INDIA" ? "IN" : rawCountry;
 
   if (!code || code.length < 3) {
     return NextResponse.json({ success: false, error: "Invalid postal code" }, { status: 400 });
   }
 
+  if (!/^[A-Za-z]{2}$/.test(country)) {
+    return NextResponse.json({ success: false, error: "Invalid 2-letter ISO country code" }, { status: 400 });
+  }
+
   // 1. India Post API (api.postalpincode.in) for India
-  if (country === "IN" || country === "INDIA") {
+  if (country === "IN") {
     if (code.length === 6 && /^\d{6}$/.test(code)) {
       try {
         const controller = new AbortController();

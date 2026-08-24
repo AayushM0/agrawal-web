@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const SECRET = process.env.AUTH_SECRET || "agarwal_dir_secure_hmac_secret_2026_super_key_998127";
-
 async function verifyEdgeToken(token: string): Promise<any | null> {
-  if (!token || !token.includes(".")) return null;
+  if (!token || !token.includes(".") || !process.env.AUTH_SECRET) return null;
   const [payloadB64, signature] = token.split(".");
   if (!payloadB64 || !signature) return null;
 
   try {
     const encoder = new TextEncoder();
-    const keyData = encoder.encode(SECRET);
+    const keyData = encoder.encode(process.env.AUTH_SECRET);
     const key = await crypto.subtle.importKey(
       "raw",
       keyData,
