@@ -7,9 +7,23 @@ CREATE EXTENSION IF NOT EXISTS "postgis";
 CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 -- Enum Types
-CREATE TYPE household_status AS ENUM ('pending_review', 'live', 'rejected');
-CREATE TYPE member_relation AS ENUM ('self', 'spouse', 'son', 'daughter', 'parent', 'other');
-CREATE TYPE field_visibility_option AS ENUM ('public_to_members', 'members_only', 'hidden');
+DO $$ BEGIN
+    CREATE TYPE household_status AS ENUM ('pending_review', 'live', 'rejected');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE member_relation AS ENUM ('self', 'spouse', 'son', 'daughter', 'parent', 'other');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE TYPE field_visibility_option AS ENUM ('public_to_members', 'members_only', 'hidden');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- 1. Households Table
 CREATE TABLE IF NOT EXISTS households (
