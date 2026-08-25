@@ -12,10 +12,16 @@ export interface SearchFilters {
 }
 
 export async function searchDirectory(filters: SearchFilters) {
+  const session = await getSession();
   const allMembers = await db.getAllMembers();
 
   // Filter only live approved households
   let results = allMembers.filter((m) => m.householdStatus === "live");
+
+  // Exclude current logged-in member from directory results (hide self from search)
+  if (session?.userId) {
+    results = results.filter((m) => String(m.id) !== String(session.userId));
+  }
 
   // Filter by Gotra
   if (filters.gotra && filters.gotra !== "All") {

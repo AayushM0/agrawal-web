@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { getConversations, getMessages, sendMessage, respondToRequest, reportConversation } from "@/actions/chat";
+import { getMemberProfile } from "@/actions/search";
 
 function MessagesDashboardContent() {
   const searchParams = useSearchParams();
@@ -56,10 +57,60 @@ function MessagesDashboardContent() {
   };
 
   useEffect(() => {
-    fetchConversationList();
-  }, []);
+    async function init() {
+      setLoading(true);
+      try {
+        const res = await getConversations();
+        const currentActive = res.active || [];
+        const currentRequests = res.requests || [];
+        if (res.success) {
+          setConversations(currentActive);
+          setRequests(currentRequests);
+        }
 
-  // Poll active conversation every 4 seconds when selected
+        // If recipient query param is present
+        if (initialRecipientId) {
+          const existing = [...currentActive, ...currentRequests].find(
+            (c: any) => String(c.otherParticipant?.id) === String(initialRecipientId)
+          );
+          if (existing) {
+            setSelectedConv(existing);
+            setActiveTab(existing.status === "pending" && !existing.isInitiator ? "requests" : "active");
+          } else {
+            // Fetch recipient's profile to initialize draft conversation
+            const profRes = await getMemberProfile(initialRecipientId);
+            if (profRes.success && profRes.data) {
+              const prof = profRes.data;
+              setSelectedConv({
+                id: null,
+                isNewDraft: true,
+                status: "new",
+                isInitiator: true,
+                otherParticipant: {
+                  id: prof.id,
+                  fullName: prof.fullName,
+                  gotra: prof.gotra,
+                  city: prof.currentCity,
+                  photoUrl: prof.photoUrl,
+                  householdCode: prof.householdCode,
+                },
+              });
+              setMessages([]);
+            } else {
+              setError("Recipient member profile not found.");
+            }
+          }
+        }
+      } catch (err: any) {
+        console.error("Failed to load conversations:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    init();
+  }, [initialRecipientId]);
+
+  // Poll active conversation every 4 seconds when selected and exists in DB
   useEffect(() => {
     if (!selectedConv?.id) return;
     fetchMessagesForConv(selectedConv.id);
@@ -87,18 +138,26 @@ function MessagesDashboardContent() {
       const res = await sendMessage({
         recipientMemberId: recipientId,
         messageBody: newMessageText,
-        conversationId: selectedConv?.id,
+        conversationId: selectedConv?.id || undefined,
       });
 
       if (!res.success) {
         setError(res.error || "Failed to send message");
       } else {
         setNewMessageText("");
-        if (selectedConv?.id) {
-          fetchMessagesForConv(selectedConv.id);
-        } else {
-          await fetchConversationList();
+        if (res.conversationId) {
+          setSelectedConv((prev: any) => ({
+            ...prev,
+            id: res.conversationId,
+            isNewDraft: false,
+            status: "pending",
+            isInitiator: true,
+          }));
+          await fetchMessagesForConv(res.conversationId);
+        } else if (selectedConv?.id) {
+          await fetchMessagesForConv(selectedConv.id);
         }
+        await fetchConversationList();
       }
     } catch (err: any) {
       setError(err.message || "Failed to send message");
@@ -322,8 +381,17 @@ function MessagesDashboardContent() {
                   </button>
                 </div>
 
+                {/* Draft New Conversation Notice Banner */}
+                {selectedConv.isNewDraft && (
+                  <div className="p-3.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-900 flex items-center justify-between">
+                    <div>
+                      🌱 <b>New Connection:</b> You are starting a conversation with <b>{selectedConv.otherParticipant?.fullName}</b>. Type your message below to send an introductory connection request.
+                    </div>
+                  </div>
+                )}
+
                 {/* Message Request Acceptance Banner (If in Pending State & Caller is Recipient) */}
-                {selectedConv.status === "pending" && !selectedConv.isInitiator && (
+                {selectedConv.status === "pending" && !selectedConv.isInitiator && !selectedConv.isNewDraft && (
                   <div className="p-4 bg-[#FFF8EE] border-b border-[#EBDDCB] flex flex-col sm:flex-row items-center justify-between gap-3">
                     <div className="text-xs text-[#6B4716]">
                       <span className="font-semibold text-[#800020]">{selectedConv.otherParticipant?.fullName}</span> wants to connect with you. Accept to allow continuous chatting.
@@ -352,7 +420,7 @@ function MessagesDashboardContent() {
                 )}
 
                 {/* Message Request Waiting Banner (If in Pending State & Caller is Initiator) */}
-                {selectedConv.status === "pending" && selectedConv.isInitiator && (
+                {selectedConv.status === "pending" && selectedConv.isInitiator && !selectedConv.isNewDraft && (
                   <div className="p-3 bg-[#F5ECE0] border-b border-[#E8DCC4] text-xs text-[#5C4813] text-center">
                     ⏳ Message request sent. Awaiting acceptance from {selectedConv.otherParticipant?.fullName}.
                   </div>
@@ -427,10 +495,16 @@ function MessagesDashboardContent() {
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-400">
                 <div className="text-4xl mb-3">💬</div>
-                <h3 className="font-serif font-bold text-lg text-gray-700 mb-1">Select a Conversation</h3>
-                <p className="text-xs text-gray-500 max-w-sm">
-                  Choose an existing message thread on the left, or browse the directory to connect with verified members.
+                <h3 className="font-serif font-bold text-lg text-gray-700 mb-1">Start or Select a Conversation</h3>
+                <p className="text-xs text-gray-500 max-w-sm mb-5">
+                  Choose an existing message thread on the left, or browse the verified directory to connect with Agarwal community members.
                 </p>
+                <Link
+                  href="/directory"
+                  className="px-5 py-2.5 rounded-full text-xs font-bold text-white bg-[#800020] hover:bg-[#68001A] shadow-md transition"
+                >
+                  🔍 Browse Directory Members →
+                </Link>
               </div>
             )}
           </div>

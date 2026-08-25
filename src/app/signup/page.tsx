@@ -22,6 +22,23 @@ export default function SignupPage() {
   const [successCode, setSuccessCode] = useState("");
   const [currentSession, setCurrentSession] = useState<any>(null);
 
+  // Floating Toast Notification System
+  const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "warning"; id: number } | null>(null);
+
+  const showToast = (message: string, type: "error" | "success" | "warning" = "error") => {
+    setToast({ message, type, id: Date.now() });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 120, behavior: "smooth" });
+    }
+  };
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   // Check if session exists to display top notice
   useEffect(() => {
     async function loadAuth() {
@@ -100,7 +117,9 @@ export default function SignupPage() {
   // Step 1 Handlers
   const handleSendOtp = async () => {
     if (!contactValue.trim() || contactValue.trim().length < 5) {
-      setOtpError(contactType === "phone" ? "Please enter a valid mobile number." : "Please enter a valid email address.");
+      const msg = contactType === "phone" ? "Please enter a valid mobile number." : "Please enter a valid email address.";
+      setOtpError(msg);
+      showToast(msg, "error");
       return;
     }
 
@@ -114,7 +133,9 @@ export default function SignupPage() {
     if (checkRes.isRegistered) {
       setIsSendingOtp(false);
       setAlreadyRegisteredInfo(checkRes);
-      setOtpError("This mobile/email is already registered! Redirecting to Member Login...");
+      const msg = "This mobile/email is already registered! Redirecting to Member Login...";
+      setOtpError(msg);
+      showToast(msg, "warning");
       if (typeof window !== "undefined") {
         sessionStorage.setItem("agrawal_login_contact", contactValue.trim());
       }
@@ -129,14 +150,19 @@ export default function SignupPage() {
     setIsSendingOtp(false);
     if (res.success) {
       setOtpMessage(res.message || "OTP passcode sent successfully.");
+      showToast("OTP passcode sent successfully! Please check your message.", "success");
     } else {
-      setOtpError(res.error || "Failed to send OTP.");
+      const msg = res.error || "Failed to send OTP.";
+      setOtpError(msg);
+      showToast(msg, "error");
     }
   };
 
   const handleVerifyOtp = async () => {
     if (!otpValue.trim() || otpValue.trim().length !== 6) {
-      setOtpError("Please enter the 6-digit verification OTP.");
+      const msg = "Please enter the 6-digit verification OTP.";
+      setOtpError(msg);
+      showToast(msg, "error");
       return;
     }
     setIsVerifyingOtp(true);
@@ -147,11 +173,14 @@ export default function SignupPage() {
     if (res.success) {
       setOtpVerified(true);
       setOtpMessage("✓ Contact verified successfully! Auto-advancing to Head & Family Details...");
+      showToast("Contact verified! Proceeding to Step 2...", "success");
       setTimeout(() => {
         setStep(2);
       }, 400);
     } else {
-      setOtpError(res.error || "Invalid OTP code.");
+      const msg = res.error || "Invalid OTP code.";
+      setOtpError(msg);
+      showToast(msg, "error");
     }
   };
 
@@ -160,13 +189,14 @@ export default function SignupPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      alert("Please select an image smaller than 2MB.");
+      showToast("Please select an image smaller than 2MB.", "error");
       return;
     }
     const reader = new FileReader();
     reader.onload = (loadEvt) => {
       const dataUrl = loadEvt.target?.result as string;
       setHeadPhotoUrl(dataUrl);
+      showToast("Profile photograph selected successfully!", "success");
     };
     reader.readAsDataURL(file);
   };
@@ -177,15 +207,21 @@ export default function SignupPage() {
     setStep2Error("");
 
     if (!headPhotoUrl || !headPhotoUrl.trim()) {
-      setStep2Error("A profile photograph is mandatory for the Head of Household (मुखिया का फोटो अपलोड करना अनिवार्य है).");
+      const msg = "A profile photograph is mandatory for the Head of Household (मुखिया का फोटो अपलोड करना अनिवार्य है).";
+      setStep2Error(msg);
+      showToast(msg, "error");
       return;
     }
     if (!headName.trim() || headName.trim().length < 2) {
-      setStep2Error("Please enter the Head of Household's full name (मुखिया का नाम).");
+      const msg = "Please enter the Head of Household's full name (मुखिया का नाम).";
+      setStep2Error(msg);
+      showToast(msg, "error");
       return;
     }
     if (!headFatherName.trim() || headFatherName.trim().length < 2) {
-      setStep2Error("Father's Name (पिता का नाम) is mandatory for the Head of Household.");
+      const msg = "Father's Name (पिता का नाम) is mandatory for the Head of Household.";
+      setStep2Error(msg);
+      showToast(msg, "error");
       return;
     }
 
@@ -193,75 +229,105 @@ export default function SignupPage() {
     const effectiveEmail = contactType === "email" ? contactValue.trim() : headEmail.trim();
 
     if (!effectivePhone || effectivePhone.replace(/[^0-9]/g, "").length < 7) {
-      setStep2Error("A valid Mobile Phone Number is strictly mandatory for the Head of Household.");
+      const msg = "A valid Mobile Phone Number is strictly mandatory for the Head of Household.";
+      setStep2Error(msg);
+      showToast(msg, "error");
       return;
     }
     if (!effectiveEmail || !effectiveEmail.includes("@") || effectiveEmail.length < 5) {
-      setStep2Error("A valid Email Address is strictly mandatory for the Head of Household.");
+      const msg = "A valid Email Address is strictly mandatory for the Head of Household.";
+      setStep2Error(msg);
+      showToast(msg, "error");
       return;
     }
 
     if (contactType === "phone" && headEmail.trim()) {
       const checkMail = await checkContactAvailability(headEmail.trim());
       if (!checkMail.available && checkMail.conflict) {
-        setStep2Error(`Email '${headEmail}' is already registered in the directory (${checkMail.conflict.name ? `associated with ${checkMail.conflict.name}` : `#${checkMail.conflict.householdCode}`}).`);
+        const msg = `Email '${headEmail}' is already registered in the directory (${checkMail.conflict.name ? `associated with ${checkMail.conflict.name}` : `#${checkMail.conflict.householdCode}`}).`;
+        setStep2Error(msg);
+        showToast(msg, "error");
         return;
       }
     } else if (contactType === "email" && headPhone.trim()) {
       const checkPh = await checkContactAvailability(headPhone.trim());
       if (!checkPh.available && checkPh.conflict) {
-        setStep2Error(`Mobile number '${headPhone}' is already registered in the directory (${checkPh.conflict.name ? `associated with ${checkPh.conflict.name}` : `#${checkPh.conflict.householdCode}`}).`);
+        const msg = `Mobile number '${headPhone}' is already registered in the directory (${checkPh.conflict.name ? `associated with ${checkPh.conflict.name}` : `#${checkPh.conflict.householdCode}`}).`;
+        setStep2Error(msg);
+        showToast(msg, "error");
         return;
       }
     }
 
     if (!headDob.trim()) {
-      setStep2Error("Please enter a valid Date of Birth (जन्म तिथि) for the Head of Household.");
+      const msg = "Please enter a valid Date of Birth (जन्म तिथि) for the Head of Household.";
+      setStep2Error(msg);
+      showToast(msg, "error");
       return;
     }
     if (!headProfessionTitle.trim() || headProfessionTitle.trim().length < 2) {
-      setStep2Error("Profession Title (व्यवसाय / पद) is required.");
+      const msg = "Profession Title (व्यवसाय / पद) is required.";
+      setStep2Error(msg);
+      showToast(msg, "error");
       return;
     }
     if (!gotra.trim()) {
-      setStep2Error("Please select your family's Gotra from the 18 established Gotras.");
+      const msg = "Please select your family's Gotra from the 18 established Gotras.";
+      setStep2Error(msg);
+      showToast(msg, "error");
       return;
     }
     if (!nativePlace.trim() || nativePlace.trim().length < 2) {
-      setStep2Error("Please enter your ancestral native place (मूल निवास / पैतृक स्थान).");
+      const msg = "Please enter your ancestral native place (मूल निवास / पैतृक स्थान).";
+      setStep2Error(msg);
+      showToast(msg, "error");
       return;
     }
     if (!postalCode.trim() || postalCode.trim().length < 3) {
-      setStep2Error("Please enter a valid Postal / PIN Code.");
+      const msg = "Please enter a valid Postal / PIN Code.";
+      setStep2Error(msg);
+      showToast(msg, "error");
       return;
     }
     if (!city.trim() || city.trim().length < 2) {
-      setStep2Error("Please select or enter your City / District.");
+      const msg = "Please select or enter your City / District.";
+      setStep2Error(msg);
+      showToast(msg, "error");
       return;
     }
     if (!fullAddress.trim() || fullAddress.trim().length < 5) {
-      setStep2Error("Please enter your complete residential address.");
+      const msg = "Please enter your complete residential address.";
+      setStep2Error(msg);
+      showToast(msg, "error");
       return;
     }
 
     if (isIndia) {
       const cleanAadhaar = aadhaarNumber.replace(/[^0-9]/g, "");
       if (cleanAadhaar.length !== 12) {
-        setStep2Error("Please enter a valid 12-digit Aadhaar Number (आधार नंबर).");
+        const msg = "Please enter a valid 12-digit Aadhaar Number (आधार नंबर).";
+        setStep2Error(msg);
+        showToast(msg, "error");
         return;
       }
       const cleanPan = panNumber.trim().toUpperCase();
       if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
-        setStep2Error("Please enter a valid 10-character PAN Number (e.g. ABCDE1234F).");
+        const msg = "Please enter a valid 10-character PAN Number (e.g. ABCDE1234F).";
+        setStep2Error(msg);
+        showToast(msg, "error");
         return;
       }
     } else {
       if (!passportNumber.trim() || passportNumber.trim().length < 5) {
-        setStep2Error("Please enter a valid Passport Number.");
+        const msg = "Please enter a valid Passport Number.";
+        setStep2Error(msg);
+        showToast(msg, "error");
         return;
       }
       if (!govtIdNumber.trim() || govtIdNumber.trim().length < 3) {
-        setStep2Error("Please enter a valid Government-Issued ID or Tax ID.");
+        const msg = "Please enter a valid Government-Issued ID or Tax ID.";
+        setStep2Error(msg);
+        showToast(msg, "error");
         return;
       }
     }
@@ -342,28 +408,38 @@ export default function SignupPage() {
     for (let i = 0; i < additionalMembers.length; i++) {
       const m = additionalMembers[i];
       if (!m.fullName.trim() || m.fullName.trim().length < 2) {
-        setStep3Error(`Please enter a valid Full Name for Additional Family Member #${i + 1}.`);
+        const msg = `Please enter a valid Full Name for Additional Family Member #${i + 1}.`;
+        setStep3Error(msg);
+        showToast(msg, "error");
         return;
       }
       if (!m.photoUrl || !m.photoUrl.trim()) {
-        setStep3Error(`A profile photograph is mandatory for ${m.fullName || `Member #${i + 1}`} (फोटो अपलोड करना अनिवार्य है).`);
+        const msg = `A profile photograph is mandatory for ${m.fullName || `Member #${i + 1}`} (फोटो अपलोड करना अनिवार्य है).`;
+        setStep3Error(msg);
+        showToast(msg, "error");
         return;
       }
       if (!m.dob || !m.dob.trim()) {
-        setStep3Error(`Please enter Date of Birth for ${m.fullName || `Member #${i + 1}`}.`);
+        const msg = `Please enter Date of Birth for ${m.fullName || `Member #${i + 1}`}.`;
+        setStep3Error(msg);
+        showToast(msg, "error");
         return;
       }
       if (m.phone && m.phone.trim()) {
         const checkPhone = await checkContactAvailability(m.phone.trim(), m.id);
         if (!checkPhone.available && checkPhone.conflict) {
-          setStep3Error(`Phone '${m.phone}' for ${m.fullName} is already registered under #${checkPhone.conflict.householdCode}.`);
+          const msg = `Phone '${m.phone}' for ${m.fullName} is already registered under #${checkPhone.conflict.householdCode}.`;
+          setStep3Error(msg);
+          showToast(msg, "error");
           return;
         }
       }
       if (m.email && m.email.trim()) {
         const checkEmail = await checkContactAvailability(m.email.trim(), m.id);
         if (!checkEmail.available && checkEmail.conflict) {
-          setStep3Error(`Email '${m.email}' for ${m.fullName} is already registered under #${checkEmail.conflict.householdCode}.`);
+          const msg = `Email '${m.email}' for ${m.fullName} is already registered under #${checkEmail.conflict.householdCode}.`;
+          setStep3Error(msg);
+          showToast(msg, "error");
           return;
         }
       }
@@ -376,7 +452,7 @@ export default function SignupPage() {
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!consentGiven) {
-      alert("Please accept the community guidelines consent.");
+      showToast("Please check the consent box to accept community guidelines and proceed.", "error");
       return;
     }
 
@@ -472,12 +548,13 @@ export default function SignupPage() {
         setSuccessCode(res.serialNo || res.householdCode || "MAFL-000-000-001");
         setIsSuccess(true);
       } else {
-        alert(res.error || "Registration failed. Please check inputs.");
+        const msg = res.error || "Registration failed. Please check inputs.";
+        showToast(msg, "error");
       }
     } catch (err: any) {
       setIsSubmitting(false);
       console.error("Submission error:", err);
-      alert("Registration submission error. Please try again.");
+      showToast("Registration submission error. Please check inputs and try again.", "error");
     }
   };
 
@@ -533,7 +610,35 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="py-6 sm:py-12 bg-canvas-page">
+    <main className="py-6 sm:py-12 bg-canvas-page relative">
+      {/* Floating Toast Notification Alert */}
+      {toast && (
+        <div
+          role="alert"
+          className={`fixed top-6 right-4 sm:right-8 z-50 max-w-md p-4 rounded-2xl shadow-2xl border-2 flex items-start gap-3 animate-in slide-in-from-top-4 duration-300 ${
+            toast.type === "error"
+              ? "bg-red-950/95 text-red-100 border-red-500 backdrop-blur-md"
+              : toast.type === "warning"
+              ? "bg-amber-950/95 text-amber-100 border-amber-500 backdrop-blur-md"
+              : "bg-emerald-950/95 text-emerald-100 border-emerald-500 backdrop-blur-md"
+          }`}
+        >
+          <span className="text-xl">
+            {toast.type === "error" ? "⚠️" : toast.type === "warning" ? "⚡" : "✓"}
+          </span>
+          <div className="flex-1 text-xs sm:text-sm font-semibold leading-snug">
+            {toast.message}
+          </div>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="text-white/70 hover:text-white text-base font-bold leading-none p-1 shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <div className="max-w-3xl mx-auto px-4">
         {/* Wizard Header */}
         <div className="text-center mb-6 sm:mb-8">
