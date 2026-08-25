@@ -1,8 +1,23 @@
 'use server';
 
+import { headers } from "next/headers";
 import { db } from "../lib/db";
 import { getSession } from "./auth";
 import { sanitizeMemberProfile } from "@/lib/privacy";
+
+// In-Memory Search Rate Limiter: Max 40 searches per minute per IP
+const searchRateLimits = new Map<string, { count: number; expires: number }>();
+
+function checkSearchRateLimit(ip: string): boolean {
+  const now = Date.now();
+  let record = searchRateLimits.get(ip);
+  if (!record || now > record.expires) {
+    record = { count: 0, expires: now + 60 * 1000 };
+  }
+  record.count += 1;
+  searchRateLimits.set(ip, record);
+  return record.count <= 40;
+}
 
 export interface SearchFilters {
   query?: string;
@@ -12,6 +27,14 @@ export interface SearchFilters {
 }
 
 export async function searchDirectory(filters: SearchFilters) {
+  const reqHeaders = await headers();
+  const forwardedFor = reqHeaders.get("x-forwarded-for");
+  const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : reqHeaders.get("x-real-ip") || "127.0.0.1";
+
+  if (!checkSearchRateLimit(clientIp)) {
+    return [];
+  }
+
   const session = await getSession();
   const allMembers = await db.getAllMembers();
 

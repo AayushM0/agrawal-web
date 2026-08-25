@@ -1,8 +1,9 @@
 'use server';
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import crypto from "crypto";
 import { normalizePhoneNumber } from "@/lib/phone";
+import { db } from "@/lib/db";
 
 function getSecret() {
   if (!process.env.AUTH_SECRET) throw new Error("Missing AUTH_SECRET environment variable");
@@ -67,9 +68,27 @@ export async function sendOtp(input: SendOtpInput) {
     return { success: false, error: "Please provide a valid mobile number or email address." };
   }
 
+  // Extract client IP address from request headers
+  const reqHeaders = await headers();
+  const forwardedFor = reqHeaders.get("x-forwarded-for");
+  const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : reqHeaders.get("x-real-ip") || "127.0.0.1";
+
+  // 1. In-Memory Circuit Breaker (fast rejection)
   if (!checkRateLimit(`send_${normalized}`, 3, 15 * 60 * 1000)) {
     return { success: false, error: "Too many OTP requests. Please wait 15 minutes before trying again." };
   }
+  if (!checkRateLimit(`send_ip_${clientIp}`, 8, 60 * 60 * 1000)) {
+    return { success: false, error: "Too many OTP requests from your network. Please try again in 1 hour." };
+  }
+
+  // 2. Persistent Database Rate Limiting (survives cold starts & stops Toll Fraud)
+  const dbRateCheck = await db.checkOtpRateLimit(clientIp, normalized);
+  if (!dbRateCheck.allowed) {
+    return { success: false, error: dbRateCheck.error || "Rate limit exceeded. Please try again later." };
+  }
+
+  // Record attempt in persistent storage
+  await db.recordOtpRequest(clientIp, normalized);
 
   // 1. Dispatch via EMAIL (Resend via fetch)
   if (!isPhone && process.env.RESEND_API_KEY) {

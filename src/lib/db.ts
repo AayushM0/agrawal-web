@@ -132,6 +132,23 @@ async function ensureSchema(client: any) {
         ALTER PUBLICATION supabase_realtime ADD TABLE conversations;
       EXCEPTION WHEN OTHERS THEN null;
       END $$;
+
+      CREATE TABLE IF NOT EXISTS otp_rate_limits (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          ip_address VARCHAR(45) NOT NULL,
+          recipient VARCHAR(150) NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_otp_rate_limits_ip_created ON otp_rate_limits(ip_address, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_otp_rate_limits_recipient_created ON otp_rate_limits(recipient, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS admin_login_attempts (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          ip_address VARCHAR(45) NOT NULL,
+          success BOOLEAN NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_admin_login_ip_created ON admin_login_attempts(ip_address, created_at DESC);
     `);
     schemaEnsured = true;
   } catch (err) {
@@ -1070,6 +1087,112 @@ export const db = {
       return res.rowCount || 0;
     } catch (e) {
       throw e;
+    }
+  },
+
+  // --- PERSISTENT RATE LIMITING & TOLL FRAUD DEFENSE ---
+  async checkOtpRateLimit(ipAddress: string, recipient: string): Promise<{ allowed: boolean; error?: string }> {
+    if (!pool) return { allowed: true };
+    try {
+      // 1. Check last OTP timestamp for recipient (60-second cooldown)
+      const recentRecipient = await pool.query(
+        `SELECT created_at FROM otp_rate_limits 
+         WHERE recipient = $1 
+         ORDER BY created_at DESC 
+         LIMIT 1;`,
+        [recipient]
+      );
+      if (recentRecipient.rows.length > 0) {
+        const lastSent = new Date(recentRecipient.rows[0].created_at).getTime();
+        const diffSecs = Math.floor((Date.now() - lastSent) / 1000);
+        if (diffSecs < 60) {
+          return {
+            allowed: false,
+            error: `Please wait ${60 - diffSecs} seconds before requesting another verification code.`,
+          };
+        }
+      }
+
+      // 2. Check 15-minute recipient limit (Max 3 OTPs)
+      const recipientCountRes = await pool.query(
+        `SELECT COUNT(*)::int as count FROM otp_rate_limits 
+         WHERE recipient = $1 
+           AND created_at > NOW() - INTERVAL '15 minutes';`,
+        [recipient]
+      );
+      if (recipientCountRes.rows[0]?.count >= 3) {
+        return {
+          allowed: false,
+          error: "Too many OTP requests for this contact. Please wait 15 minutes before trying again.",
+        };
+      }
+
+      // 3. Check 1-hour IP limit across all recipients (Max 8 OTPs to stop bot SMS pumping)
+      const ipCountRes = await pool.query(
+        `SELECT COUNT(*)::int as count FROM otp_rate_limits 
+         WHERE ip_address = $1 
+           AND created_at > NOW() - INTERVAL '1 hour';`,
+        [ipAddress]
+      );
+      if (ipCountRes.rows[0]?.count >= 8) {
+        return {
+          allowed: false,
+          error: "Too many requests from your network. Please try again in 1 hour.",
+        };
+      }
+
+      return { allowed: true };
+    } catch (err) {
+      console.warn("DB Rate limit non-fatal fallback:", err);
+      return { allowed: true };
+    }
+  },
+
+  async recordOtpRequest(ipAddress: string, recipient: string): Promise<void> {
+    if (!pool) return;
+    try {
+      await pool.query(
+        `INSERT INTO otp_rate_limits (id, ip_address, recipient, created_at)
+         VALUES (gen_random_uuid(), $1, $2, NOW());`,
+        [ipAddress, recipient]
+      );
+    } catch (err) {
+      console.warn("Record OTP request non-fatal:", err);
+    }
+  },
+
+  async checkAdminLockout(ipAddress: string): Promise<{ locked: boolean; error?: string }> {
+    if (!pool) return { locked: false };
+    try {
+      const recentFails = await pool.query(
+        `SELECT COUNT(*)::int as count FROM admin_login_attempts 
+         WHERE ip_address = $1 
+           AND success = FALSE 
+           AND created_at > NOW() - INTERVAL '15 minutes';`,
+        [ipAddress]
+      );
+      if (recentFails.rows[0]?.count >= 5) {
+        return {
+          locked: true,
+          error: "Security lockout: 5 failed admin login attempts. Please try again after 15 minutes.",
+        };
+      }
+      return { locked: false };
+    } catch (err) {
+      return { locked: false };
+    }
+  },
+
+  async recordAdminAttempt(ipAddress: string, success: boolean): Promise<void> {
+    if (!pool) return;
+    try {
+      await pool.query(
+        `INSERT INTO admin_login_attempts (id, ip_address, success, created_at)
+         VALUES (gen_random_uuid(), $1, $2, NOW());`,
+        [ipAddress, success]
+      );
+    } catch (err) {
+      console.warn("Record admin attempt non-fatal:", err);
     }
   },
 };

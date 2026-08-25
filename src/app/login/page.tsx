@@ -101,11 +101,10 @@ export default function LoginPage() {
         setErrorMessage("Admin Master Password is required to access the moderation portal.");
         return;
       }
-      setIsSubmitting(true);
-      const isPasswordValid = await verifyAdminPassword(adminPassword);
-      if (!isPasswordValid) {
+      const adminRes = await verifyAdminPassword(adminPassword);
+      if (!adminRes.success) {
         setIsSubmitting(false);
-        setErrorMessage("Invalid Admin Master Password. Access denied.");
+        setErrorMessage(adminRes.error || "Invalid Admin Master Password. Access denied.");
         return;
       }
 

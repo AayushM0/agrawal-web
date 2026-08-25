@@ -171,3 +171,21 @@ BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE conversations;
 EXCEPTION WHEN OTHERS THEN null;
 END $$;
+
+-- 7. Persistent Rate Limiting & Abuse Defense
+CREATE TABLE IF NOT EXISTS otp_rate_limits (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ip_address VARCHAR(45) NOT NULL,
+    recipient VARCHAR(150) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_otp_rate_limits_ip_created ON otp_rate_limits(ip_address, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_otp_rate_limits_recipient_created ON otp_rate_limits(recipient, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS admin_login_attempts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ip_address VARCHAR(45) NOT NULL,
+    success BOOLEAN NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_admin_login_ip_created ON admin_login_attempts(ip_address, created_at DESC);

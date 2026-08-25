@@ -5,6 +5,7 @@ import type { Household, Member } from "../types/household";
 import { gotras } from "../data/gotras";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { createSession } from "./auth";
+import { validateProfileImage } from "@/lib/image-validator";
 
 export interface RegisterHouseholdInput {
   headName: string;
@@ -193,6 +194,14 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
           i === 0
             ? "A recent profile photograph is mandatory for the Head of Household (मुखिया का फोटो अनिवार्य है)."
             : `A profile photograph is mandatory for ${memberName} (फोटो अनिवार्य है).`,
+      };
+    }
+
+    const photoCheck = validateProfileImage(m.photoUrl);
+    if (!photoCheck.valid) {
+      return {
+        success: false,
+        error: `Invalid photograph for ${memberName}: ${photoCheck.error || "Please upload a standard JPEG, PNG, or WebP image under 5MB."}`,
       };
     }
 
