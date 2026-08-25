@@ -3,6 +3,8 @@
 import { cookies } from "next/headers";
 import crypto from "crypto";
 import { signSessionToken, verifySessionToken } from "@/lib/auth-tokens";
+import { normalizePhoneNumber } from "@/lib/phone";
+import { db } from "@/lib/db";
 
 export interface SessionData {
   userId: string;
@@ -34,6 +36,41 @@ export async function createSession(data: SessionData) {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   });
   return { success: true };
+}
+
+export async function loginWithVerifiedContact(contact: string): Promise<{ success: boolean; role: "head" | "member"; error?: string }> {
+  if (!contact || contact.trim().length < 5) {
+    return { success: false, role: "head", error: "Valid contact required." };
+  }
+
+  const clean = contact.trim();
+  const isPhone = !clean.includes("@");
+  const canonicalContact = isPhone ? normalizePhoneNumber(clean) : clean.toLowerCase();
+
+  try {
+    const member = await db.getMemberByContact(canonicalContact);
+    const household = await db.getHouseholdByContact(canonicalContact);
+
+    const effectiveUserId = member?.id || household?.id;
+    if (!effectiveUserId) {
+      return { success: false, role: "head", error: "No registered member found for this contact." };
+    }
+
+    const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
+    const effectiveStatus = household?.status || "live";
+
+    await createSession({
+      userId: String(effectiveUserId),
+      role: effectiveRole,
+      contact: canonicalContact,
+      householdStatus: effectiveStatus,
+    });
+
+    return { success: true, role: effectiveRole };
+  } catch (err: any) {
+    console.error("loginWithVerifiedContact error:", err);
+    return { success: false, role: "head", error: err.message || "Failed to establish login session." };
+  }
 }
 
 export async function getSession(): Promise<SessionData | null> {

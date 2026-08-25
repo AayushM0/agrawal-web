@@ -300,8 +300,11 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
   const created = await db.createHousehold(newHousehold);
 
   // Automatically establish logged-in session for the newly registered Head of Household
+  const headMember = await db.getMemberByContact(canonicalContact);
+  const effectiveUserId = headMember?.id || created.id;
+
   await createSession({
-    userId: newHousehold.headUserId,
+    userId: String(effectiveUserId),
     role: "head",
     contact: canonicalContact,
     householdStatus: "pending_review",

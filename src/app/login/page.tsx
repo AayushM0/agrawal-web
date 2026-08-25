@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { sendOtp, verifyOtp } from "@/actions/otp";
 import { checkContactRegistration } from "@/actions/register";
-import { getSession, createSession, verifyAdminPassword } from "@/actions/auth";
+import { getSession, createSession, verifyAdminPassword, loginWithVerifiedContact } from "@/actions/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -142,16 +142,12 @@ export default function LoginPage() {
       return;
     }
 
-    const cleanContact = contact.trim();
-    const isPhone = !cleanContact.includes("@");
-    const canonicalContact = isPhone ? (cleanContact.startsWith("+") ? cleanContact : `+91${cleanContact.replace(/[^0-9]/g, "").slice(-10)}`) : cleanContact.toLowerCase();
-
-    await createSession({
-      userId: `u-${Date.now()}`,
-      role: "head",
-      contact: canonicalContact,
-      householdStatus: "live",
-    });
+    const loginRes = await loginWithVerifiedContact(contact);
+    if (!loginRes.success) {
+      setIsSubmitting(false);
+      setErrorMessage(loginRes.error || "Failed to locate registered family record.");
+      return;
+    }
 
     setIsSubmitting(false);
     router.push("/dashboard");

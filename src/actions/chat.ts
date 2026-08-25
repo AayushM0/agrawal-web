@@ -43,6 +43,23 @@ function checkRateLimit(memberId: string, isNewConversation: boolean): { allowed
   return { allowed: true };
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveEffectiveMemberId(session: any): Promise<string | null> {
+  if (!session) return null;
+  if (session.userId && UUID_REGEX.test(session.userId)) {
+    return session.userId;
+  }
+  // Self-healing fallback: If legacy session token had non-UUID string, resolve from DB
+  if (session.contact) {
+    const member = await db.getMemberByContact(session.contact);
+    if (member?.id && UUID_REGEX.test(member.id)) {
+      return member.id;
+    }
+  }
+  return null;
+}
+
 /**
  * Send a message or initiate a two-stage message request.
  */
@@ -53,11 +70,15 @@ export async function sendMessage(params: {
 }): Promise<{ success: boolean; message?: any; conversationId?: string; error?: string }> {
   try {
     const session = await getSession();
-    if (!session || !session.userId) {
-      return { success: false, error: "You must be signed in to send messages." };
+    const senderMemberId = await resolveEffectiveMemberId(session);
+    if (!senderMemberId) {
+      return { success: false, error: "Please log in again to send messages." };
     }
 
-    const senderMemberId = session.userId;
+    if (!UUID_REGEX.test(params.recipientMemberId)) {
+      return { success: false, error: "Invalid recipient member identifier." };
+    }
+
     if (senderMemberId === params.recipientMemberId) {
       return { success: false, error: "You cannot message yourself." };
     }
@@ -152,11 +173,12 @@ export async function getConversations(): Promise<{
 }> {
   try {
     const session = await getSession();
-    if (!session || !session.userId) {
+    const memberId = await resolveEffectiveMemberId(session);
+    if (!memberId) {
       return { success: false, error: "Authentication required." };
     }
 
-    const { active, requests } = await db.getConversationsForMember(session.userId);
+    const { active, requests } = await db.getConversationsForMember(memberId);
     return { success: true, active, requests };
   } catch (err: any) {
     console.error("getConversations error:", err);
@@ -175,7 +197,8 @@ export async function getMessages(conversationId: string, limit = 50, offset = 0
 }> {
   try {
     const session = await getSession();
-    if (!session || !session.userId) {
+    const memberId = await resolveEffectiveMemberId(session);
+    if (!memberId) {
       return { success: false, error: "Authentication required." };
     }
 
@@ -185,10 +208,10 @@ export async function getMessages(conversationId: string, limit = 50, offset = 0
     }
 
     const isParticipant =
-      String(conversation.initiator_id) === String(session.userId) ||
-      String(conversation.recipient_id) === String(session.userId);
+      String(conversation.initiator_id) === String(memberId) ||
+      String(conversation.recipient_id) === String(memberId);
 
-    if (!isParticipant && session.role !== "admin") {
+    if (!isParticipant && session?.role !== "admin") {
       return { success: false, error: "Unauthorized: You are not a participant in this conversation." };
     }
 
@@ -196,7 +219,7 @@ export async function getMessages(conversationId: string, limit = 50, offset = 0
     const messages = await db.getMessagesByConversation(conversationId, limit, offset);
 
     // Auto-mark unread incoming messages as read
-    await db.markMessagesAsRead(conversationId, session.userId);
+    await db.markMessagesAsRead(conversationId, memberId);
 
     return { success: true, messages, conversation };
   } catch (err: any) {
@@ -214,7 +237,8 @@ export async function respondToRequest(params: {
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const session = await getSession();
-    if (!session || !session.userId) {
+    const memberId = await resolveEffectiveMemberId(session);
+    if (!memberId) {
       return { success: false, error: "Authentication required." };
     }
 
@@ -224,7 +248,7 @@ export async function respondToRequest(params: {
     }
 
     // Only the recipient can accept or decline a request
-    if (String(conversation.recipient_id) !== String(session.userId)) {
+    if (String(conversation.recipient_id) !== String(memberId)) {
       return { success: false, error: "Only the recipient of a message request can respond to it." };
     }
 
@@ -254,7 +278,8 @@ export async function reportConversation(params: {
 }): Promise<{ success: boolean; reportId?: string; error?: string }> {
   try {
     const session = await getSession();
-    if (!session || !session.userId) {
+    const memberId = await resolveEffectiveMemberId(session);
+    if (!memberId) {
       return { success: false, error: "Authentication required." };
     }
 
@@ -264,15 +289,15 @@ export async function reportConversation(params: {
     }
 
     const isParticipant =
-      String(conversation.initiator_id) === String(session.userId) ||
-      String(conversation.recipient_id) === String(session.userId);
+      String(conversation.initiator_id) === String(memberId) ||
+      String(conversation.recipient_id) === String(memberId);
 
     if (!isParticipant) {
       return { success: false, error: "You can only report conversations you participate in." };
     }
 
     const reportedMemberId =
-      String(conversation.initiator_id) === String(session.userId)
+      String(conversation.initiator_id) === String(memberId)
         ? conversation.recipient_id
         : conversation.initiator_id;
 
@@ -281,7 +306,7 @@ export async function reportConversation(params: {
 
     const report = await db.createMessageReport({
       conversationId: params.conversationId,
-      reporterId: session.userId,
+      reporterId: memberId,
       reportedMemberId,
       offendingMessageId: params.offendingMessageId,
       reason: params.reason,

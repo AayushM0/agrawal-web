@@ -9,10 +9,13 @@ if (process.env.DATABASE_URL) {
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      max: 10,
-      idleTimeoutMillis: 60000,
-      connectionTimeoutMillis: 4000,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 15000,
       keepAlive: true,
+    });
+    pool.on("error", (err) => {
+      console.warn("PostgreSQL idle client notice:", err.message);
     });
   } catch (err) {
     console.error("Failed to initialize PG pool:", err);
@@ -625,9 +628,75 @@ export const db = {
 
       return { exists: false };
     } catch (e) {
-    throw e;
-  }
+      throw e;
+    }
   },
+
+  async getMemberByContact(contact: string): Promise<any | null> {
+    if (!contact || contact.trim().length < 5) return null;
+    const clean = contact.trim();
+    const isEmail = clean.includes("@");
+    const canonical = isEmail ? clean.toLowerCase() : normalizePhoneNumber(clean);
+    const digitsOnly = clean.replace(/[^0-9]/g, "");
+    const last10 = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
+
+    if (!pool) throw new Error("Database not connected");
+
+    try {
+      // 1. Search in members table directly
+      const mRes = await pool.query(
+        `SELECT m.*, h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+         FROM members m
+         JOIN households h ON m.household_id = h.id
+         WHERE m.phone = $1 OR m.phone = $2 OR m.phone LIKE $3
+            OR m.email = $1 OR m.email = $2
+         ORDER BY (m.relation_to_head = 'self') DESC, m.created_at ASC
+         LIMIT 1;`,
+        [clean, canonical, `%${last10}`]
+      );
+      if (mRes.rows.length > 0) {
+        const r = mRes.rows[0];
+        return {
+          ...r,
+          id: String(r.id),
+          fullName: r.full_name,
+          relationToHead: r.relation_to_head,
+          currentCity: r.current_city,
+          currentCountry: r.current_country,
+          gotra: r.gotra,
+          photoUrl: r.photo_url,
+        };
+      }
+
+      // 2. Search in households table (head of household)
+      const hRes = await pool.query(
+        `SELECT m.*, h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+         FROM households h
+         JOIN members m ON m.household_id = h.id AND m.relation_to_head = 'self'
+         WHERE h.verified_contact = $1 OR h.verified_contact = $2 OR h.verified_contact LIKE $3
+         LIMIT 1;`,
+        [clean, canonical, `%${last10}`]
+      );
+      if (hRes.rows.length > 0) {
+        const r = hRes.rows[0];
+        return {
+          ...r,
+          id: String(r.id),
+          fullName: r.full_name,
+          relationToHead: r.relation_to_head,
+          currentCity: r.current_city,
+          currentCountry: r.current_country,
+          gotra: r.gotra,
+          photoUrl: r.photo_url,
+        };
+      }
+
+      return null;
+    } catch (e) {
+      throw e;
+    }
+  },
+
   async updateMemberProfile(memberId: string, updates: Partial<Member>): Promise<boolean> {
         if (!pool) return true;
     try {
@@ -696,6 +765,10 @@ export const db = {
   // --- MEMBER-TO-MEMBER MESSAGING & TRUST/SAFETY DATA LAYER ---
   async getOrCreateConversation(initiatorId: string, recipientId: string): Promise<any> {
     if (!pool) throw new Error("Database not connected");
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(initiatorId) || !uuidRegex.test(recipientId)) {
+      throw new Error(`Invalid member UUID format (initiator: ${initiatorId}, recipient: ${recipientId}). Please re-login.`);
+    }
     try {
       // Find existing in either direction
       const existing = await pool.query(
