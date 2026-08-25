@@ -27,12 +27,6 @@ function MessagesDashboardContent() {
   const [reportDetails, setReportDetails] = useState("");
   const [reportSubmitted, setReportSubmitted] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const isUserScrolledUp = useRef<boolean>(false);
-  const initialLoadedConvId = useRef<string | null>(null);
-  const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
-
   // Supabase Realtime WebSocket Connection
   const { isConnected: isRealtimeConnected } = useChatRealtime({
     conversationId: selectedConv?.id || null,
@@ -41,15 +35,7 @@ function MessagesDashboardContent() {
         if (prev.some((m) => String(m.id) === String(incomingMsg.id))) {
           return prev;
         }
-        const updated = [...prev, incomingMsg];
-        if (!isUserScrolledUp.current) {
-          setTimeout(() => {
-            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-          }, 30);
-        } else {
-          setHasNewMessagesBelow(true);
-        }
-        return updated;
+        return [...prev, incomingMsg];
       });
       fetchConversationList();
     },
@@ -88,26 +74,6 @@ function MessagesDashboardContent() {
           const newLastId = fetchedMessages[fetchedMessages.length - 1]?.id;
           if (prevMessages.length === fetchedMessages.length && prevLastId === newLastId) {
             return prevMessages;
-          }
-
-          // Handle smart scrolling on message change
-          if (initialLoadedConvId.current !== convId) {
-            // First load of this conversation -> scroll to bottom immediately
-            initialLoadedConvId.current = convId;
-            isUserScrolledUp.current = false;
-            setHasNewMessagesBelow(false);
-            setTimeout(() => {
-              messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
-            }, 50);
-          } else if (fetchedMessages.length > prevMessages.length) {
-            // New message arrived
-            if (!isUserScrolledUp.current) {
-              setTimeout(() => {
-                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-              }, 50);
-            } else {
-              setHasNewMessagesBelow(true);
-            }
           }
 
           return fetchedMessages;
@@ -179,7 +145,6 @@ function MessagesDashboardContent() {
   // Load active conversation & manage polling fallback
   useEffect(() => {
     if (!selectedConv?.id) return;
-    initialLoadedConvId.current = null;
     fetchMessagesForConv(selectedConv.id, false);
 
     // If WebSocket is active, 0 DB queries needed!
@@ -502,19 +467,7 @@ function MessagesDashboardContent() {
                 )}
 
                 {/* Messages List */}
-                <div
-                  ref={messagesContainerRef}
-                  onScroll={() => {
-                    if (!messagesContainerRef.current) return;
-                    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-                    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
-                    isUserScrolledUp.current = distanceFromBottom > 100;
-                    if (!isUserScrolledUp.current) {
-                      setHasNewMessagesBelow(false);
-                    }
-                  }}
-                  className="flex-1 p-6 overflow-y-auto space-y-4 bg-[#FAF6F0]/20 relative"
-                >
+                <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-[#FAF6F0]/20">
                   {messages.length === 0 ? (
                     <div className="text-center py-12 text-sm text-gray-400">
                       Send a respectful greeting to introduce yourself.
@@ -547,22 +500,6 @@ function MessagesDashboardContent() {
                         </div>
                       );
                     })
-                  )}
-                  <div ref={messagesEndRef} />
-
-                  {/* Floating Jump to Latest Pill */}
-                  {hasNewMessagesBelow && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        isUserScrolledUp.current = false;
-                        setHasNewMessagesBelow(false);
-                        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-                      }}
-                      className="sticky bottom-2 left-1/2 -translate-x-1/2 bg-[#800020] text-[#D4AF37] text-xs font-bold px-3.5 py-1.5 rounded-full shadow-lg hover:bg-[#68001A] transition flex items-center space-x-1 animate-bounce z-10"
-                    >
-                      <span>↓ New messages below</span>
-                    </button>
                   )}
                 </div>
 
