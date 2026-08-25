@@ -161,8 +161,13 @@ CREATE TABLE IF NOT EXISTS message_reports (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_conversations_initiator ON conversations(initiator_id);
-CREATE INDEX IF NOT EXISTS idx_conversations_recipient ON conversations(recipient_id);
-CREATE INDEX IF NOT EXISTS idx_messages_conversation_created ON messages(conversation_id, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages(recipient_id, read_at) WHERE read_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_message_reports_status ON message_reports(status);
+
+-- 6. Enable Supabase Realtime for messaging
+DO $$ 
+BEGIN 
+  ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+  ALTER PUBLICATION supabase_realtime ADD TABLE conversations;
+EXCEPTION WHEN OTHERS THEN null;
+END $$;

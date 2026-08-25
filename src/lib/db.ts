@@ -125,6 +125,13 @@ async function ensureSchema(client: any) {
           status VARCHAR(20) NOT NULL DEFAULT 'pending',
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+
+      DO $$ 
+      BEGIN 
+        ALTER PUBLICATION supabase_realtime ADD TABLE messages;
+        ALTER PUBLICATION supabase_realtime ADD TABLE conversations;
+      EXCEPTION WHEN OTHERS THEN null;
+      END $$;
     `);
     schemaEnsured = true;
   } catch (err) {

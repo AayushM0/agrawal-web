@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { getConversations, getMessages, sendMessage, respondToRequest, reportConversation } from "@/actions/chat";
 import { getMemberProfile } from "@/actions/search";
+import { useChatRealtime } from "@/hooks/useChatRealtime";
 
 function MessagesDashboardContent() {
   const searchParams = useSearchParams();
@@ -31,6 +32,32 @@ function MessagesDashboardContent() {
   const isUserScrolledUp = useRef<boolean>(false);
   const initialLoadedConvId = useRef<string | null>(null);
   const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
+
+  // Supabase Realtime WebSocket Connection
+  const { isConnected: isRealtimeConnected } = useChatRealtime({
+    conversationId: selectedConv?.id || null,
+    onNewMessage: (incomingMsg) => {
+      setMessages((prev) => {
+        if (prev.some((m) => String(m.id) === String(incomingMsg.id))) {
+          return prev;
+        }
+        const updated = [...prev, incomingMsg];
+        if (!isUserScrolledUp.current) {
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+          }, 30);
+        } else {
+          setHasNewMessagesBelow(true);
+        }
+        return updated;
+      });
+      fetchConversationList();
+    },
+    onConversationUpdate: (updatedConv) => {
+      setSelectedConv((prev: any) => ({ ...prev, ...updatedConv }));
+      fetchConversationList();
+    },
+  });
 
   const fetchConversationList = async () => {
     try {
@@ -149,18 +176,21 @@ function MessagesDashboardContent() {
     init();
   }, [initialRecipientId]);
 
-  // Poll active conversation when selected and exists in DB
+  // Load active conversation & manage polling fallback
   useEffect(() => {
     if (!selectedConv?.id) return;
     initialLoadedConvId.current = null;
     fetchMessagesForConv(selectedConv.id, false);
 
+    // If WebSocket is active, 0 DB queries needed!
+    if (isRealtimeConnected) return;
+
     const interval = setInterval(() => {
       fetchMessagesForConv(selectedConv.id, true);
-    }, 6000);
+    }, 10000);
 
     return () => clearInterval(interval);
-  }, [selectedConv?.id]);
+  }, [selectedConv?.id, isRealtimeConnected]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -409,12 +439,21 @@ function MessagesDashboardContent() {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => setIsReporting(true)}
-                    className="text-xs text-red-700 hover:text-red-900 border border-red-200 px-2.5 py-1 rounded hover:bg-red-50 transition"
-                  >
-                    🚩 Report Chat
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    {isRealtimeConnected && (
+                      <span className="flex items-center space-x-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Live</span>
+                      </span>
+                    )}
+
+                    <button
+                      onClick={() => setIsReporting(true)}
+                      className="text-xs text-red-700 hover:text-red-900 border border-red-200 px-2.5 py-1 rounded hover:bg-red-50 transition"
+                    >
+                      🚩 Report Chat
+                    </button>
+                  </div>
                 </div>
 
                 {/* Draft New Conversation Notice Banner */}

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.7.0",
+    "@supabase/supabase-js": "^2.112.4",
     "@types/pg": "^8.23.1",
     "country-state-city": "^3.2.1",
     "next": "^15.3.9",
