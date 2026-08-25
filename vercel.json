@@ -2,5 +2,11 @@
   "framework": "nextjs",
   "buildCommand": "next build",
   "installCommand": "npm install --legacy-peer-deps",
-  "cleanUrls": true
+  "cleanUrls": true,
+  "crons": [
+    {
+      "path": "/api/cron/prune-messages",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }

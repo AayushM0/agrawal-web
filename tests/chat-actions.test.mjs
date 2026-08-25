@@ -21,7 +21,7 @@ test("Issue 014: chat.ts exists, declares 'use server', and exports required act
 });
 
 test("Issue 014: Anti-fraud scanner accurately detects UPI IDs and bank account triggers", async () => {
-  const { scanForFraud } = await import("../src/lib/anti-fraud.mjs");
+  const { scanForFraud } = await import("../src/lib/anti-fraud.ts");
   
   const cleanMsg = scanForFraud("Namaste! We are looking forward to connecting about the upcoming community gathering.");
   assert.equal(cleanMsg.isFlagged, false, "Clean greeting must not be flagged");

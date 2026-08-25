@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 test("Issue 018: Anti-fraud scanner detects Devanagari financial solicitation and suspicious shorteners", async () => {
-  const { scanForFraud } = await import("../src/lib/anti-fraud.mjs");
+  const { scanForFraud } = await import("../src/lib/anti-fraud.ts");
 
   // Devanagari phrase
   const hindiMsg = scanForFraud("कृपया तुरंत 10,000 रुपये मेरे खाते में ट्रांसफर करें पैसे भेजो");
