@@ -32,7 +32,12 @@ export async function searchDirectory(filters: SearchFilters) {
   const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : reqHeaders.get("x-real-ip") || "127.0.0.1";
 
   if (!checkSearchRateLimit(clientIp)) {
-    return [];
+    return {
+      success: false,
+      error: "Rate limit exceeded. Please wait a moment before searching again.",
+      count: 0,
+      data: [],
+    };
   }
 
   const session = await getSession();

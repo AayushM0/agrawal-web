@@ -12,6 +12,7 @@ import { sendOtp, verifyOtp } from "@/actions/otp";
 import { getSession, clearSession } from "@/actions/auth";
 import LocationSelector from "@/components/LocationSelector";
 import { calculateAge, maskPhone, maskEmail, maskGovtId } from "@/lib/privacy";
+import { optimizeImageForUpload } from "@/lib/image-optimizer";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -185,20 +186,16 @@ export default function SignupPage() {
   };
 
   // Head Photo Upload Handler
-  const handleHeadPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleHeadPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      showToast("Please select an image smaller than 2MB.", "error");
-      return;
+    try {
+      const optimized = await optimizeImageForUpload(file, 400, 0.85);
+      setHeadPhotoUrl(optimized);
+      showToast("Profile photograph optimized & selected successfully!", "success");
+    } catch {
+      showToast("Failed to process image. Please choose another photo.", "error");
     }
-    const reader = new FileReader();
-    reader.onload = (loadEvt) => {
-      const dataUrl = loadEvt.target?.result as string;
-      setHeadPhotoUrl(dataUrl);
-      showToast("Profile photograph selected successfully!", "success");
-    };
-    reader.readAsDataURL(file);
   };
 
   // Step 2 Validation & Transition
@@ -384,19 +381,16 @@ export default function SignupPage() {
     );
   };
 
-  const handleMemberPhoto = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMemberPhoto = async (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert("Please select an image smaller than 2MB.");
-      return;
+    try {
+      const optimized = await optimizeImageForUpload(file, 400, 0.85);
+      updateAdditionalMember(id, "photoUrl", optimized);
+      showToast("Member photograph optimized & selected successfully!", "success");
+    } catch {
+      showToast("Failed to process image. Please choose another photo.", "error");
     }
-    const reader = new FileReader();
-    reader.onload = (loadEvt) => {
-      const dataUrl = loadEvt.target?.result as string;
-      updateAdditionalMember(id, "photoUrl", dataUrl);
-    };
-    reader.readAsDataURL(file);
   };
 
   // Step 3 Validation & Transition
