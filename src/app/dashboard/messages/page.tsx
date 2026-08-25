@@ -27,6 +27,10 @@ function MessagesDashboardContent() {
   const [reportSubmitted, setReportSubmitted] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const isUserScrolledUp = useRef<boolean>(false);
+  const initialLoadedConvId = useRef<string | null>(null);
+  const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
 
   const fetchConversationList = async () => {
     try {
@@ -42,11 +46,46 @@ function MessagesDashboardContent() {
     }
   };
 
-  const fetchMessagesForConv = async (convId: string) => {
+  const fetchMessagesForConv = async (convId: string, isPoll = false) => {
     try {
+      // Pause network polling when tab is backgrounded
+      if (isPoll && typeof document !== "undefined" && document.hidden) return;
+
       const res = await getMessages(convId);
-      if (res.success) {
-        setMessages(res.messages || []);
+      if (res.success && res.messages) {
+        const fetchedMessages = res.messages;
+        
+        setMessages((prevMessages) => {
+          // If message count and last message ID haven't changed, don't trigger re-render
+          const prevLastId = prevMessages[prevMessages.length - 1]?.id;
+          const newLastId = fetchedMessages[fetchedMessages.length - 1]?.id;
+          if (prevMessages.length === fetchedMessages.length && prevLastId === newLastId) {
+            return prevMessages;
+          }
+
+          // Handle smart scrolling on message change
+          if (initialLoadedConvId.current !== convId) {
+            // First load of this conversation -> scroll to bottom immediately
+            initialLoadedConvId.current = convId;
+            isUserScrolledUp.current = false;
+            setHasNewMessagesBelow(false);
+            setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+            }, 50);
+          } else if (fetchedMessages.length > prevMessages.length) {
+            // New message arrived
+            if (!isUserScrolledUp.current) {
+              setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+              }, 50);
+            } else {
+              setHasNewMessagesBelow(true);
+            }
+          }
+
+          return fetchedMessages;
+        });
+
         if (res.conversation) {
           setSelectedConv((prev: any) => ({ ...prev, ...res.conversation }));
         }
@@ -110,21 +149,18 @@ function MessagesDashboardContent() {
     init();
   }, [initialRecipientId]);
 
-  // Poll active conversation every 4 seconds when selected and exists in DB
+  // Poll active conversation when selected and exists in DB
   useEffect(() => {
     if (!selectedConv?.id) return;
-    fetchMessagesForConv(selectedConv.id);
+    initialLoadedConvId.current = null;
+    fetchMessagesForConv(selectedConv.id, false);
 
     const interval = setInterval(() => {
-      fetchMessagesForConv(selectedConv.id);
-    }, 4000);
+      fetchMessagesForConv(selectedConv.id, true);
+    }, 6000);
 
     return () => clearInterval(interval);
   }, [selectedConv?.id]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -427,7 +463,19 @@ function MessagesDashboardContent() {
                 )}
 
                 {/* Messages List */}
-                <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-[#FAF6F0]/20">
+                <div
+                  ref={messagesContainerRef}
+                  onScroll={() => {
+                    if (!messagesContainerRef.current) return;
+                    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+                    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+                    isUserScrolledUp.current = distanceFromBottom > 100;
+                    if (!isUserScrolledUp.current) {
+                      setHasNewMessagesBelow(false);
+                    }
+                  }}
+                  className="flex-1 p-6 overflow-y-auto space-y-4 bg-[#FAF6F0]/20 relative"
+                >
                   {messages.length === 0 ? (
                     <div className="text-center py-12 text-sm text-gray-400">
                       Send a respectful greeting to introduce yourself.
@@ -462,6 +510,21 @@ function MessagesDashboardContent() {
                     })
                   )}
                   <div ref={messagesEndRef} />
+
+                  {/* Floating Jump to Latest Pill */}
+                  {hasNewMessagesBelow && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        isUserScrolledUp.current = false;
+                        setHasNewMessagesBelow(false);
+                        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="sticky bottom-2 left-1/2 -translate-x-1/2 bg-[#800020] text-[#D4AF37] text-xs font-bold px-3.5 py-1.5 rounded-full shadow-lg hover:bg-[#68001A] transition flex items-center space-x-1 animate-bounce z-10"
+                    >
+                      <span>↓ New messages below</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Error Banner */}
