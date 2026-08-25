@@ -3,6 +3,7 @@ import { renderToStream } from "@react-pdf/renderer";
 import { PassPDF } from "@/components/PassPDF";
 import { db } from "@/lib/db";
 import { getSession } from "@/actions/auth";
+import { createUnifiedPassData } from "@/lib/pass";
 import React from "react";
 
 export async function GET(request: Request) {
@@ -45,17 +46,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Forbidden: You do not have permission to download this ID pass." }, { status: 403 });
   }
 
-  const passData = {
-    fullName: member.fullName,
-    gotra: member.gotra,
-    householdCode: member.householdCode,
-    serialNo: member.serialNo || member.householdCode,
-    currentCity: member.currentCity,
-    roleLabel: member.relationToHead,
-    photoUrl: member.photoUrl,
-    nativePlace: member.nativePlace,
-    fatherName: member.fatherName,
-  };
+  const passData = createUnifiedPassData({
+    member: {
+      ...member,
+      serialNo: member.serialNo || member.householdCode,
+    },
+  });
 
   const stream = await renderToStream(React.createElement(PassPDF, { passData }) as any);
   

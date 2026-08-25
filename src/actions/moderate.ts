@@ -5,6 +5,7 @@ import { getSession } from "./auth";
 import { Household } from "@/types/household";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { PassPDF } from "@/components/PassPDF";
+import { getBaseUrl, createUnifiedPassData } from "@/lib/pass";
 import React from "react";
 
 async function sendSMS(phone: string, text: string) {
@@ -89,26 +90,12 @@ async function sendWelcomeEmail(member: any, household: any) {
 async function notifyHouseholdMembers(householdId: string, household: any) {
   const members = await db.getMembersByHousehold(householdId);
   const serial = household.serialNo || household.householdCode;
+  const passUrl = `${getBaseUrl()}/dashboard/pass`;
 
-  // 1. Generate ID Pass PDF buffer for every family member
+  // 1. Generate ID Pass PDF buffer for every family member using unified pass data
   const allAttachments: { filename: string; content: string; member: any }[] = [];
   for (const member of members) {
-    const roleLabel =
-      member.relationToHead === "self"
-        ? "Head of Household"
-        : member.relationToHead.charAt(0).toUpperCase() + member.relationToHead.slice(1);
-
-    const passData = {
-      fullName: member.fullName,
-      gotra: household.gotra,
-      householdCode: household.householdCode,
-      serialNo: household.serialNo || household.householdCode,
-      currentCity: member.currentCity || household.city || household.nativePlace,
-      roleLabel,
-      photoUrl: member.photoUrl,
-      nativePlace: household.nativePlace,
-      fatherName: member.fatherName,
-    };
+    const passData = createUnifiedPassData({ member, household });
 
     try {
       const buffer = await renderToBuffer(React.createElement(PassPDF, { passData }) as any);
@@ -156,7 +143,7 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
             <p><strong>Assigned Serial Number:</strong> ${serial}</p>
             <p>Official ID cards for all <strong>${members.length} registered member(s)</strong> are attached to this email:</p>
             <ul>${memberSummaryList}</ul>
-            <p>You can also log in to your household dashboard at any time to view and download live passes for all members: <a href="https://agrasenvaishakhara.com/dashboard/pass">https://agrasenvaishakhara.com/dashboard/pass</a></p>
+            <p>You can also log in to your household dashboard at any time to view and download live passes for all members: <a href="${passUrl}">${passUrl}</a></p>
           `,
           attachments: allAttachments.map((a) => ({
             filename: a.filename,
@@ -196,7 +183,7 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
               html: `
                 <h2>Welcome, ${item.member.fullName}!</h2>
                 <p>Your membership under household <strong>${serial}</strong> is approved.</p>
-                <p>Your official ID card is attached to this email.</p>
+                <p>Your official ID card is attached to this email. You can also view it online at: <a href="${passUrl}">${passUrl}</a></p>
               `,
               attachments: [{ filename: item.filename, content: item.content }],
             }),
@@ -218,7 +205,7 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
   if (primaryPhone) {
     await sendSMS(
       primaryPhone,
-      `Your Maharaja Agrasen Foundation household membership is approved! Serial No: ${serial}. ID passes for all ${members.length} member(s) are ready at: https://agrasenvaishakhara.com/dashboard/pass`
+      `Your Maharaja Agrasen Foundation household membership is approved! Serial No: ${serial}. ID passes for all ${members.length} member(s) are ready at: ${passUrl}`
     );
   }
 
@@ -226,7 +213,7 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
     if (member.phone && member.phone !== primaryPhone) {
       await sendSMS(
         member.phone,
-        `Welcome ${member.fullName}! Your Maharaja Agrasen Foundation ID pass (${serial}) is approved. Access here: https://agrasenvaishakhara.com/dashboard/pass`
+        `Welcome ${member.fullName}! Your Maharaja Agrasen Foundation ID pass (${serial}) is approved. Access here: ${passUrl}`
       );
     }
   }
