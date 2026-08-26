@@ -151,7 +151,12 @@ export async function sendOtp(input: SendOtpInput) {
   }
 
   // 2. Dispatch via Twilio Verify API (SMS)
-  if (isPhone && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_VERIFY_SERVICE_SID) {
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID?.replace(/['"]/g, "").trim();
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN?.replace(/['"]/g, "").trim();
+  const twilioVerifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID?.replace(/['"]/g, "").trim();
+  const twilioPhone = process.env.TWILIO_PHONE_NUMBER?.replace(/['"]/g, "").trim();
+
+  if (isPhone && twilioSid && twilioToken && twilioVerifyServiceSid) {
     try {
       const cookieStore = await cookies();
       cookieStore.set("otp_challenge", `verify_api:${normalized}`, {
@@ -162,9 +167,9 @@ export async function sendOtp(input: SendOtpInput) {
         maxAge: 10 * 60,
       });
 
-      const authHeader = "Basic " + Buffer.from(process.env.TWILIO_ACCOUNT_SID + ":" + process.env.TWILIO_AUTH_TOKEN).toString("base64");
+      const authHeader = "Basic " + Buffer.from(twilioSid + ":" + twilioToken).toString("base64");
       
-      const res = await fetch(`https://verify.twilio.com/v2/Services/${process.env.TWILIO_VERIFY_SERVICE_SID}/Verifications`, {
+      const res = await fetch(`https://verify.twilio.com/v2/Services/${twilioVerifyServiceSid}/Verifications`, {
         method: "POST",
         headers: {
           "Authorization": authHeader,
@@ -187,7 +192,7 @@ export async function sendOtp(input: SendOtpInput) {
   }
 
   // 3. Dispatch via Twilio Standard SMS Messages API
-  if (isPhone && process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+  if (isPhone && twilioSid && twilioToken && twilioPhone) {
     try {
       const generatedCode = crypto.randomInt(100000, 999999).toString();
       const expiresAt = Date.now() + 10 * 60 * 1000;
@@ -201,15 +206,15 @@ export async function sendOtp(input: SendOtpInput) {
         maxAge: 10 * 60,
       });
 
-      const authHeader = "Basic " + Buffer.from(process.env.TWILIO_ACCOUNT_SID + ":" + process.env.TWILIO_AUTH_TOKEN).toString("base64");
-      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`, {
+      const authHeader = "Basic " + Buffer.from(twilioSid + ":" + twilioToken).toString("base64");
+      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
         method: "POST",
         headers: {
           "Authorization": authHeader,
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-          From: process.env.TWILIO_PHONE_NUMBER,
+          From: twilioPhone,
           To: normalized,
           Body: `Your Maharaja Agrasen Foundation verification passcode is: ${generatedCode}. Valid for 10 minutes.`,
         }),
@@ -281,8 +286,16 @@ export async function verifyOtp(input: VerifyOtpInput) {
     }
     
     try {
-      const authHeader = "Basic " + Buffer.from(process.env.TWILIO_ACCOUNT_SID + ":" + process.env.TWILIO_AUTH_TOKEN).toString("base64");
-      const res = await fetch(`https://verify.twilio.com/v2/Services/${process.env.TWILIO_VERIFY_SERVICE_SID}/VerificationCheck`, {
+      const twilioSid = process.env.TWILIO_ACCOUNT_SID?.replace(/['"]/g, "").trim();
+      const twilioToken = process.env.TWILIO_AUTH_TOKEN?.replace(/['"]/g, "").trim();
+      const twilioVerifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID?.replace(/['"]/g, "").trim();
+
+      if (!twilioSid || !twilioToken || !twilioVerifyServiceSid) {
+        return { success: false, error: "Twilio Verify API is not properly configured on this server." };
+      }
+
+      const authHeader = "Basic " + Buffer.from(twilioSid + ":" + twilioToken).toString("base64");
+      const res = await fetch(`https://verify.twilio.com/v2/Services/${twilioVerifyServiceSid}/VerificationCheck`, {
         method: "POST",
         headers: {
           "Authorization": authHeader,

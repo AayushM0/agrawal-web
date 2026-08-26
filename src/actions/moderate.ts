@@ -9,10 +9,23 @@ import { getBaseUrl, createUnifiedPassData } from "@/lib/pass";
 import React from "react";
 
 async function sendSMS(phone: string, text: string) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from || !phone) return;
+  const sid = process.env.TWILIO_ACCOUNT_SID?.replace(/['"]/g, "").trim();
+  const token = process.env.TWILIO_AUTH_TOKEN?.replace(/['"]/g, "").trim();
+  const from = process.env.TWILIO_PHONE_NUMBER?.replace(/['"]/g, "").trim();
+
+  if (!sid || !token || !from) {
+    console.warn("[TWILIO SMS SKIP] Missing or incomplete Twilio configuration in environment variables:", {
+      hasSid: !!sid,
+      hasToken: !!token,
+      hasFrom: !!from,
+    });
+    return;
+  }
+
+  if (!phone) {
+    console.warn("[TWILIO SMS SKIP] Recipient phone number is empty.");
+    return;
+  }
 
   try {
     const authHeader = "Basic " + Buffer.from(`${sid}:${token}`).toString("base64");
@@ -92,22 +105,26 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
   const serial = household.serialNo || household.householdCode;
   const passUrl = `${getBaseUrl()}/dashboard/pass`;
 
-  // 1. Generate ID Pass PDF buffer for every family member using unified pass data
-  const allAttachments: { filename: string; content: string; member: any }[] = [];
-  for (const member of members) {
+  // 1. Generate ID Pass PDF buffer for every family member in parallel to prevent Vercel 10s Serverless timeout
+  const attachmentPromises = members.map(async (member) => {
     const passData = createUnifiedPassData({ member, household });
-
     try {
       const buffer = await renderToBuffer(React.createElement(PassPDF, { passData }) as any);
-      allAttachments.push({
+      return {
         filename: `ID_Card_${member.fullName.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`,
         content: buffer.toString("base64"),
         member,
-      });
+      };
     } catch (err) {
       console.error("PDF generation failed for member:", member.fullName, err);
+      return null;
     }
-  }
+  });
+
+  const attachmentsResult = await Promise.all(attachmentPromises);
+  const allAttachments = attachmentsResult.filter(
+    (item): item is NonNullable<typeof item> => item !== null
+  );
 
   // 2. Identify primary email destination (Head email or verified household email)
   const headMember = members.find((m) => m.relationToHead === "self");
@@ -116,6 +133,8 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
     (household.verifiedContact && household.verifiedContact.includes("@")
       ? household.verifiedContact
       : null);
+
+  const notificationsToAwait: Promise<any>[] = [];
 
   // 3. Send Primary Welcome Email with ALL Family Member ID Pass attachments
   if (process.env.RESEND_API_KEY && primaryEmail && allAttachments.length > 0) {
@@ -126,51 +145,57 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
       )
       .join("");
 
-    try {
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: "Maharaja Agrasen Foundation <onboarding@resend.dev>",
-          to: primaryEmail,
-          subject: `Household Verified - Official ID Passes for All Members (${serial}) - Maharaja Agrasen Foundation`,
-          html: `
-            <h2>Congratulations! Your Household is Approved</h2>
-            <p>Your Maharaja Agrasen Foundation household registration has been verified and approved.</p>
-            <p><strong>Assigned Serial Number:</strong> ${serial}</p>
-            <p>Official ID cards for all <strong>${members.length} registered member(s)</strong> are attached to this email:</p>
-            <ul>${memberSummaryList}</ul>
-            <p>You can also log in to your household dashboard at any time to view and download live passes for all members: <a href="${passUrl}">${passUrl}</a></p>
-          `,
-          attachments: allAttachments.map((a) => ({
-            filename: a.filename,
-            content: a.content,
-          })),
-        }),
-      });
+    notificationsToAwait.push(
+      (async () => {
+        try {
+          const res = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: "Maharaja Agrasen Foundation <onboarding@resend.dev>",
+              to: primaryEmail,
+              subject: `Household Verified - Official ID Passes for All Members (${serial}) - Maharaja Agrasen Foundation`,
+              html: `
+                <h2>Congratulations! Your Household is Approved</h2>
+                <p>Your Maharaja Agrasen Foundation household registration has been verified and approved.</p>
+                <p><strong>Assigned Serial Number:</strong> ${serial}</p>
+                <p>Official ID cards for all <strong>${members.length} registered member(s)</strong> are attached to this email:</p>
+                <ul>${memberSummaryList}</ul>
+                <p>You can also log in to your household dashboard at any time to view and download live passes for all members: <a href="${passUrl}">${passUrl}</a></p>
+              `,
+              attachments: allAttachments.map((a) => ({
+                filename: a.filename,
+                content: a.content,
+              })),
+            }),
+          });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.error("[RESEND EMAIL ERROR]", err);
-      }
-    } catch (e) {
-      console.error("Primary household email dispatch failed:", e);
-    }
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            console.error("[RESEND EMAIL ERROR]", err);
+          }
+        } catch (e) {
+          console.error("Primary household email dispatch failed:", e);
+        }
+      })()
+    );
   }
 
-  // 4. Send individual welcome email if a member has a distinct separate email
+  // 4. Send individual welcome email if a member has a distinct separate email (in parallel)
   if (process.env.RESEND_API_KEY) {
-    for (const item of allAttachments) {
-      if (
-        item.member.email &&
-        primaryEmail &&
-        item.member.email.toLowerCase() !== primaryEmail.toLowerCase()
-      ) {
+    const emailPromises = allAttachments
+      .filter(
+        (item) =>
+          item.member.email &&
+          primaryEmail &&
+          item.member.email.toLowerCase() !== primaryEmail.toLowerCase()
+      )
+      .map(async (item) => {
         try {
-          await fetch("https://api.resend.com/emails", {
+          const res = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
               Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
@@ -188,14 +213,19 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
               attachments: [{ filename: item.filename, content: item.content }],
             }),
           });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            console.error(`[RESEND INDIVIDUAL EMAIL ERROR] for ${item.member.fullName}:`, err);
+          }
         } catch (e) {
-          console.error("Individual member email dispatch failed:", e);
+          console.error(`Individual member email dispatch failed for ${item.member.fullName}:`, e);
         }
-      }
-    }
+      });
+    
+    notificationsToAwait.push(...emailPromises);
   }
 
-  // 5. Send SMS to household and member contacts
+  // 5. Send SMS to household and member contacts in parallel
   const primaryPhone =
     headMember?.phone ||
     (household.verifiedContact && !household.verifiedContact.includes("@")
@@ -203,19 +233,28 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
       : null);
 
   if (primaryPhone) {
-    await sendSMS(
-      primaryPhone,
-      `Your Maharaja Agrasen Foundation household membership is approved! Serial No: ${serial}. ID passes for all ${members.length} member(s) are ready at: ${passUrl}`
+    notificationsToAwait.push(
+      sendSMS(
+        primaryPhone,
+        `Your Maharaja Agrasen Foundation household membership is approved! Serial No: ${serial}. ID passes for all ${members.length} member(s) are ready at: ${passUrl}`
+      )
     );
   }
 
   for (const member of members) {
     if (member.phone && member.phone !== primaryPhone) {
-      await sendSMS(
-        member.phone,
-        `Welcome ${member.fullName}! Your Maharaja Agrasen Foundation ID pass (${serial}) is approved. Access here: ${passUrl}`
+      notificationsToAwait.push(
+        sendSMS(
+          member.phone,
+          `Welcome ${member.fullName}! Your Maharaja Agrasen Foundation ID pass (${serial}) is approved. Access here: ${passUrl}`
+        )
       );
     }
+  }
+
+  // Wait for all email and SMS dispatches to complete concurrently
+  if (notificationsToAwait.length > 0) {
+    await Promise.all(notificationsToAwait);
   }
 }
 
