@@ -206,8 +206,9 @@ ALTER TABLE admin_login_attempts ENABLE ROW LEVEL SECURITY;
 
 -- For conversations and messages (used by Supabase Realtime in browser):
 -- Define SELECT policies for anon/authenticated roles to receive websocket broadcasts.
+-- Restrict to Realtime-only by blocking PostgREST queries (where request.path is set).
 DROP POLICY IF EXISTS "Allow Realtime conversations select" ON conversations;
-CREATE POLICY "Allow Realtime conversations select" ON conversations FOR SELECT TO anon USING (true);
+CREATE POLICY "Allow Realtime conversations select" ON conversations FOR SELECT TO anon USING (current_setting('request.path', true) IS NULL);
 
 DROP POLICY IF EXISTS "Allow Realtime messages select" ON messages;
-CREATE POLICY "Allow Realtime messages select" ON messages FOR SELECT TO anon USING (true);
+CREATE POLICY "Allow Realtime messages select" ON messages FOR SELECT TO anon USING (current_setting('request.path', true) IS NULL);

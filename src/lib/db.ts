@@ -159,12 +159,12 @@ async function ensureSchema(client: any) {
       ALTER TABLE otp_rate_limits ENABLE ROW LEVEL SECURITY;
       ALTER TABLE admin_login_attempts ENABLE ROW LEVEL SECURITY;
 
-      -- Allow SELECT to anon for Realtime web-socket updates
+      -- Allow SELECT to anon for Realtime web-socket updates (restricted to Realtime-only by blocking PostgREST queries)
       DROP POLICY IF EXISTS "Allow Realtime conversations select" ON conversations;
-      CREATE POLICY "Allow Realtime conversations select" ON conversations FOR SELECT TO anon USING (true);
+      CREATE POLICY "Allow Realtime conversations select" ON conversations FOR SELECT TO anon USING (current_setting('request.path', true) IS NULL);
 
       DROP POLICY IF EXISTS "Allow Realtime messages select" ON messages;
-      CREATE POLICY "Allow Realtime messages select" ON messages FOR SELECT TO anon USING (true);
+      CREATE POLICY "Allow Realtime messages select" ON messages FOR SELECT TO anon USING (current_setting('request.path', true) IS NULL);
     `);
     schemaEnsured = true;
   } catch (err) {
