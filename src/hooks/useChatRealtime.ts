@@ -1,104 +1,108 @@
 'use client';
 
 import { useEffect, useState, useRef } from "react";
-import { getSupabaseBrowserClient, isSupabaseRealtimeAvailable } from "@/lib/supabaseClient";
+import Pusher from "pusher-js";
+
+let pusherClient: Pusher | null = null;
+
+export function getPusherClient(): Pusher | null {
+  if (typeof window === "undefined") return null;
+  const key = process.env.NEXT_PUBLIC_PUSHER_APP_KEY;
+  const cluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+  if (!key || !cluster) return null;
+
+  if (!pusherClient) {
+    pusherClient = new Pusher(key, {
+      cluster,
+      authEndpoint: "/api/pusher/auth",
+    });
+  }
+  return pusherClient;
+}
 
 interface UseChatRealtimeOptions {
   conversationId: string | null;
+  currentMemberId?: string | null;
   onNewMessage: (message: any) => void;
   onConversationUpdate?: (conversation: any) => void;
+  onSidebarRefresh?: () => void;
 }
 
 export function useChatRealtime({
   conversationId,
+  currentMemberId,
   onNewMessage,
   onConversationUpdate,
+  onSidebarRefresh,
 }: UseChatRealtimeOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const onNewMessageRef = useRef(onNewMessage);
   const onConversationUpdateRef = useRef(onConversationUpdate);
+  const onSidebarRefreshRef = useRef(onSidebarRefresh);
 
   useEffect(() => {
     onNewMessageRef.current = onNewMessage;
     onConversationUpdateRef.current = onConversationUpdate;
-  }, [onNewMessage, onConversationUpdate]);
+    onSidebarRefreshRef.current = onSidebarRefresh;
+  }, [onNewMessage, onConversationUpdate, onSidebarRefresh]);
 
   useEffect(() => {
-    if (!conversationId) {
+    const pusher = getPusherClient();
+    if (!pusher) {
       setIsConnected(false);
       return;
     }
 
-    if (!isSupabaseRealtimeAvailable()) {
-      setIsConnected(false);
-      return;
+    // 1. Subscribe to global user notifications
+    let userChannel: any = null;
+    if (currentMemberId) {
+      userChannel = pusher.subscribe(`private-user-${currentMemberId}`);
+      userChannel.bind("incoming-message", () => {
+        onSidebarRefreshRef.current?.();
+      });
     }
 
-    const supabase = getSupabaseBrowserClient();
-    if (!supabase) {
-      setIsConnected(false);
-      return;
-    }
+    // 2. Subscribe to active chat room
+    let chatChannel: any = null;
+    if (conversationId) {
+      chatChannel = pusher.subscribe(`private-chat-room-${conversationId}`);
 
-    const channelName = `chat:conv:${conversationId}`;
-    const channel = supabase.channel(channelName);
-
-    channel
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "messages",
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload: any) => {
-          const row = payload.new;
-          if (row) {
-            onNewMessageRef.current?.({
-              id: row.id,
-              conversationId: row.conversation_id,
-              senderId: row.sender_id,
-              recipientId: row.recipient_id,
-              messageBody: row.message_body,
-              isFlagged: row.is_flagged,
-              flagReason: row.flag_reason,
-              readAt: row.read_at,
-              createdAt: row.created_at,
-            });
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "conversations",
-          filter: `id=eq.${conversationId}`,
-        },
-        (payload: any) => {
-          if (payload.new) {
-            onConversationUpdateRef.current?.(payload.new);
-          }
-        }
-      )
-      .subscribe((status: string) => {
-        if (status === "SUBSCRIBED") {
-          setIsConnected(true);
-        } else if (status === "CLOSED" || status === "CHANNEL_ERROR") {
-          setIsConnected(false);
-        }
+      chatChannel.bind("new-message", (incomingMsg: any) => {
+        onNewMessageRef.current?.(incomingMsg);
       });
 
+      chatChannel.bind("conversation-updated", (updatedConv: any) => {
+        onConversationUpdateRef.current?.(updatedConv);
+      });
+
+      chatChannel.bind("pusher:subscription_succeeded", () => {
+        setIsConnected(true);
+      });
+
+      chatChannel.bind("pusher:subscription_error", () => {
+        setIsConnected(false);
+      });
+
+      setIsConnected(true);
+    } else {
+      setIsConnected(false);
+    }
+
     return () => {
-      supabase.removeChannel(channel);
+      if (chatChannel) {
+        chatChannel.unbind_all();
+        pusher.unsubscribe(`private-chat-room-${conversationId}`);
+      }
+      if (userChannel) {
+        userChannel.unbind_all();
+        pusher.unsubscribe(`private-user-${currentMemberId}`);
+      }
       setIsConnected(false);
     };
-  }, [conversationId]);
+  }, [conversationId, currentMemberId]);
 
   return {
     isConnected,
-    isRealtimeSupported: isSupabaseRealtimeAvailable(),
+    isRealtimeSupported: Boolean(process.env.NEXT_PUBLIC_PUSHER_APP_KEY),
   };
 }
