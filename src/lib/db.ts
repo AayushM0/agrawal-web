@@ -17,6 +17,19 @@ if (process.env.DATABASE_URL) {
     pool.on("error", (err) => {
       console.warn("PostgreSQL idle client notice:", err.message);
     });
+
+    // Proactively run schema migrations on pool initialization to ensure all tables exist
+    pool.connect().then(async (client) => {
+      try {
+        await ensureSchema(client);
+      } catch (err) {
+        console.error("Failed to run schema migrations on pool startup:", err);
+      } finally {
+        client.release();
+      }
+    }).catch(err => {
+      console.error("Failed to connect to database for startup migrations:", err);
+    });
   } catch (err) {
     console.error("Failed to initialize PG pool:", err);
     throw err;
