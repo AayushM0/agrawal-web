@@ -151,6 +151,42 @@ export async function sendMessage(params: {
       flagReason: fraudScan.reason || undefined,
     });
 
+    // Fire Pusher real-time events (graceful: never block the return if Pusher fails)
+    if (process.env.PUSHER_APP_ID && process.env.NEXT_PUBLIC_PUSHER_APP_KEY && process.env.PUSHER_SECRET) {
+      try {
+        const PusherServer = (await import("pusher")).default;
+        const pusher = new PusherServer({
+          appId: process.env.PUSHER_APP_ID,
+          key: process.env.NEXT_PUBLIC_PUSHER_APP_KEY,
+          secret: process.env.PUSHER_SECRET,
+          cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "us2",
+          useTLS: true,
+        });
+
+        // 1. Trigger the active chat room so both participants see the new message immediately
+        await pusher.trigger(`private-chat-room-${conversation.id}`, "new-message", {
+          id: msg.id,
+          conversationId: msg.conversation_id,
+          senderId: msg.sender_id,
+          recipientId: msg.recipient_id,
+          messageBody: msg.message_body,
+          isFlagged: msg.is_flagged,
+          flagReason: msg.flag_reason ?? null,
+          readAt: msg.read_at ?? null,
+          createdAt: msg.created_at,
+        });
+
+        // 2. Notify the recipient's sidebar so unread counts update instantly
+        await pusher.trigger(`private-user-${actualRecipientId}`, "incoming-message", {
+          conversationId: conversation.id,
+          senderId: senderMemberId,
+          messagePreview: trimmedBody.slice(0, 100),
+        });
+      } catch (pusherErr) {
+        console.error("Pusher trigger failed (non-fatal):", pusherErr);
+      }
+    }
+
     return {
       success: true,
       message: msg,
@@ -161,6 +197,7 @@ export async function sendMessage(params: {
     return { success: false, error: err.message || "Failed to send message." };
   }
 }
+
 
 /**
  * Get all conversations for the authenticated member (split into Active and Requests).
@@ -260,12 +297,43 @@ export async function respondToRequest(params: {
         : "blocked";
 
     await db.updateConversationStatus(params.conversationId, newStatus);
+
+    // Fire Pusher events so both sides see the status change in real-time
+    if (process.env.PUSHER_APP_ID && process.env.NEXT_PUBLIC_PUSHER_APP_KEY && process.env.PUSHER_SECRET) {
+      try {
+        const PusherServer = (await import("pusher")).default;
+        const pusher = new PusherServer({
+          appId: process.env.PUSHER_APP_ID,
+          key: process.env.NEXT_PUBLIC_PUSHER_APP_KEY,
+          secret: process.env.PUSHER_SECRET,
+          cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "us2",
+          useTLS: true,
+        });
+
+        // Notify the active chat room that conversation status changed
+        await pusher.trigger(`private-chat-room-${params.conversationId}`, "conversation-updated", {
+          id: params.conversationId,
+          status: newStatus,
+        });
+
+        // Notify the initiator (other party) via their personal channel so their sidebar updates
+        const initiatorId = conversation.initiator_id;
+        await pusher.trigger(`private-user-${initiatorId}`, "incoming-message", {
+          conversationId: params.conversationId,
+          status: newStatus,
+        });
+      } catch (pusherErr) {
+        console.error("Pusher respondToRequest trigger failed (non-fatal):", pusherErr);
+      }
+    }
+
     return { success: true };
   } catch (err: any) {
     console.error("respondToRequest error:", err);
     return { success: false, error: err.message || "Failed to update request." };
   }
 }
+
 
 /**
  * Report an offensive, fraudulent, or abusive conversation to platform administrators.
