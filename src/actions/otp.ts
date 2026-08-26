@@ -28,7 +28,14 @@ function verifyOtpChallenge(token: string) {
   const payload = `${recipient}|${code}|${expiresAt}|${attempts}`;
   const expectedSig = crypto.createHmac("sha256", getSecret()).update(payload).digest("hex");
   
-  if (!crypto.timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expectedSig, "hex"))) {
+  const sigBuf = Buffer.from(signature, "hex");
+  const expectedSigBuf = Buffer.from(expectedSig, "hex");
+
+  if (sigBuf.length !== expectedSigBuf.length) {
+    return null;
+  }
+
+  if (!crypto.timingSafeEqual(sigBuf, expectedSigBuf)) {
     return null;
   }
   
