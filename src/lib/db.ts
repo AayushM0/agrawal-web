@@ -249,37 +249,62 @@ export const db = {
     const isPhone = !clean.includes("@");
     const canonical = isPhone ? normalizePhoneNumber(clean) : clean.toLowerCase();
     const rawDigits = clean.replace(/[^0-9]/g, "");
-    const last10 = rawDigits.slice(-10);
+    const last10 = rawDigits.length >= 10 ? rawDigits.slice(-10) : (rawDigits.length >= 7 ? rawDigits : "");
 
     if (!pool) throw new Error("Database not connected");
     try {
       let h: any = null;
-      const res = await pool.query(
-        `SELECT * FROM households 
-         WHERE verified_contact = $1 
-            OR verified_contact = $2 
-            OR verified_contact = $3 
-            OR verified_contact LIKE $4
-         LIMIT 1`,
-        [clean, canonical, last10, `%${last10}`]
-      );
-      if (res.rows.length > 0) {
-        h = res.rows[0];
-      } else {
-        // Search via claimed/registered members in that household
-        const memberHouseholdRes = await pool.query(
-          `SELECT h.* 
-           FROM households h
-           JOIN members m ON m.household_id = h.id
-           WHERE m.phone = $1 
-              OR m.phone = $2 
-              OR m.phone LIKE $3
-              OR LOWER(m.email) = LOWER($4)
+      if (!isPhone) {
+        // Email lookup: exact match on verified_contact or member email
+        const res = await pool.query(
+          `SELECT * FROM households 
+           WHERE LOWER(verified_contact) = LOWER($1)
            LIMIT 1`,
-          [clean, canonical, `%${last10}`, canonical]
+          [canonical]
         );
-        if (memberHouseholdRes.rows.length > 0) {
-          h = memberHouseholdRes.rows[0];
+        if (res.rows.length > 0) {
+          h = res.rows[0];
+        } else {
+          const memberHouseholdRes = await pool.query(
+            `SELECT h.* 
+             FROM households h
+             JOIN members m ON m.household_id = h.id
+             WHERE LOWER(m.email) = LOWER($1)
+             LIMIT 1`,
+            [canonical]
+          );
+          if (memberHouseholdRes.rows.length > 0) {
+            h = memberHouseholdRes.rows[0];
+          }
+        }
+      } else {
+        // Phone lookup: exact or suffix matching only when digits are present
+        const phoneLike = last10 ? `%${last10}` : canonical;
+        const res = await pool.query(
+          `SELECT * FROM households 
+           WHERE verified_contact = $1 
+              OR verified_contact = $2 
+              OR (verified_contact LIKE $3 AND $3 != '%')
+           LIMIT 1`,
+          [clean, canonical, phoneLike]
+        );
+        if (res.rows.length > 0) {
+          h = res.rows[0];
+        } else {
+          // Search via claimed/registered members in that household
+          const memberHouseholdRes = await pool.query(
+            `SELECT h.* 
+             FROM households h
+             JOIN members m ON m.household_id = h.id
+             WHERE m.phone = $1 
+                OR m.phone = $2 
+                OR (m.phone LIKE $3 AND $3 != '%')
+             LIMIT 1`,
+            [clean, canonical, phoneLike]
+          );
+          if (memberHouseholdRes.rows.length > 0) {
+            h = memberHouseholdRes.rows[0];
+          }
         }
       }
 
@@ -646,40 +671,73 @@ export const db = {
     const isEmail = clean.includes("@");
     const canonical = isEmail ? clean.toLowerCase() : normalizePhoneNumber(clean);
     const digitsOnly = clean.replace(/[^0-9]/g, "");
-    const last10 = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
+    const last10 = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : (digitsOnly.length >= 7 ? digitsOnly : "");
 
     if (!pool) throw new Error("Database not connected");
 
     try {
-      // 1. Check in households (verified_contact)
-      const hRes = await pool.query(
-        `SELECT id, household_code, head_name, verified_contact 
-         FROM households 
-         WHERE verified_contact = $1 OR verified_contact = $2 OR verified_contact LIKE $3
-         LIMIT 1;`,
-        [clean, canonical, `%${last10}`]
-      );
-      if (hRes.rows.length > 0) {
-        const h = hRes.rows[0];
-        return { exists: true, type: "head", name: h.head_name, householdCode: h.household_code };
-      }
+      if (isEmail) {
+        // 1. Check in households (verified_contact)
+        const hRes = await pool.query(
+          `SELECT id, household_code, head_name, verified_contact 
+           FROM households 
+           WHERE LOWER(verified_contact) = LOWER($1)
+           LIMIT 1;`,
+          [canonical]
+        );
+        if (hRes.rows.length > 0) {
+          const h = hRes.rows[0];
+          return { exists: true, type: "head", name: h.head_name, householdCode: h.household_code };
+        }
 
-      // 2. Check in members (phone or email)
-      const mRes = await pool.query(
-        `SELECT m.id, m.full_name, h.household_code 
-         FROM members m 
-         JOIN households h ON m.household_id = h.id 
-         WHERE (m.phone = $1 OR m.phone = $2 OR m.phone LIKE $3 OR LOWER(m.email) = LOWER($4))
-           AND ($5::text IS NULL OR m.id::text != $5)
-         LIMIT 1;`,
-        [clean, canonical, `%${last10}`, canonical, excludeMemberId || null]
-      );
-      if (mRes.rows.length > 0) {
-        const m = mRes.rows[0];
-        return { exists: true, type: "member", name: m.full_name, householdCode: m.household_code };
-      }
+        // 2. Check in members (email)
+        const mRes = await pool.query(
+          `SELECT m.id, m.full_name, h.household_code 
+           FROM members m 
+           JOIN households h ON m.household_id = h.id 
+           WHERE LOWER(m.email) = LOWER($1)
+             AND ($2::text IS NULL OR m.id::text != $2)
+           LIMIT 1;`,
+          [canonical, excludeMemberId || null]
+        );
+        if (mRes.rows.length > 0) {
+          const m = mRes.rows[0];
+          return { exists: true, type: "member", name: m.full_name, householdCode: m.household_code };
+        }
 
-      return { exists: false };
+        return { exists: false };
+      } else {
+        const phoneLike = last10 ? `%${last10}` : canonical;
+        // 1. Check in households (verified_contact)
+        const hRes = await pool.query(
+          `SELECT id, household_code, head_name, verified_contact 
+           FROM households 
+           WHERE verified_contact = $1 OR verified_contact = $2 OR (verified_contact LIKE $3 AND $3 != '%')
+           LIMIT 1;`,
+          [clean, canonical, phoneLike]
+        );
+        if (hRes.rows.length > 0) {
+          const h = hRes.rows[0];
+          return { exists: true, type: "head", name: h.head_name, householdCode: h.household_code };
+        }
+
+        // 2. Check in members (phone)
+        const mRes = await pool.query(
+          `SELECT m.id, m.full_name, h.household_code 
+           FROM members m 
+           JOIN households h ON m.household_id = h.id 
+           WHERE (m.phone = $1 OR m.phone = $2 OR (m.phone LIKE $3 AND $3 != '%'))
+             AND ($4::text IS NULL OR m.id::text != $4)
+           LIMIT 1;`,
+          [clean, canonical, phoneLike, excludeMemberId || null]
+        );
+        if (mRes.rows.length > 0) {
+          const m = mRes.rows[0];
+          return { exists: true, type: "member", name: m.full_name, householdCode: m.household_code };
+        }
+
+        return { exists: false };
+      }
     } catch (e) {
       throw e;
     }
@@ -691,60 +749,111 @@ export const db = {
     const isEmail = clean.includes("@");
     const canonical = isEmail ? clean.toLowerCase() : normalizePhoneNumber(clean);
     const digitsOnly = clean.replace(/[^0-9]/g, "");
-    const last10 = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
+    const last10 = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : (digitsOnly.length >= 7 ? digitsOnly : "");
 
     if (!pool) throw new Error("Database not connected");
 
     try {
-      // 1. Search in members table directly
-      const mRes = await pool.query(
-        `SELECT m.*, h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
-         FROM members m
-         JOIN households h ON m.household_id = h.id
-         WHERE m.phone = $1 OR m.phone = $2 OR m.phone LIKE $3
-            OR m.email = $1 OR m.email = $2
-         ORDER BY (m.relation_to_head = 'self') DESC, m.created_at ASC
-         LIMIT 1;`,
-        [clean, canonical, `%${last10}`]
-      );
-      if (mRes.rows.length > 0) {
-        const r = mRes.rows[0];
-        return {
-          ...r,
-          id: String(r.id),
-          fullName: r.full_name,
-          relationToHead: r.relation_to_head,
-          currentCity: r.current_city,
-          currentCountry: r.current_country,
-          gotra: r.gotra,
-          photoUrl: r.photo_url,
-        };
-      }
+      if (isEmail) {
+        // 1. Search in members table by email
+        const mRes = await pool.query(
+          `SELECT m.*, h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+           FROM members m
+           JOIN households h ON m.household_id = h.id
+           WHERE LOWER(m.email) = LOWER($1)
+           ORDER BY (m.relation_to_head = 'self') DESC, m.created_at ASC
+           LIMIT 1;`,
+          [canonical]
+        );
+        if (mRes.rows.length > 0) {
+          const r = mRes.rows[0];
+          return {
+            ...r,
+            id: String(r.id),
+            fullName: r.full_name,
+            relationToHead: r.relation_to_head,
+            currentCity: r.current_city,
+            currentCountry: r.current_country,
+            gotra: r.gotra,
+            photoUrl: r.photo_url,
+          };
+        }
 
-      // 2. Search in households table (head of household)
-      const hRes = await pool.query(
-        `SELECT m.*, h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
-         FROM households h
-         JOIN members m ON m.household_id = h.id AND m.relation_to_head = 'self'
-         WHERE h.verified_contact = $1 OR h.verified_contact = $2 OR h.verified_contact LIKE $3
-         LIMIT 1;`,
-        [clean, canonical, `%${last10}`]
-      );
-      if (hRes.rows.length > 0) {
-        const r = hRes.rows[0];
-        return {
-          ...r,
-          id: String(r.id),
-          fullName: r.full_name,
-          relationToHead: r.relation_to_head,
-          currentCity: r.current_city,
-          currentCountry: r.current_country,
-          gotra: r.gotra,
-          photoUrl: r.photo_url,
-        };
-      }
+        // 2. Search in households table by verified email contact (head of household)
+        const hRes = await pool.query(
+          `SELECT m.*, h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+           FROM households h
+           JOIN members m ON m.household_id = h.id AND m.relation_to_head = 'self'
+           WHERE LOWER(h.verified_contact) = LOWER($1)
+           LIMIT 1;`,
+          [canonical]
+        );
+        if (hRes.rows.length > 0) {
+          const r = hRes.rows[0];
+          return {
+            ...r,
+            id: String(r.id),
+            fullName: r.full_name,
+            relationToHead: r.relation_to_head,
+            currentCity: r.current_city,
+            currentCountry: r.current_country,
+            gotra: r.gotra,
+            photoUrl: r.photo_url,
+          };
+        }
 
-      return null;
+        return null;
+      } else {
+        const phoneLike = last10 ? `%${last10}` : canonical;
+        // 1. Search in members table by phone
+        const mRes = await pool.query(
+          `SELECT m.*, h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+           FROM members m
+           JOIN households h ON m.household_id = h.id
+           WHERE m.phone = $1 OR m.phone = $2 OR (m.phone LIKE $3 AND $3 != '%')
+           ORDER BY (m.relation_to_head = 'self') DESC, m.created_at ASC
+           LIMIT 1;`,
+          [clean, canonical, phoneLike]
+        );
+        if (mRes.rows.length > 0) {
+          const r = mRes.rows[0];
+          return {
+            ...r,
+            id: String(r.id),
+            fullName: r.full_name,
+            relationToHead: r.relation_to_head,
+            currentCity: r.current_city,
+            currentCountry: r.current_country,
+            gotra: r.gotra,
+            photoUrl: r.photo_url,
+          };
+        }
+
+        // 2. Search in households table by verified phone (head of household)
+        const hRes = await pool.query(
+          `SELECT m.*, h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+           FROM households h
+           JOIN members m ON m.household_id = h.id AND m.relation_to_head = 'self'
+           WHERE h.verified_contact = $1 OR h.verified_contact = $2 OR (h.verified_contact LIKE $3 AND $3 != '%')
+           LIMIT 1;`,
+          [clean, canonical, phoneLike]
+        );
+        if (hRes.rows.length > 0) {
+          const r = hRes.rows[0];
+          return {
+            ...r,
+            id: String(r.id),
+            fullName: r.full_name,
+            relationToHead: r.relation_to_head,
+            currentCity: r.current_city,
+            currentCountry: r.current_country,
+            gotra: r.gotra,
+            photoUrl: r.photo_url,
+          };
+        }
+
+        return null;
+      }
     } catch (e) {
       throw e;
     }
