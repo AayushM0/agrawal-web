@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { getSession } from "@/actions/auth";
 import { getConversations, getMessages, sendMessage, respondToRequest, reportConversation } from "@/actions/chat";
 import { getMemberProfile } from "@/actions/search";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
@@ -20,6 +21,7 @@ function MessagesDashboardContent() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
 
   // Report Modal State
   const [isReporting, setIsReporting] = useState(false);
@@ -27,10 +29,30 @@ function MessagesDashboardContent() {
   const [reportDetails, setReportDetails] = useState("");
   const [reportSubmitted, setReportSubmitted] = useState(false);
 
-  // Supabase Realtime WebSocket Connection
+  // Load session to get current member ID for private notifications
+  useEffect(() => {
+    async function loadCurrentMember() {
+      try {
+        const session = await getSession();
+        if (session?.userId) {
+          setCurrentMemberId(session.userId);
+        }
+      } catch (e) {
+        console.error("Failed to load session:", e);
+      }
+    }
+    loadCurrentMember();
+  }, []);
+
+  // Pusher Realtime WebSocket Connection
   const { isConnected: isRealtimeConnected } = useChatRealtime({
     conversationId: selectedConv?.id || null,
+    currentMemberId,
     onNewMessage: (incomingMsg) => {
+      // Guard against appending messages from other rooms
+      if (selectedConv?.id && String(incomingMsg.conversationId || incomingMsg.conversation_id) !== String(selectedConv.id)) {
+        return;
+      }
       setMessages((prev) => {
         if (prev.some((m) => String(m.id) === String(incomingMsg.id))) {
           return prev;
@@ -40,7 +62,18 @@ function MessagesDashboardContent() {
       fetchConversationList();
     },
     onConversationUpdate: (updatedConv) => {
-      setSelectedConv((prev: any) => ({ ...prev, ...updatedConv }));
+      setSelectedConv((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          status: updatedConv.status || prev.status,
+          lastMessageAt: updatedConv.last_message_at || updatedConv.lastMessageAt || prev.lastMessageAt,
+          lastMessagePreview: updatedConv.last_message_preview || updatedConv.lastMessagePreview || prev.lastMessagePreview,
+        };
+      });
+      fetchConversationList();
+    },
+    onSidebarRefresh: () => {
       fetchConversationList();
     },
   });
@@ -80,7 +113,15 @@ function MessagesDashboardContent() {
         });
 
         if (res.conversation) {
-          setSelectedConv((prev: any) => ({ ...prev, ...res.conversation }));
+          setSelectedConv((prev: any) => {
+            if (!prev) return res.conversation;
+            return {
+              ...prev,
+              status: res.conversation.status || prev.status,
+              lastMessageAt: res.conversation.last_message_at || res.conversation.lastMessageAt || prev.lastMessageAt,
+              lastMessagePreview: res.conversation.last_message_preview || res.conversation.lastMessagePreview || prev.lastMessagePreview,
+            };
+          });
         }
       }
     } catch (err: any) {
