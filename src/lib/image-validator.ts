@@ -47,7 +47,8 @@ export function validateProfileImage(photoUrl?: string): { valid: boolean; error
     // WebP: 'UklGR' (52 49 46 46 ... 57 45 42 50)
     const isJpeg = b64Data.startsWith("/9j/");
     const isPng = b64Data.startsWith("iVBORw0KGgo");
-    const isWebp = b64Data.startsWith("UklGR");
+    // WebP starts with 'UklG' (corresponding to RIFF). The 5th character is variable depending on file size.
+    const isWebp = b64Data.startsWith("UklG");
 
     if (!isJpeg && !isPng && !isWebp) {
       return { valid: false, error: "Corrupted image or unsupported format. File signature mismatch." };
