@@ -47,3 +47,12 @@ test("Checklist 3: Security headers configured in next.config.ts", () => {
   assert.ok(config.includes("X-Content-Type-Options"), "Must declare nosniff");
   assert.ok(config.includes("Referrer-Policy"), "Must declare Referrer-Policy");
 });
+
+test("Checklist 4: Supabase Row-Level Security (RLS) enabled in schema.sql", () => {
+  const schemaPath = path.join(webRoot, "src/db/schema.sql");
+  const schema = fs.readFileSync(schemaPath, "utf8");
+
+  assert.ok(schema.includes("ALTER TABLE households ENABLE ROW LEVEL SECURITY;"), "households RLS must be enabled");
+  assert.ok(schema.includes("ALTER TABLE members ENABLE ROW LEVEL SECURITY;"), "members RLS must be enabled");
+  assert.ok(schema.includes("CREATE POLICY \"Allow Realtime messages select\""), "messages Realtime policy must exist");
+});

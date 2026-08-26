@@ -149,6 +149,22 @@ async function ensureSchema(client: any) {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_admin_login_ip_created ON admin_login_attempts(ip_address, created_at DESC);
+
+      -- Enable RLS on all tables (Supabase advisor fix)
+      ALTER TABLE households ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE members ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE conversations ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE message_reports ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE otp_rate_limits ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE admin_login_attempts ENABLE ROW LEVEL SECURITY;
+
+      -- Allow SELECT to anon for Realtime web-socket updates
+      DROP POLICY IF EXISTS "Allow Realtime conversations select" ON conversations;
+      CREATE POLICY "Allow Realtime conversations select" ON conversations FOR SELECT TO anon USING (true);
+
+      DROP POLICY IF EXISTS "Allow Realtime messages select" ON messages;
+      CREATE POLICY "Allow Realtime messages select" ON messages FOR SELECT TO anon USING (true);
     `);
     schemaEnsured = true;
   } catch (err) {
