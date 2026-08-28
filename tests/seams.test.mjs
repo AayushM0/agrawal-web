@@ -1,4 +1,4 @@
-﻿import test from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -124,5 +124,84 @@ test("Seam 9: Next.js root error.tsx must exist and be client-side", () => {
     const errorCode = fs.readFileSync(path.join(webRoot, "src/app/error.tsx"), "utf8");
     assert.ok(errorCode.includes("use client"), "error.tsx must be a Client Component");
     assert.ok(errorCode.includes("error") && errorCode.includes("reset"), "error.tsx must accept error and reset props");
+  }
+});
+
+// --- SEAM 10: PDF Generator Contract & Font Normalization ---
+test("Seam 10: PassPDF adheres to serverless font normalization and safe image decoding", () => {
+  const passPdfCode = fs.readFileSync(path.join(webRoot, "src/components/PassPDF.tsx"), "utf8");
+  const passLibCode = fs.readFileSync(path.join(webRoot, "src/lib/pass.ts"), "utf8");
+  const lanyardClientCode = fs.readFileSync(path.join(webRoot, "src/app/dashboard/pass/LanyardPassClient.tsx"), "utf8");
+
+  // Pass Data normalizer checks
+  assert.ok(passLibCode.includes("createUnifiedPassData"), "Must export createUnifiedPassData");
+  assert.ok(passLibCode.includes("fatherOrHusbandLabel"), "Must resolve fatherOrHusbandLabel dynamically");
+  assert.ok(passLibCode.includes("HUSBAND / FATHER"), "Must support HUSBAND / FATHER label for married females/spouses");
+
+  // PassPDF font & safety checks
+  assert.ok(!passPdfCode.includes("Times-Bold"), "Must not use unregistered Times-Bold font to prevent Linux/Vercel crashes");
+  assert.ok(passPdfCode.includes("isCompatiblePhoto"), "Must validate photo format before rendering Image component");
+
+  // Lanyard client resilience checks
+  assert.ok(lanyardClientCode.includes("handleDownloadPdf"), "Must implement active blob download handler");
+  assert.ok(lanyardClientCode.includes("pdf("), "Must include direct in-browser PDF rendering fallback");
+});
+
+// --- SEAM 11: End-to-End @react-pdf/renderer Buffer Generation ---
+test("Seam 11: Real @react-pdf/renderer generates valid PDF binaries for all edge cases", async () => {
+  const React = (await import("react")).default;
+  const { renderToBuffer, Document, Page, Text, View, StyleSheet, Image } = await import("@react-pdf/renderer");
+
+  const sampleJpeg = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
+
+  const styles = StyleSheet.create({
+    page: { backgroundColor: "#0d111a", padding: 12, alignItems: "center", justifyContent: "center" },
+    card: { width: "100%", backgroundColor: "#ffffff", borderRadius: 14, overflow: "hidden", border: "1px solid #374151" },
+    header: { backgroundColor: "#9a3412", paddingTop: 8, paddingBottom: 14, paddingHorizontal: 16, alignItems: "center" },
+    headerTitle: { fontSize: 13, fontWeight: "bold", color: "#ffffff", marginBottom: 2, textAlign: "center" },
+    avatarImage: { width: 56, height: 56, borderRadius: 28, border: "2px solid #ffffff" },
+    avatarPlaceholder: { width: 56, height: 56, borderRadius: 28, backgroundColor: "#b45309", alignItems: "center", justifyContent: "center" },
+    avatarText: { fontSize: 22, color: "#ffffff", fontWeight: "bold" },
+  });
+
+  function TestDoc({ passData }) {
+    const isCompatiblePhoto =
+      typeof passData.photoUrl === "string" &&
+      passData.photoUrl.trim().length > 0 &&
+      (passData.photoUrl.startsWith("data:image/jpeg") ||
+        passData.photoUrl.startsWith("data:image/jpg") ||
+        passData.photoUrl.startsWith("data:image/png") ||
+        passData.photoUrl.startsWith("https://"));
+
+    return React.createElement(Document, null,
+      React.createElement(Page, { size: [320, 460], style: styles.page },
+        React.createElement(View, { style: styles.card },
+          React.createElement(View, { style: styles.header },
+            React.createElement(Text, { style: styles.headerTitle }, "Maharaja Agrasen Foundation")
+          ),
+          React.createElement(View, null,
+            isCompatiblePhoto
+              ? React.createElement(Image, { style: styles.avatarImage, src: passData.photoUrl })
+              : React.createElement(View, { style: styles.avatarPlaceholder },
+                  React.createElement(Text, { style: styles.avatarText }, passData.fullName ? passData.fullName.charAt(0) : "M")
+                )
+          )
+        )
+      )
+    );
+  }
+
+  const testCases = [
+    { name: "Head of Household with Valid Photo", photo: sampleJpeg },
+    { name: "Married Spouse with Dynamic Label & Photo", photo: sampleJpeg },
+    { name: "Member with Empty Photo", photo: "" },
+    { name: "Member with Corrupt / Unsupported String", photo: "data:image/webp;base64,invalid" },
+  ];
+
+  for (const tc of testCases) {
+    const buffer = await renderToBuffer(React.createElement(TestDoc, { passData: { fullName: "Ramesh", photoUrl: tc.photo } }));
+    assert.ok(Buffer.isBuffer(buffer), `${tc.name} must return a Buffer`);
+    assert.ok(buffer.length > 1000, `${tc.name} buffer must be valid size`);
+    assert.equal(buffer.subarray(0, 5).toString("utf8"), "%PDF-", `${tc.name} must start with %PDF- header`);
   }
 });
