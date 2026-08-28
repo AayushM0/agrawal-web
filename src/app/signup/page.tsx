@@ -1798,15 +1798,31 @@ export default function SignupPage() {
                       {additionalMembers.map((m, idx) => (
                         <div
                           key={m.id}
-                          className="p-3 rounded-xl bg-white border border-brand-accent/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                          className="p-3 rounded-xl bg-white border border-brand-accent/20 flex flex-col sm:flex-row sm:items-start justify-between gap-2"
                         >
-                          <div>
-                            <span className="font-bold text-brand-primary">{idx + 1}. {m.fullName}</span>
-                            <span className="text-body-muted ml-2">({m.relationToHead})</span>
-                            <span className="text-body-muted ml-2">• DOB: {m.dob}</span>
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-brand-primary">{idx + 1}. {m.fullName}</span>
+                              <span className="text-body-muted text-[11px] capitalize">({m.relationToHead})</span>
+                              {m.dob && <span className="text-body-muted text-[11px]">• Born {m.dob.split("-")[0]}</span>}
+                            </div>
+                            <p className="text-[11px] text-body-heading">
+                              {m.maritalStatus === "Married" && (m.gender === "Female" || m.relationToHead === "spouse")
+                                ? `Father/Husband: ${m.fatherName || "N/A"}`
+                                : `Father: ${m.fatherName || "N/A"}`}
+                              {m.maritalStatus === "Married" && m.anniversaryDate && (
+                                <span className="text-brand-gold ml-2">💍 Anniv: {m.anniversaryDate}</span>
+                              )}
+                            </p>
+                            {m.hasCustomAddress && (
+                              <p className="text-[10px] text-amber-900 font-medium">
+                                📍 Custom Address: {m.currentCity || ""}, {m.state || ""} ({m.currentCountry || "India"})
+                              </p>
+                            )}
                           </div>
-                          <div className="text-[11px] text-body-muted">
-                            {m.professionTitle || m.profession || "Unspecified"}
+                          <div className="text-[11px] text-body-muted sm:text-right">
+                            <span className="font-medium text-body-heading">{m.professionTitle || m.profession || "Unspecified"}</span>
+                            {m.companyName && <span className="block text-[10px] text-body-muted">at {m.companyName}</span>}
                           </div>
                         </div>
                       ))}

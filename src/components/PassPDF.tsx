@@ -314,7 +314,7 @@ export function PassPDF({ passData }: { passData: any }) {
             <View style={styles.metaGrid}>
               {passData.fatherName ? (
                 <View style={styles.metaCol}>
-                  <Text style={styles.metaLabel}>FATHER</Text>
+                  <Text style={styles.metaLabel}>{passData.fatherOrHusbandLabel || "FATHER"}</Text>
                   <Text style={styles.metaValue}>{passData.fatherName}</Text>
                 </View>
               ) : null}
