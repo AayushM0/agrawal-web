@@ -25,6 +25,7 @@ interface PassData {
 }
 
 import { PassPDF } from "@/components/PassPDF";
+import { convertToJpegDataUrl } from "@/lib/image-optimizer";
 
 export default function LanyardPassClient({ passData }: { passData: PassData }) {
   const router = useRouter();
@@ -54,7 +55,9 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
       if (!blob) {
         // Direct browser rendering fallback via @react-pdf/renderer
         const { pdf } = await import("@react-pdf/renderer");
-        const doc = <PassPDF passData={passData} />;
+        const normalizedPhotoUrl = await convertToJpegDataUrl(photoUrl);
+        const activePassData = { ...passData, photoUrl: normalizedPhotoUrl };
+        const doc = <PassPDF passData={activePassData} />;
         blob = await pdf(doc).toBlob();
       }
 

@@ -263,11 +263,10 @@ export function PassPDF({ passData }: { passData: any }) {
 
   const isCompatiblePhoto =
     typeof passData.photoUrl === "string" &&
-    passData.photoUrl.trim().length > 0 &&
-    (passData.photoUrl.startsWith("data:image/jpeg") ||
-      passData.photoUrl.startsWith("data:image/jpg") ||
-      passData.photoUrl.startsWith("data:image/png") ||
-      passData.photoUrl.startsWith("https://"));
+    passData.photoUrl.trim().length > 10 &&
+    (passData.photoUrl.startsWith("data:image/") ||
+      passData.photoUrl.startsWith("https://") ||
+      passData.photoUrl.startsWith("http://"));
 
   return (
     <Document>
