@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { getMemberProfile } from "@/actions/search";
 import { revealContact } from "@/actions/reveal";
-import { calculateAge, maskPhone, maskEmail } from "@/lib/privacy";
+import { maskPhone, maskEmail } from "@/lib/privacy";
 
 export default function MemberProfilePage() {
   const params = useParams();
@@ -79,8 +79,6 @@ export default function MemberProfilePage() {
     );
   }
 
-  const age = calculateAge(member.dob);
-
   return (
     <main className="py-12 bg-canvas-page">
       <div className="max-w-3xl mx-auto px-4">
@@ -104,9 +102,9 @@ export default function MemberProfilePage() {
                 <span className="text-[11px] font-mono font-bold va-badge-gold px-2.5 py-0.5 rounded-full">
                   #{member.serialNo || member.householdCode}
                 </span>
-                {age !== null && (
+                {member.birthYear && (
                   <span className="text-[11px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
-                    {age} yrs
+                    Born {member.birthYear}
                   </span>
                 )}
               </div>
@@ -115,7 +113,7 @@ export default function MemberProfilePage() {
               </p>
               {member.fatherName && (
                 <p className="text-xs font-semibold text-body-heading mb-1.5">
-                  <span className="text-body-muted">Father&apos;s Name (पिता का नाम):</span> {member.fatherName}
+                  <span className="text-body-muted">Father&apos;s / Husband&apos;s Name:</span> {member.fatherName}
                 </p>
               )}
               <p className="text-xs text-body-heading font-medium">
@@ -150,7 +148,7 @@ export default function MemberProfilePage() {
             </div>
 
             <div>
-              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Father&apos;s Full Name</span>
+              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Father&apos;s / Guardian&apos;s Name</span>
               <p className="font-semibold text-body-heading">{member.fatherName || "Not specified"}</p>
             </div>
 
@@ -160,9 +158,9 @@ export default function MemberProfilePage() {
             </div>
 
             <div>
-              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Calculated Age</span>
+              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Birth Year</span>
               <p className="font-semibold text-body-heading">
-                {age !== null ? `${age} years` : "Not specified"}
+                {member.birthYear ? member.birthYear : "Not specified"}
               </p>
             </div>
 
@@ -172,6 +170,20 @@ export default function MemberProfilePage() {
                 {member.serialNo || member.householdCode}
               </p>
             </div>
+
+            {member.aadhaarNumber && (
+              <div>
+                <span className="text-[11px] font-bold text-body-muted block mb-0.5">Aadhaar Card (आधार)</span>
+                <p className="font-mono font-semibold text-body-heading">{member.aadhaarNumber}</p>
+              </div>
+            )}
+
+            {member.panNumber && (
+              <div>
+                <span className="text-[11px] font-bold text-body-muted block mb-0.5">PAN Card (पैन)</span>
+                <p className="font-mono font-semibold text-body-heading">{member.panNumber}</p>
+              </div>
+            )}
           </div>
 
           {member.bio && (

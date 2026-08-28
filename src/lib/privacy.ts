@@ -13,6 +13,26 @@ export function calculateAge(dobStr?: string): number | null {
   return age >= 0 ? age : null;
 }
 
+export function extractBirthYear(dobStr?: string): number | null {
+  if (!dobStr || !dobStr.trim()) return null;
+  const clean = dobStr.trim();
+  const yearMatch = clean.match(/^(\d{4})/);
+  if (yearMatch) {
+    const y = parseInt(yearMatch[1], 10);
+    if (y >= 1900 && y <= new Date().getFullYear()) {
+      return y;
+    }
+  }
+  const date = new Date(clean);
+  if (!isNaN(date.getTime())) {
+    const y = date.getFullYear();
+    if (y >= 1900 && y <= new Date().getFullYear()) {
+      return y;
+    }
+  }
+  return null;
+}
+
 export function maskPhone(phone?: string): string {
   if (!phone) return "Not provided";
   const clean = phone.trim();
@@ -46,9 +66,14 @@ export function maskContact(contact?: string | null): string {
 export function sanitizeMemberProfile(member: any, session: SessionData | null): any {
   if (!member) return null;
 
+  const birthYear = extractBirthYear(member.dob);
+
   // If Admin, full unmasked data is permitted
   if (session?.role === "admin") {
-    return member;
+    return {
+      ...member,
+      birthYear,
+    };
   }
 
   const isSelf =
@@ -58,7 +83,10 @@ export function sanitizeMemberProfile(member: any, session: SessionData | null):
       (member.email && member.email.toLowerCase() === session.contact.toLowerCase()));
 
   if (isSelf) {
-    return member;
+    return {
+      ...member,
+      birthYear,
+    };
   }
 
   // Public / non-owner view: strip / mask sensitive identity attributes and contacts
@@ -66,6 +94,8 @@ export function sanitizeMemberProfile(member: any, session: SessionData | null):
     ...member,
     phone: maskPhone(member.phone),
     email: maskEmail(member.email),
+    dob: undefined, // Protect exact birth day and month from public view
+    birthYear,
     aadhaarNumber: member.aadhaarNumber ? maskGovtId(member.aadhaarNumber) : undefined,
     panNumber: member.panNumber ? maskGovtId(member.panNumber) : undefined,
     passportNumber: member.passportNumber ? maskGovtId(member.passportNumber) : undefined,
