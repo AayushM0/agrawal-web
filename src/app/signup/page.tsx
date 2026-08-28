@@ -437,6 +437,24 @@ export default function SignupPage() {
         showToast(msg, "error");
         return;
       }
+      if (m.aadhaarNumber && m.aadhaarNumber.trim()) {
+        const cleanAadhaar = m.aadhaarNumber.replace(/[^0-9]/g, "");
+        if (cleanAadhaar.length !== 12) {
+          const msg = `Aadhaar Number for ${m.fullName || `Member #${i + 1}`} must be exactly 12 digits.`;
+          setStep3Error(msg);
+          showToast(msg, "error");
+          return;
+        }
+      }
+      if (m.panNumber && m.panNumber.trim()) {
+        const cleanPan = m.panNumber.trim().toUpperCase();
+        if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
+          const msg = `PAN Number for ${m.fullName || `Member #${i + 1}`} must be 10 characters (e.g. ABCDE1234F).`;
+          setStep3Error(msg);
+          showToast(msg, "error");
+          return;
+        }
+      }
       if (m.phone && m.phone.trim()) {
         const checkPhone = await checkContactAvailability(m.phone.trim(), m.id);
         if (!checkPhone.available && checkPhone.conflict) {
@@ -1605,6 +1623,24 @@ export default function SignupPage() {
 
                             {member.hasCustomAddress && (
                               <div className="p-3.5 rounded-xl bg-white border border-brand-accent/30 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 animate-in fade-in">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-body-heading mb-1">Country (देश)</label>
+                                  <select
+                                    value={member.currentCountry || "India"}
+                                    onChange={(e) => updateAdditionalMember(member.id, "currentCountry", e.target.value)}
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-brand-accent/30 text-xs bg-canvas-warm/20"
+                                  >
+                                    <option value="India">India (भारत)</option>
+                                    <option value="Singapore">Singapore</option>
+                                    <option value="United Arab Emirates">UAE (संयुक्त अरब अमीरात)</option>
+                                    <option value="United States">United States</option>
+                                    <option value="United Kingdom">United Kingdom</option>
+                                    <option value="Australia">Australia</option>
+                                    <option value="Canada">Canada</option>
+                                    <option value="Nepal">Nepal</option>
+                                    <option value="Other">Other Country</option>
+                                  </select>
+                                </div>
                                 <div>
                                   <label className="block text-[10px] font-bold text-body-heading mb-1">City / District</label>
                                   <input

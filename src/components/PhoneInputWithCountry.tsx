@@ -28,12 +28,37 @@ export const POPULAR_COUNTRY_DIAL_CODES: CountryDialCode[] = [
   { name: "Germany", code: "DE", dialCode: "+49", flag: "🇩🇪" },
   { name: "France", code: "FR", dialCode: "+33", flag: "🇫🇷" },
   { name: "Netherlands", code: "NL", dialCode: "+31", flag: "🇳🇱" },
+  { name: "Switzerland", code: "CH", dialCode: "+41", flag: "🇨🇭" },
   { name: "Hong Kong", code: "HK", dialCode: "+852", flag: "🇭🇰" },
+  { name: "Japan", code: "JP", dialCode: "+81", flag: "🇯🇵" },
   { name: "Indonesia", code: "ID", dialCode: "+62", flag: "🇮🇩" },
   { name: "New Zealand", code: "NZ", dialCode: "+64", flag: "🇳🇿" },
   { name: "Mauritius", code: "MU", dialCode: "+230", flag: "🇲🇺" },
   { name: "Kenya", code: "KE", dialCode: "+254", flag: "🇰🇪" },
   { name: "South Africa", code: "ZA", dialCode: "+27", flag: "🇿🇦" },
+  { name: "Nigeria", code: "NG", dialCode: "+234", flag: "🇳🇬" },
+  { name: "Bangladesh", code: "BD", dialCode: "+880", flag: "🇧🇩" },
+  { name: "Sri Lanka", code: "LK", dialCode: "+94", flag: "🇱🇰" },
+  { name: "Philippines", code: "PH", dialCode: "+63", flag: "🇵🇭" },
+  { name: "Vietnam", code: "VN", dialCode: "+84", flag: "🇻🇳" },
+  { name: "Ireland", code: "IE", dialCode: "+353", flag: "🇮🇪" },
+  { name: "Italy", code: "IT", dialCode: "+39", flag: "🇮🇹" },
+  { name: "Spain", code: "ES", dialCode: "+34", flag: "🇪🇸" },
+  { name: "Sweden", code: "SE", dialCode: "+46", flag: "🇸🇪" },
+  { name: "Belgium", code: "BE", dialCode: "+32", flag: "🇧🇪" },
+  { name: "Austria", code: "AT", dialCode: "+43", flag: "🇦🇹" },
+  { name: "Poland", code: "PL", dialCode: "+48", flag: "🇵🇱" },
+  { name: "Portugal", code: "PT", dialCode: "+351", flag: "🇵🇹" },
+  { name: "Norway", code: "NO", dialCode: "+47", flag: "🇳🇴" },
+  { name: "Denmark", code: "DK", dialCode: "+45", flag: "🇩🇰" },
+  { name: "Finland", code: "FI", dialCode: "+358", flag: "🇫🇮" },
+  { name: "Brazil", code: "BR", dialCode: "+55", flag: "🇧🇷" },
+  { name: "Mexico", code: "MX", dialCode: "+52", flag: "🇲🇽" },
+  { name: "Argentina", code: "AR", dialCode: "+54", flag: "🇦🇷" },
+  { name: "Israel", code: "IL", dialCode: "+972", flag: "🇮🇱" },
+  { name: "Turkey", code: "TR", dialCode: "+90", flag: "🇹🇷" },
+  { name: "Egypt", code: "EG", dialCode: "+20", flag: "🇪🇬" },
+  { name: "Other / International", code: "INT", dialCode: "+", flag: "🌐" },
 ];
 
 interface PhoneInputWithCountryProps {
@@ -57,37 +82,36 @@ export default function PhoneInputWithCountry({
   defaultCountryCode = "+91",
   id,
 }: PhoneInputWithCountryProps) {
-  // Parse incoming value into dial code & national number
-  const parsed = useMemo(() => {
-    if (!value) return { dialCode: defaultCountryCode, national: "" };
+  const [selectedDialCode, setSelectedDialCode] = useState<string>(defaultCountryCode);
+  const [nationalNumber, setNationalNumber] = useState<string>("");
+
+  // Sync state when external value changes
+  useEffect(() => {
+    if (!value) {
+      setNationalNumber("");
+      return;
+    }
     const clean = value.trim();
     if (clean.startsWith("+")) {
-      // Find matching dial code from list (sorted by dialCode length desc to avoid prefix collisions like +1 vs +1242)
-      const sorted = [...POPULAR_COUNTRY_DIAL_CODES].sort((a, b) => b.dialCode.length - a.dialCode.length);
+      const sorted = [...POPULAR_COUNTRY_DIAL_CODES]
+        .filter((c) => c.dialCode !== "+")
+        .sort((a, b) => b.dialCode.length - a.dialCode.length);
       const matched = sorted.find((c) => clean.startsWith(c.dialCode));
       if (matched) {
-        return {
-          dialCode: matched.dialCode,
-          national: clean.slice(matched.dialCode.length).trim(),
-        };
+        setSelectedDialCode(matched.dialCode);
+        const remainder = clean.slice(matched.dialCode.length).trim();
+        setNationalNumber(remainder);
+        return;
       }
     }
-    return { dialCode: defaultCountryCode, national: clean };
-  }, [value, defaultCountryCode]);
-
-  const [selectedDialCode, setSelectedDialCode] = useState(parsed.dialCode);
-  const [nationalNumber, setNationalNumber] = useState(parsed.national);
-
-  // Sync internal state when outer value changes externally
-  useEffect(() => {
-    setSelectedDialCode(parsed.dialCode);
-    setNationalNumber(parsed.national);
-  }, [parsed.dialCode, parsed.national]);
+    setNationalNumber(clean);
+  }, [value]);
 
   const handleDialCodeChange = (newDialCode: string) => {
     setSelectedDialCode(newDialCode);
-    const full = nationalNumber.trim() ? `${newDialCode} ${nationalNumber.trim()}` : "";
-    onChange(full, newDialCode, nationalNumber.trim());
+    const rawDigits = nationalNumber.replace(/[^0-9]/g, "").replace(/^0+/, "");
+    const full = rawDigits ? `${newDialCode} ${rawDigits}` : "";
+    onChange(full, newDialCode, rawDigits);
   };
 
   const handleNationalNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,7 +119,9 @@ export default function PhoneInputWithCountry({
     // Allow digits, spaces, hyphens
     const cleaned = rawVal.replace(/[^0-9\s-]/g, "");
     setNationalNumber(cleaned);
-    const rawDigits = cleaned.replace(/[^0-9]/g, "");
+    
+    // Strip leading national trunk prefix (e.g. 09876543210 -> 9876543210)
+    const rawDigits = cleaned.replace(/[^0-9]/g, "").replace(/^0+/, "");
     const full = rawDigits ? `${selectedDialCode} ${rawDigits}` : "";
     onChange(full, selectedDialCode, rawDigits);
   };
@@ -109,7 +135,7 @@ export default function PhoneInputWithCountry({
           disabled={disabled}
           onChange={(e) => handleDialCodeChange(e.target.value)}
           aria-label="Select Country Dialing Code"
-          className="appearance-none bg-transparent pl-2.5 pr-6 py-2.5 sm:py-3 text-xs font-bold text-brand-primary cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+          className="appearance-none bg-transparent pl-2.5 pr-6 py-2.5 sm:py-3 text-xs font-bold text-brand-primary cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed max-w-[140px] sm:max-w-[160px] truncate"
         >
           {POPULAR_COUNTRY_DIAL_CODES.map((c) => (
             <option key={`${c.code}-${c.dialCode}`} value={c.dialCode} className="text-body-heading bg-white py-1">

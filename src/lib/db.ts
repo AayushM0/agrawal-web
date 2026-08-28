@@ -95,6 +95,8 @@ async function ensureSchema(client: any) {
 
       ALTER TABLE members ADD COLUMN IF NOT EXISTS profession_title TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS profession_description TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS company_name TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS anniversary_date TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS postal_code TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS state TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS full_address TEXT;
@@ -314,6 +316,7 @@ export const db = {
                 dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
                 current_country as "currentCountry", postal_code as "postalCode", state, full_address as "fullAddress",
                 profession_freetext as "profession", profession_title as "professionTitle", profession_description as "professionDescription",
+                company_name as "companyName", anniversary_date as "anniversaryDate",
                 phone, email, father_name as "fatherName", photo_url as "photoUrl", bio,
                 aadhaar_number as "aadhaarNumber", pan_number as "panNumber", passport_number as "passportNumber", govt_id_number as "govtIdNumber",
                 verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
@@ -416,6 +419,7 @@ export const db = {
             id, household_id, full_name, relation_to_head, dob, gender, marital_status,
             current_city, current_country, postal_code, state, full_address,
             profession_freetext, profession_title, profession_description,
+            company_name, anniversary_date,
             phone, email, father_name, photo_url, bio,
             aadhaar_number, pan_number, passport_number, govt_id_number,
             visibility_contact, visibility_dob, visibility_photo, verified_by_self, owner_locked
@@ -423,9 +427,10 @@ export const db = {
             gen_random_uuid(), $1, $2, $3, $4, $5, $6,
             $7, $8, $9, $10, $11,
             $12, $13, $14,
-            $15, $16, $17, $18, $19,
-            $20, $21, $22, $23,
-            $24, $25, $26, $27, $28
+            $15, $16,
+            $17, $18, $19, $20, $21,
+            $22, $23, $24, $25,
+            $26, $27, $28, $29, $30
           );
         `;
         await client.query(insertMQuery, [
@@ -443,6 +448,8 @@ export const db = {
           m.profession || "Not specified",
           m.professionTitle || m.profession || null,
           m.professionDescription || null,
+          m.companyName || null,
+          m.anniversaryDate || null,
           m.phone || null,
           m.email || null,
           m.fatherName || null,
@@ -481,6 +488,7 @@ export const db = {
           m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
           m.current_country as "currentCountry", m.postal_code as "postalCode", m.state, m.full_address as "fullAddress",
           m.profession_freetext as "profession", m.profession_title as "professionTitle", m.profession_description as "professionDescription",
+          m.company_name as "companyName", m.anniversary_date as "anniversaryDate",
           m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
           m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
           h.household_code as "householdCode", h.serial_no as "serialNo", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
@@ -545,8 +553,9 @@ export const db = {
         SELECT 
           m.id, m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
           m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
-          m.current_country as "currentCountry", m.postal_code as "postalCode", m.state, m.full_address as "fullAddress",
+          m.current_country as "currentCountry", m.postal_code as "postalCode", state, m.full_address as "fullAddress",
           m.profession_freetext as "profession", m.profession_title as "professionTitle", m.profession_description as "professionDescription",
+          m.company_name as "companyName", m.anniversary_date as "anniversaryDate",
           m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
           m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
           m.aadhaar_number as "aadhaarNumber", m.pan_number as "panNumber", m.passport_number as "passportNumber", m.govt_id_number as "govtIdNumber",
@@ -593,6 +602,7 @@ export const db = {
                 dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
                 current_country as "currentCountry", postal_code as "postalCode", state, full_address as "fullAddress",
                 profession_freetext as "profession", profession_title as "professionTitle", profession_description as "professionDescription",
+                company_name as "companyName", anniversary_date as "anniversaryDate",
                 phone, email, father_name as "fatherName", photo_url as "photoUrl", bio,
                 aadhaar_number as "aadhaarNumber", pan_number as "panNumber", passport_number as "passportNumber", govt_id_number as "govtIdNumber",
                 verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",

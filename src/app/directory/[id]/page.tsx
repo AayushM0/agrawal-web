@@ -171,6 +171,15 @@ export default function MemberProfilePage() {
               </p>
             </div>
 
+            {member.isGovtIdVerified && !member.aadhaarNumber && !member.panNumber && (
+              <div>
+                <span className="text-[11px] font-bold text-body-muted block mb-0.5">Government ID Verification</span>
+                <p className="font-semibold text-emerald-700 flex items-center gap-1 text-xs">
+                  <span>✓</span> Verified Government ID
+                </p>
+              </div>
+            )}
+
             {member.aadhaarNumber && (
               <div>
                 <span className="text-[11px] font-bold text-body-muted block mb-0.5">Aadhaar Card (आधार)</span>

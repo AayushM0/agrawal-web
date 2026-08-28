@@ -174,6 +174,14 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
       return { success: false, error: `Member #${i + 1} name must be between 2 and 100 characters.` };
     }
 
+    const memberFatherName = m.fatherName?.trim();
+    if (!memberFatherName || memberFatherName.length < 2 || memberFatherName.length > 100) {
+      return {
+        success: false,
+        error: `Father's / Husband's Name (पिता / पति का नाम) is required for member #${i + 1} (${memberName}).`,
+      };
+    }
+
     if (m.relationToHead && !VALID_RELATIONS.has(m.relationToHead.trim().toLowerCase())) {
       return { success: false, error: `Invalid relation '${m.relationToHead}' for member #${i + 1}.` };
     }
@@ -203,6 +211,27 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
         success: false,
         error: `Invalid photograph for ${memberName}: ${photoCheck.error || "Please upload a standard JPEG, PNG, or WebP image under 5MB."}`,
       };
+    }
+
+    // Validation for member Aadhaar & PAN when provided
+    if (m.aadhaarNumber && m.aadhaarNumber.trim()) {
+      const cleanMemberAadhaar = m.aadhaarNumber.replace(/[^0-9]/g, "");
+      if (cleanMemberAadhaar.length !== 12) {
+        return {
+          success: false,
+          error: `Aadhaar Number for ${memberName} must be exactly 12 digits.`,
+        };
+      }
+    }
+
+    if (m.panNumber && m.panNumber.trim()) {
+      const cleanMemberPan = m.panNumber.trim().toUpperCase();
+      if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanMemberPan)) {
+        return {
+          success: false,
+          error: `PAN Number for ${memberName} must follow standard 10-character format (e.g. ABCDE1234F).`,
+        };
+      }
     }
 
     // Check contact conflicts for additional members
@@ -268,8 +297,11 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
       profession: m.profession?.trim() || "",
       professionTitle: m.professionTitle?.trim() || m.profession?.trim() || "",
       professionDescription: m.professionDescription?.trim() || undefined,
-      aadhaarNumber: idx === 0 ? cleanAadhaar : (m.aadhaarNumber?.replace(/[^0-9]/g, "") || undefined),
-      panNumber: idx === 0 ? cleanPan : (m.panNumber?.trim().toUpperCase() || undefined),
+      companyName: m.companyName?.trim() || undefined,
+      anniversaryDate: m.anniversaryDate?.trim() || undefined,
+      hasCustomAddress: Boolean(m.hasCustomAddress),
+      aadhaarNumber: idx === 0 ? cleanAadhaar : (m.aadhaarNumber ? m.aadhaarNumber.replace(/[^0-9]/g, "") : undefined),
+      panNumber: idx === 0 ? cleanPan : (m.panNumber ? m.panNumber.trim().toUpperCase() : undefined),
       passportNumber: idx === 0 ? cleanPassport : (m.passportNumber?.trim().toUpperCase() || undefined),
       govtIdNumber: idx === 0 ? cleanGovtId : (m.govtIdNumber?.trim().toUpperCase() || undefined),
       id: `m-${Date.now()}-${idx}`,

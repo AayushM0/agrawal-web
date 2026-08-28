@@ -68,11 +68,16 @@ export function sanitizeMemberProfile(member: any, session: SessionData | null):
 
   const birthYear = extractBirthYear(member.dob);
 
+  const isGovtIdVerified = Boolean(
+    member.aadhaarNumber || member.panNumber || member.passportNumber || member.govtIdNumber
+  );
+
   // If Admin, full unmasked data is permitted
   if (session?.role === "admin") {
     return {
       ...member,
       birthYear,
+      isGovtIdVerified,
     };
   }
 
@@ -86,20 +91,22 @@ export function sanitizeMemberProfile(member: any, session: SessionData | null):
     return {
       ...member,
       birthYear,
+      isGovtIdVerified,
     };
   }
 
-  // Public / non-owner view: strip / mask sensitive identity attributes and contacts
+  // Public / non-owner view: strip sensitive identity attributes, exact DOB, and full addresses
   return {
     ...member,
     phone: maskPhone(member.phone),
     email: maskEmail(member.email),
     dob: undefined, // Protect exact birth day and month from public view
     birthYear,
-    aadhaarNumber: member.aadhaarNumber ? maskGovtId(member.aadhaarNumber) : undefined,
-    panNumber: member.panNumber ? maskGovtId(member.panNumber) : undefined,
-    passportNumber: member.passportNumber ? maskGovtId(member.passportNumber) : undefined,
-    govtIdNumber: member.govtIdNumber ? maskGovtId(member.govtIdNumber) : undefined,
+    isGovtIdVerified,
+    aadhaarNumber: undefined, // Never leak sensitive ID fragments to non-owners
+    panNumber: undefined,
+    passportNumber: undefined,
+    govtIdNumber: undefined,
     fullAddress: undefined, // Hidden in public directory view
   };
 }
