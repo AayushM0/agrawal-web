@@ -105,8 +105,10 @@ export default function DashboardPage() {
       return;
     }
 
-    if (editingMember.relationToHead === "self" && (!editingMember.fatherName || editingMember.fatherName.trim().length < 2)) {
-      setMemberSaveError("Father's Name (पिता का नाम) is required for Head of Household.");
+    if (!editingMember.fatherName || editingMember.fatherName.trim().length < 2) {
+      const isSpouseOrMarriedFemale = editingMember.maritalStatus === "Married" && (editingMember.gender === "Female" || editingMember.relationToHead === "spouse");
+      const label = isSpouseOrMarriedFemale ? "Father's / Husband's Name (पिता / पति का नाम)" : "Father's Name (पिता का नाम)";
+      setMemberSaveError(`${label} is required.`);
       return;
     }
 
@@ -122,9 +124,13 @@ export default function DashboardPage() {
       dob: editingMember.dob,
       gender: editingMember.gender,
       maritalStatus: editingMember.maritalStatus,
+      companyName: editingMember.companyName,
+      anniversaryDate: editingMember.anniversaryDate,
       currentCity: editingMember.currentCity,
       currentCountry: editingMember.currentCountry,
-      profession: editingMember.profession,
+      profession: editingMember.professionTitle || editingMember.profession,
+      professionTitle: editingMember.professionTitle,
+      professionDescription: editingMember.professionDescription,
       bio: editingMember.bio,
       visibility: editingMember.visibility,
     });
@@ -487,16 +493,23 @@ export default function DashboardPage() {
                   />
                 </div>
 
-                {/* Father's Name */}
+                {/* Father's / Husband's Name */}
                 <div>
                   <label className="block text-xs font-bold text-body-heading mb-1">
-                    Father&apos;s Full Name (पिता का नाम) {editingMember.relationToHead === "self" ? "*" : "(Optional)"}
+                    {editingMember.maritalStatus === "Married" && (editingMember.gender === "Female" || editingMember.relationToHead === "spouse")
+                      ? "Father's / Husband's Name (पिता / पति का नाम) *"
+                      : "Father's Full Name (पिता का नाम) *"}
                   </label>
                   <input
                     type="text"
+                    required
                     value={editingMember.fatherName || ""}
                     onChange={(e) => setEditingMember({ ...editingMember, fatherName: e.target.value })}
-                    placeholder="e.g. Shri Ramesh Agarwal"
+                    placeholder={
+                      editingMember.maritalStatus === "Married" && (editingMember.gender === "Female" || editingMember.relationToHead === "spouse")
+                        ? "e.g. Husband's or Father's Name"
+                        : "e.g. Shri Ramesh Agarwal"
+                    }
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   />
                 </div>
@@ -547,16 +560,65 @@ export default function DashboardPage() {
                   </select>
                 </div>
 
-                {/* Profession */}
+                {/* Wedding Anniversary Date (Optional for Married) */}
+                {editingMember.maritalStatus === "Married" && (
+                  <div>
+                    <label className="block text-xs font-bold text-body-heading mb-1">
+                      Wedding Anniversary (विवाह तिथि)
+                    </label>
+                    <input
+                      type="date"
+                      value={editingMember.anniversaryDate ? String(editingMember.anniversaryDate).split("T")[0] : ""}
+                      onChange={(e) => setEditingMember({ ...editingMember, anniversaryDate: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                    />
+                  </div>
+                )}
+
+                {/* Profession Title */}
                 <div>
                   <label className="block text-xs font-bold text-body-heading mb-1">
-                    Profession / Occupation (व्यवसाय)
+                    Profession Title (व्यवसाय / पद)
                   </label>
                   <input
                     type="text"
-                    value={editingMember.profession || ""}
-                    onChange={(e) => setEditingMember({ ...editingMember, profession: e.target.value })}
+                    value={editingMember.professionTitle || editingMember.profession || ""}
+                    onChange={(e) =>
+                      setEditingMember({
+                        ...editingMember,
+                        professionTitle: e.target.value,
+                        profession: e.target.value,
+                      })
+                    }
                     placeholder="e.g. Business Owner / Software Engineer"
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                  />
+                </div>
+
+                {/* Company / Business Name */}
+                <div>
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Company / Business (कंपनी का नाम)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingMember.companyName || ""}
+                    onChange={(e) => setEditingMember({ ...editingMember, companyName: e.target.value })}
+                    placeholder="e.g. Agarwal Jewellers / TCS"
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                  />
+                </div>
+
+                {/* Profession Description */}
+                <div className="col-span-full">
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Profession Summary (कार्य का विवरण)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingMember.professionDescription || ""}
+                    onChange={(e) => setEditingMember({ ...editingMember, professionDescription: e.target.value })}
+                    placeholder="Brief description of work, specialization, or business domain..."
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   />
                 </div>

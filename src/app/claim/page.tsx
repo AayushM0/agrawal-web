@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { getClaimMemberDetails, verifyMemberClaim, checkContactAvailability } from "@/actions/claim";
 import { sendOtp } from "@/actions/otp";
+import PhoneInputWithCountry from "@/components/PhoneInputWithCountry";
 
 function ClaimContent() {
   const router = useRouter();
@@ -281,13 +282,23 @@ function ClaimContent() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type={contactType === "phone" ? "tel" : "email"}
-                  value={contactValue}
-                  onChange={(e) => handleContactChange(e.target.value)}
-                  placeholder={contactType === "phone" ? "+91 98765 43210" : "member@example.com"}
-                  className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:ring-2 focus:ring-brand-primary"
-                />
+                {contactType === "phone" ? (
+                  <div className="w-full sm:flex-1">
+                    <PhoneInputWithCountry
+                      value={contactValue}
+                      onChange={(full) => handleContactChange(full)}
+                      placeholder="e.g. 98765 43210"
+                    />
+                  </div>
+                ) : (
+                  <input
+                    type="email"
+                    value={contactValue}
+                    onChange={(e) => handleContactChange(e.target.value)}
+                    placeholder="member@example.com"
+                    className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:ring-2 focus:ring-brand-primary"
+                  />
+                )}
                 <button
                   type="button"
                   onClick={handleSendOtp}

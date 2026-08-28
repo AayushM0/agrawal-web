@@ -6,11 +6,13 @@ import { useRouter } from "next/navigation";
 import { sendOtp, verifyOtp } from "@/actions/otp";
 import { checkContactRegistration } from "@/actions/register";
 import { getSession, createSession, verifyAdminPassword, loginWithVerifiedContact } from "@/actions/auth";
+import PhoneInputWithCountry from "@/components/PhoneInputWithCountry";
 
 export default function LoginPage() {
   const router = useRouter();
 
   const [role, setRole] = useState<"head" | "admin">("head");
+  const [loginMethod, setLoginMethod] = useState<"phone" | "email">("phone");
   const [contact, setContact] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [otp, setOtp] = useState("");
@@ -26,6 +28,7 @@ export default function LoginPage() {
       const stored = sessionStorage.getItem("agrawal_login_contact");
       if (stored) {
         setContact(stored);
+        setLoginMethod(stored.includes("@") ? "email" : "phone");
         sessionStorage.removeItem("agrawal_login_contact");
       }
 
@@ -246,22 +249,74 @@ export default function LoginPage() {
               /* HOUSEHOLD HEAD LOGIN FORM */
               <div className="space-y-4 pt-2">
                 <div>
-                  <label className="block text-xs font-bold text-body-heading mb-1.5">
-                    Registered Mobile (WhatsApp) or Email
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-body-heading">
+                      Verification Method
+                    </label>
+                    <div className="flex gap-3 text-xs">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="loginMethod"
+                          checked={loginMethod === "phone"}
+                          onChange={() => {
+                            setLoginMethod("phone");
+                            setContact("");
+                            setOtpSent(false);
+                            setOtpMessage("");
+                            setErrorMessage("");
+                          }}
+                          className="text-brand-primary focus:ring-brand-primary"
+                        />
+                        <span className="font-semibold text-body-heading">Mobile (OTP)</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="loginMethod"
+                          checked={loginMethod === "email"}
+                          onChange={() => {
+                            setLoginMethod("email");
+                            setContact("");
+                            setOtpSent(false);
+                            setOtpMessage("");
+                            setErrorMessage("");
+                          }}
+                          className="text-brand-primary focus:ring-brand-primary"
+                        />
+                        <span className="font-semibold text-body-heading">Email (OTP)</span>
+                      </label>
+                    </div>
+                  </div>
+
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="text"
-                      value={contact}
-                      onChange={(e) => {
-                        setContact(e.target.value);
-                        setOtpSent(false);
-                        setOtpMessage("");
-                        setErrorMessage("");
-                      }}
-                      placeholder="+91 98765 43210 or email@domain.com"
-                      className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                    />
+                    {loginMethod === "phone" ? (
+                      <div className="w-full sm:flex-1">
+                        <PhoneInputWithCountry
+                          value={contact}
+                          onChange={(full) => {
+                            setContact(full);
+                            setOtpSent(false);
+                            setOtpMessage("");
+                            setErrorMessage("");
+                          }}
+                          placeholder="e.g. 98765 43210"
+                        />
+                      </div>
+                    ) : (
+                      <input
+                        type="email"
+                        value={contact}
+                        onChange={(e) => {
+                          setContact(e.target.value);
+                          setOtpSent(false);
+                          setOtpMessage("");
+                          setErrorMessage("");
+                        }}
+                        placeholder="registered@example.com"
+                        className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={handleSendOtp}

@@ -18,6 +18,9 @@ export interface Member {
   profession: string;
   professionTitle?: string;
   professionDescription?: string;
+  companyName?: string;
+  anniversaryDate?: string;
+  hasCustomAddress?: boolean;
   postalCode?: string;
   state?: string;
   fullAddress?: string;

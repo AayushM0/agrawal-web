@@ -95,6 +95,8 @@ async function ensureSchema(client: any) {
 
       ALTER TABLE members ADD COLUMN IF NOT EXISTS profession_title TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS profession_description TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS company_name TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS anniversary_date TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS postal_code TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS state TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS full_address TEXT;
@@ -203,8 +205,38 @@ export const db = {
   async getHouseholds(): Promise<Household[]> {
     if (!pool) throw new Error("Database not connected");
     try {
-      const res = await pool.query("SELECT * FROM households ORDER BY created_at DESC;");
-      return res.rows.map(h => ({
+      const hRes = await pool.query("SELECT * FROM households ORDER BY created_at DESC;");
+      const mRes = await pool.query(`
+        SELECT id, household_id as "householdId", full_name as "fullName", relation_to_head as "relationToHead",
+               dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
+               current_country as "currentCountry", postal_code as "postalCode", state, full_address as "fullAddress",
+               profession_freetext as "profession", profession_title as "professionTitle", profession_description as "professionDescription",
+               company_name as "companyName", anniversary_date as "anniversaryDate",
+               phone, email, father_name as "fatherName", photo_url as "photoUrl", bio,
+               aadhaar_number as "aadhaarNumber", pan_number as "panNumber", passport_number as "passportNumber", govt_id_number as "govtIdNumber",
+               verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
+               visibility_contact, visibility_dob, visibility_photo
+        FROM members ORDER BY (relation_to_head = 'self') DESC, created_at ASC;
+      `);
+
+      const membersByHId = new Map<string, Member[]>();
+      for (const m of mRes.rows) {
+        const hId = String(m.householdId);
+        if (!membersByHId.has(hId)) {
+          membersByHId.set(hId, []);
+        }
+        membersByHId.get(hId)!.push({
+          ...m,
+          dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString() : String(m.dob)) : "",
+          visibility: {
+            contactInfo: m.visibility_contact,
+            dob: m.visibility_dob,
+            photo: m.visibility_photo,
+          }
+        });
+      }
+
+      return hRes.rows.map(h => ({
         id: h.id,
         householdCode: h.household_code,
         serialNo: h.serial_no || h.household_code,
@@ -226,7 +258,7 @@ export const db = {
         verifiedContact: h.verified_contact,
         consentAcceptedAt: h.consent_accepted_at,
         createdAt: h.created_at,
-        members: []
+        members: membersByHId.get(String(h.id)) || []
       }));
     } catch (e) {
       throw e;
@@ -314,6 +346,7 @@ export const db = {
                 dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
                 current_country as "currentCountry", postal_code as "postalCode", state, full_address as "fullAddress",
                 profession_freetext as "profession", profession_title as "professionTitle", profession_description as "professionDescription",
+                company_name as "companyName", anniversary_date as "anniversaryDate",
                 phone, email, father_name as "fatherName", photo_url as "photoUrl", bio,
                 aadhaar_number as "aadhaarNumber", pan_number as "panNumber", passport_number as "passportNumber", govt_id_number as "govtIdNumber",
                 verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
@@ -416,6 +449,7 @@ export const db = {
             id, household_id, full_name, relation_to_head, dob, gender, marital_status,
             current_city, current_country, postal_code, state, full_address,
             profession_freetext, profession_title, profession_description,
+            company_name, anniversary_date,
             phone, email, father_name, photo_url, bio,
             aadhaar_number, pan_number, passport_number, govt_id_number,
             visibility_contact, visibility_dob, visibility_photo, verified_by_self, owner_locked
@@ -423,9 +457,10 @@ export const db = {
             gen_random_uuid(), $1, $2, $3, $4, $5, $6,
             $7, $8, $9, $10, $11,
             $12, $13, $14,
-            $15, $16, $17, $18, $19,
-            $20, $21, $22, $23,
-            $24, $25, $26, $27, $28
+            $15, $16,
+            $17, $18, $19, $20, $21,
+            $22, $23, $24, $25,
+            $26, $27, $28, $29, $30
           );
         `;
         await client.query(insertMQuery, [
@@ -443,6 +478,8 @@ export const db = {
           m.profession || "Not specified",
           m.professionTitle || m.profession || null,
           m.professionDescription || null,
+          m.companyName || null,
+          m.anniversaryDate || null,
           m.phone || null,
           m.email || null,
           m.fatherName || null,
@@ -481,6 +518,7 @@ export const db = {
           m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
           m.current_country as "currentCountry", m.postal_code as "postalCode", m.state, m.full_address as "fullAddress",
           m.profession_freetext as "profession", m.profession_title as "professionTitle", m.profession_description as "professionDescription",
+          m.company_name as "companyName", m.anniversary_date as "anniversaryDate",
           m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
           m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
           h.household_code as "householdCode", h.serial_no as "serialNo", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
@@ -545,8 +583,9 @@ export const db = {
         SELECT 
           m.id, m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
           m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
-          m.current_country as "currentCountry", m.postal_code as "postalCode", m.state, m.full_address as "fullAddress",
+          m.current_country as "currentCountry", m.postal_code as "postalCode", state, m.full_address as "fullAddress",
           m.profession_freetext as "profession", m.profession_title as "professionTitle", m.profession_description as "professionDescription",
+          m.company_name as "companyName", m.anniversary_date as "anniversaryDate",
           m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
           m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
           m.aadhaar_number as "aadhaarNumber", m.pan_number as "panNumber", m.passport_number as "passportNumber", m.govt_id_number as "govtIdNumber",
@@ -593,6 +632,7 @@ export const db = {
                 dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
                 current_country as "currentCountry", postal_code as "postalCode", state, full_address as "fullAddress",
                 profession_freetext as "profession", profession_title as "professionTitle", profession_description as "professionDescription",
+                company_name as "companyName", anniversary_date as "anniversaryDate",
                 phone, email, father_name as "fatherName", photo_url as "photoUrl", bio,
                 aadhaar_number as "aadhaarNumber", pan_number as "panNumber", passport_number as "passportNumber", govt_id_number as "govtIdNumber",
                 verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
@@ -860,7 +900,7 @@ export const db = {
   },
 
   async updateMemberProfile(memberId: string, updates: Partial<Member>): Promise<boolean> {
-        if (!pool) return true;
+    if (!pool) return true;
     try {
       const safeDob = updates.dob ? sanitizeDate(updates.dob) : null;
       const res = await pool.query(
@@ -874,10 +914,14 @@ export const db = {
              current_city = COALESCE($8, current_city),
              current_country = COALESCE($9, current_country),
              profession_freetext = COALESCE($10, profession_freetext),
-             bio = COALESCE($11, bio),
-             visibility_contact = COALESCE($12, visibility_contact),
-             visibility_dob = COALESCE($13, visibility_dob),
-             visibility_photo = COALESCE($14, visibility_photo)
+             profession_title = COALESCE($11, profession_title),
+             profession_description = COALESCE($12, profession_description),
+             company_name = COALESCE($13, company_name),
+             anniversary_date = COALESCE($14, anniversary_date),
+             bio = COALESCE($15, bio),
+             visibility_contact = COALESCE($16, visibility_contact),
+             visibility_dob = COALESCE($17, visibility_dob),
+             visibility_photo = COALESCE($18, visibility_photo)
          WHERE id::text = $1 OR id = $1
          RETURNING id, household_id;`,
         [
@@ -891,6 +935,10 @@ export const db = {
           updates.currentCity?.trim() || null,
           updates.currentCountry?.trim() || null,
           updates.profession?.trim() || null,
+          updates.professionTitle?.trim() || null,
+          updates.professionDescription?.trim() || null,
+          updates.companyName?.trim() || null,
+          updates.anniversaryDate?.trim() || null,
           updates.bio !== undefined ? updates.bio : null,
           updates.visibility?.contactInfo || null,
           updates.visibility?.dob || null,
@@ -902,8 +950,8 @@ export const db = {
       }
       return res.rows.length > 0;
     } catch (e) {
-    throw e;
-  }
+      throw e;
+    }
   },
 
   async updateHouseholdProfile(householdId: string, updates: { nativePlace?: string; gotra?: string; headName?: string }): Promise<boolean> {

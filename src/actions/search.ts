@@ -2,7 +2,7 @@
 
 import { db } from "../lib/db";
 import { getSession } from "./auth";
-import { sanitizeMemberProfile } from "@/lib/privacy";
+import { sanitizeMemberProfile, extractBirthYear } from "@/lib/privacy";
 import { sanitizeSearchString } from "@/lib/sanitizer";
 import { gotras } from "@/data/gotras";
 
@@ -105,10 +105,13 @@ export async function searchDirectory(filters: SearchFilters = {}) {
       currentCity: m.currentCity,
       currentCountry: m.currentCountry,
       profession: m.profession,
+      professionTitle: m.professionTitle,
       photoUrl: m.visibility?.photo === "public_to_members" ? m.photoUrl : undefined,
       gotra: m.gotra,
+      birthYear: extractBirthYear(m.dob),
       nativePlace: m.nativePlace,
       householdCode: m.householdCode,
+      serialNo: m.serialNo,
       verifiedBySelf: m.verifiedBySelf,
     }));
 

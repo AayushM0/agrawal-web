@@ -13,6 +13,26 @@ export function calculateAge(dobStr?: string): number | null {
   return age >= 0 ? age : null;
 }
 
+export function extractBirthYear(dobStr?: string): number | null {
+  if (!dobStr || !dobStr.trim()) return null;
+  const clean = dobStr.trim();
+  const yearMatch = clean.match(/^(\d{4})/);
+  if (yearMatch) {
+    const y = parseInt(yearMatch[1], 10);
+    if (y >= 1900 && y <= new Date().getFullYear()) {
+      return y;
+    }
+  }
+  const date = new Date(clean);
+  if (!isNaN(date.getTime())) {
+    const y = date.getFullYear();
+    if (y >= 1900 && y <= new Date().getFullYear()) {
+      return y;
+    }
+  }
+  return null;
+}
+
 export function maskPhone(phone?: string): string {
   if (!phone) return "Not provided";
   const clean = phone.trim();
@@ -46,9 +66,19 @@ export function maskContact(contact?: string | null): string {
 export function sanitizeMemberProfile(member: any, session: SessionData | null): any {
   if (!member) return null;
 
+  const birthYear = extractBirthYear(member.dob);
+
+  const isGovtIdVerified = Boolean(
+    member.aadhaarNumber || member.panNumber || member.passportNumber || member.govtIdNumber
+  );
+
   // If Admin, full unmasked data is permitted
   if (session?.role === "admin") {
-    return member;
+    return {
+      ...member,
+      birthYear,
+      isGovtIdVerified,
+    };
   }
 
   const isSelf =
@@ -58,18 +88,25 @@ export function sanitizeMemberProfile(member: any, session: SessionData | null):
       (member.email && member.email.toLowerCase() === session.contact.toLowerCase()));
 
   if (isSelf) {
-    return member;
+    return {
+      ...member,
+      birthYear,
+      isGovtIdVerified,
+    };
   }
 
-  // Public / non-owner view: strip / mask sensitive identity attributes and contacts
+  // Public / non-owner view: strip sensitive identity attributes, exact DOB, and full addresses
   return {
     ...member,
     phone: maskPhone(member.phone),
     email: maskEmail(member.email),
-    aadhaarNumber: member.aadhaarNumber ? maskGovtId(member.aadhaarNumber) : undefined,
-    panNumber: member.panNumber ? maskGovtId(member.panNumber) : undefined,
-    passportNumber: member.passportNumber ? maskGovtId(member.passportNumber) : undefined,
-    govtIdNumber: member.govtIdNumber ? maskGovtId(member.govtIdNumber) : undefined,
+    dob: undefined, // Protect exact birth day and month from public view
+    birthYear,
+    isGovtIdVerified,
+    aadhaarNumber: undefined, // Never leak sensitive ID fragments to non-owners
+    panNumber: undefined,
+    passportNumber: undefined,
+    govtIdNumber: undefined,
     fullAddress: undefined, // Hidden in public directory view
   };
 }

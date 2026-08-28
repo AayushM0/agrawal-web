@@ -9,8 +9,9 @@ import { Member } from "@/types/household";
 import { registerHousehold, checkContactRegistration } from "@/actions/register";
 import { checkContactAvailability } from "@/actions/claim";
 import { sendOtp, verifyOtp } from "@/actions/otp";
-import { getSession, clearSession } from "@/actions/auth";
+import { getSession } from "@/actions/auth";
 import LocationSelector from "@/components/LocationSelector";
+import PhoneInputWithCountry from "@/components/PhoneInputWithCountry";
 import { calculateAge, maskPhone, maskEmail, maskGovtId } from "@/lib/privacy";
 import { optimizeImageForUpload } from "@/lib/image-optimizer";
 
@@ -21,7 +22,7 @@ export default function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [successCode, setSuccessCode] = useState("");
-  const [currentSession, setCurrentSession] = useState<any>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   // Floating Toast Notification System
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "warning"; id: number } | null>(null);
@@ -40,16 +41,22 @@ export default function SignupPage() {
     }
   }, [toast]);
 
-  // Check if session exists to display top notice
+  // Guard: Automatically redirect authenticated users away from signup page
   useEffect(() => {
     async function loadAuth() {
       const session = await getSession();
       if (session) {
-        setCurrentSession(session);
+        if (session.role === "admin") {
+          router.replace("/admin/moderation");
+        } else {
+          router.replace("/dashboard");
+        }
+      } else {
+        setIsAuthChecking(false);
       }
     }
     loadAuth();
-  }, []);
+  }, [router]);
 
   // Step 1: Contact Verification State
   const [contactType, setContactType] = useState<"phone" | "email">("phone");
@@ -345,6 +352,9 @@ export default function SignupPage() {
       dob: "",
       gender: "Female",
       maritalStatus: "Married",
+      companyName: "",
+      anniversaryDate: "",
+      hasCustomAddress: false,
       currentCity: city || nativePlace || "",
       currentCountry: country || "India",
       postalCode: postalCode || "",
@@ -413,11 +423,37 @@ export default function SignupPage() {
         showToast(msg, "error");
         return;
       }
+      if (!m.fatherName || !m.fatherName.trim() || m.fatherName.trim().length < 2) {
+        const isSpouseOrMarriedFemale = m.maritalStatus === "Married" && (m.gender === "Female" || m.relationToHead === "spouse");
+        const labelName = isSpouseOrMarriedFemale ? "Father's / Husband's Name (पिता / पति का नाम)" : "Father's Name (पिता का नाम)";
+        const msg = `${labelName} is mandatory for ${m.fullName || `Member #${i + 1}`}.`;
+        setStep3Error(msg);
+        showToast(msg, "error");
+        return;
+      }
       if (!m.dob || !m.dob.trim()) {
         const msg = `Please enter Date of Birth for ${m.fullName || `Member #${i + 1}`}.`;
         setStep3Error(msg);
         showToast(msg, "error");
         return;
+      }
+      if (m.aadhaarNumber && m.aadhaarNumber.trim()) {
+        const cleanAadhaar = m.aadhaarNumber.replace(/[^0-9]/g, "");
+        if (cleanAadhaar.length !== 12) {
+          const msg = `Aadhaar Number for ${m.fullName || `Member #${i + 1}`} must be exactly 12 digits.`;
+          setStep3Error(msg);
+          showToast(msg, "error");
+          return;
+        }
+      }
+      if (m.panNumber && m.panNumber.trim()) {
+        const cleanPan = m.panNumber.trim().toUpperCase();
+        if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
+          const msg = `PAN Number for ${m.fullName || `Member #${i + 1}`} must be 10 characters (e.g. ABCDE1234F).`;
+          setStep3Error(msg);
+          showToast(msg, "error");
+          return;
+        }
       }
       if (m.phone && m.phone.trim()) {
         const checkPhone = await checkContactAvailability(m.phone.trim(), m.id);
@@ -495,16 +531,19 @@ export default function SignupPage() {
       phone: m.phone ? m.phone.trim() : undefined,
       email: m.email ? m.email.trim() : undefined,
       dob: m.dob.trim(),
-      currentCity: m.currentCity?.trim() || city.trim(),
-      currentCountry: m.currentCountry?.trim() || country.trim(),
-      postalCode: m.postalCode?.trim() || postalCode.trim(),
-      state: m.state?.trim() || state.trim(),
-      fullAddress: m.fullAddress?.trim() || fullAddress.trim(),
+      companyName: m.companyName?.trim() || undefined,
+      anniversaryDate: m.maritalStatus === "Married" && m.anniversaryDate ? m.anniversaryDate.trim() : undefined,
+      hasCustomAddress: m.hasCustomAddress || false,
+      currentCity: m.hasCustomAddress && m.currentCity?.trim() ? m.currentCity.trim() : city.trim(),
+      currentCountry: m.hasCustomAddress && m.currentCountry?.trim() ? m.currentCountry.trim() : country.trim(),
+      postalCode: m.hasCustomAddress && m.postalCode?.trim() ? m.postalCode.trim() : postalCode.trim(),
+      state: m.hasCustomAddress && m.state?.trim() ? m.state.trim() : state.trim(),
+      fullAddress: m.hasCustomAddress && m.fullAddress?.trim() ? m.fullAddress.trim() : fullAddress.trim(),
       profession: m.professionTitle?.trim() || m.profession?.trim() || "Unspecified",
       professionTitle: m.professionTitle?.trim() || undefined,
       professionDescription: m.professionDescription?.trim() || undefined,
       aadhaarNumber: m.aadhaarNumber?.trim() || undefined,
-      panNumber: m.panNumber?.trim() || undefined,
+      panNumber: m.panNumber?.trim()?.toUpperCase() || undefined,
       passportNumber: m.passportNumber?.trim() || undefined,
       govtIdNumber: m.govtIdNumber?.trim() || undefined,
       verifiedBySelf: false,
@@ -551,6 +590,18 @@ export default function SignupPage() {
       showToast("Registration submission error. Please check inputs and try again.", "error");
     }
   };
+
+  // Session Auth Verification Guard
+  if (isAuthChecking) {
+    return (
+      <main className="py-20 bg-canvas-page min-h-[60vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          <p className="text-xs font-bold text-body-muted">Verifying session...</p>
+        </div>
+      </main>
+    );
+  }
 
   // SUCCESS SCREEN
   if (isSuccess) {
@@ -647,33 +698,6 @@ export default function SignupPage() {
           </p>
         </div>
 
-        {/* Active Session Notice Banner */}
-        {currentSession && (
-          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-brand-accent/40 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in">
-            <div className="text-xs text-brand-primary text-center sm:text-left">
-              <span>You are currently signed in as <strong>{currentSession.contact}</strong>.</span>
-              <span className="block text-[11px] text-body-muted mt-0.5">
-                Registering below will create a new family record and switch your active login session.
-              </span>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Link href="/dashboard" className="px-4 py-1.5 rounded-full text-xs font-bold text-white va-btn-join shadow-sm">
-                Go to Dashboard →
-              </Link>
-              <button
-                type="button"
-                onClick={async () => {
-                  await clearSession();
-                  setCurrentSession(null);
-                }}
-                className="px-3.5 py-1.5 rounded-full text-xs font-semibold text-body-muted hover:text-red-700 bg-white border border-brand-accent/30"
-              >
-                Sign Out
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Dynamic 4-Step Progress Bar */}
         <WizardProgressBar currentStep={step} totalSteps={4} />
 
@@ -740,14 +764,25 @@ export default function SignupPage() {
                     {contactType === "phone" ? "Mobile Phone Number" : "Email Address"} *
                   </label>
                   <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type={contactType === "phone" ? "tel" : "email"}
-                      value={contactValue}
-                      disabled={otpVerified}
-                      onChange={(e) => setContactValue(e.target.value)}
-                      placeholder={contactType === "phone" ? `${phoneDialCode} 98765 43210` : "head@example.com"}
-                      className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                    />
+                    {contactType === "phone" ? (
+                      <div className="w-full sm:flex-1">
+                        <PhoneInputWithCountry
+                          value={contactValue}
+                          disabled={otpVerified}
+                          onChange={(full) => setContactValue(full)}
+                          placeholder="e.g. 98765 43210"
+                        />
+                      </div>
+                    ) : (
+                      <input
+                        type="email"
+                        value={contactValue}
+                        disabled={otpVerified}
+                        onChange={(e) => setContactValue(e.target.value)}
+                        placeholder="head@example.com"
+                        className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                      />
+                    )}
                     <button
                       type="button"
                       onClick={handleSendOtp}
@@ -933,19 +968,22 @@ export default function SignupPage() {
                           </span>
                         )}
                       </div>
-                      <input
-                        type="tel"
-                        required
-                        readOnly={contactType === "phone"}
-                        value={contactType === "phone" ? contactValue : headPhone}
-                        onChange={(e) => setHeadPhone(e.target.value)}
-                        placeholder="e.g. +91 9876543210"
-                        className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-body-heading outline-none ${
-                          contactType === "phone"
-                            ? "bg-emerald-50/40 border-emerald-300 text-emerald-900 font-semibold cursor-not-allowed"
-                            : "bg-white border-brand-accent/40 focus:ring-1 focus:ring-brand-primary"
-                        }`}
-                      />
+                      {contactType === "phone" ? (
+                        <input
+                          type="tel"
+                          required
+                          readOnly
+                          value={contactValue}
+                          className="w-full px-3.5 py-2.5 rounded-xl border text-xs text-emerald-900 font-semibold outline-none bg-emerald-50/40 border-emerald-300 cursor-not-allowed"
+                        />
+                      ) : (
+                        <PhoneInputWithCountry
+                          value={headPhone}
+                          required
+                          onChange={(full) => setHeadPhone(full)}
+                          placeholder="e.g. 98765 43210"
+                        />
+                      )}
                     </div>
 
                     {/* Email Address */}
@@ -1369,16 +1407,23 @@ export default function SignupPage() {
                             </select>
                           </div>
 
-                          {/* 3. Father Name */}
+                          {/* 3. Father / Husband Name (Dynamic Label) */}
                           <div className="min-w-0">
                             <label className="block text-[11px] font-bold text-body-heading mb-1">
-                              Father&apos;s Name (पिता का नाम)
+                              {member.maritalStatus === "Married" && (member.gender === "Female" || member.relationToHead === "spouse")
+                                ? "Father's / Husband's Name (पिता / पति का नाम) *"
+                                : "Father's Name (पिता का नाम) *"}
                             </label>
                             <input
                               type="text"
+                              required
                               value={member.fatherName || ""}
                               onChange={(e) => updateAdditionalMember(member.id, "fatherName", e.target.value)}
-                              placeholder={member.relationToHead === "son" || member.relationToHead === "daughter" ? (headName || "e.g. Ramesh Agarwal") : "e.g. Late Shri..."}
+                              placeholder={
+                                member.maritalStatus === "Married" && (member.gender === "Female" || member.relationToHead === "spouse")
+                                  ? (headName || "e.g. Husband's or Father's Name")
+                                  : (member.relationToHead === "son" || member.relationToHead === "daughter" ? (headName || "e.g. Ramesh Agarwal") : "e.g. Late Shri...")
+                              }
                               className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
                             />
                           </div>
@@ -1443,10 +1488,25 @@ export default function SignupPage() {
                             )}
                           </div>
 
-                          {/* 7. Profession Title */}
+                          {/* 7. Optional Anniversary Date (for Married) */}
+                          {member.maritalStatus === "Married" && !isMinor && (
+                            <div className="min-w-0">
+                              <label className="block text-[11px] font-bold text-body-heading mb-1">
+                                Wedding Anniversary (विवाह तिथि)
+                              </label>
+                              <input
+                                type="date"
+                                value={member.anniversaryDate || ""}
+                                onChange={(e) => updateAdditionalMember(member.id, "anniversaryDate", e.target.value)}
+                                className="w-full px-3 py-1.5 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                              />
+                            </div>
+                          )}
+
+                          {/* 8. Profession Title */}
                           <div className="min-w-0">
                             <label className="block text-[11px] font-bold text-body-heading mb-1">
-                              Profession Title (व्यवसाय)
+                              Profession Title (व्यवसाय / पद)
                             </label>
                             <input
                               type="text"
@@ -1460,35 +1520,169 @@ export default function SignupPage() {
                             />
                           </div>
 
-                          {/* 8. Phone (Optional) */}
+                          {/* 9. Company / Business Name */}
                           <div className="min-w-0">
                             <label className="block text-[11px] font-bold text-body-heading mb-1">
-                              Direct Phone (Optional)
+                              Company / Business (संस्था / कंपनी का नाम)
                             </label>
                             <input
-                              type="tel"
-                              value={member.phone || ""}
-                              onChange={(e) => updateAdditionalMember(member.id, "phone", e.target.value)}
-                              placeholder="+91 98765 43210"
+                              type="text"
+                              value={member.companyName || ""}
+                              onChange={(e) => updateAdditionalMember(member.id, "companyName", e.target.value)}
+                              placeholder="e.g. Agarwal Jewellers / TCS / Clinic"
                               className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
                             />
+                          </div>
+
+                          {/* 10. Profession Description */}
+                          <div className="sm:col-span-2 lg:col-span-3 min-w-0">
+                            <label className="block text-[11px] font-bold text-body-heading mb-1">
+                              Profession Summary (व्यवसाय का संक्षिप्त विवरण)
+                            </label>
+                            <input
+                              type="text"
+                              value={member.professionDescription || ""}
+                              onChange={(e) => updateAdditionalMember(member.id, "professionDescription", e.target.value)}
+                              placeholder="e.g. Practicing chartered accountant with 10+ years in taxation."
+                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                            />
+                          </div>
+
+                          {/* 11. Direct Phone with Country Code */}
+                          <div className="min-w-0">
+                            <label className="block text-[11px] font-bold text-body-heading mb-1">
+                              Direct Mobile Number
+                            </label>
+                            <PhoneInputWithCountry
+                              value={member.phone || ""}
+                              onChange={(full) => updateAdditionalMember(member.id, "phone", full)}
+                              placeholder="e.g. 98765 43210"
+                            />
                             <span className="text-[9px] text-body-muted block mt-0.5">
-                              Can be used for member login.
+                              Can be used for individual member login.
                             </span>
                           </div>
 
-                          {/* 9. Email (Optional) */}
+                          {/* 12. Direct Email */}
                           <div className="min-w-0">
                             <label className="block text-[11px] font-bold text-body-heading mb-1">
-                              Direct Email (Optional)
+                              Direct Email Address
                             </label>
                             <input
                               type="email"
                               value={member.email || ""}
                               onChange={(e) => updateAdditionalMember(member.id, "email", e.target.value)}
                               placeholder="member@example.com"
+                              className="w-full px-3 py-2.5 rounded-xl border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                            />
+                          </div>
+
+                          {/* 13. Aadhaar Number */}
+                          <div className="min-w-0">
+                            <label className="block text-[11px] font-bold text-body-heading mb-1">
+                              Aadhaar Card Number (आधार नंबर)
+                            </label>
+                            <input
+                              type="text"
+                              maxLength={14}
+                              value={member.aadhaarNumber || ""}
+                              onChange={(e) => updateAdditionalMember(member.id, "aadhaarNumber", e.target.value)}
+                              placeholder="12-digit Aadhaar Number"
                               className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
                             />
+                          </div>
+
+                          {/* 14. PAN Number */}
+                          <div className="min-w-0">
+                            <label className="block text-[11px] font-bold text-body-heading mb-1">
+                              PAN Card Number (पैन नंबर)
+                            </label>
+                            <input
+                              type="text"
+                              maxLength={10}
+                              value={member.panNumber || ""}
+                              onChange={(e) => updateAdditionalMember(member.id, "panNumber", e.target.value.toUpperCase())}
+                              placeholder="10-character PAN (e.g. ABCDE1234F)"
+                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white uppercase focus:ring-1 focus:ring-brand-primary"
+                            />
+                          </div>
+
+                          {/* 15. Residential Address Toggle */}
+                          <div className="sm:col-span-2 lg:col-span-3 pt-3 border-t border-brand-accent/20">
+                            <label className="flex items-center gap-2 cursor-pointer mb-2">
+                              <input
+                                type="checkbox"
+                                checked={!member.hasCustomAddress}
+                                onChange={(e) => updateAdditionalMember(member.id, "hasCustomAddress", !e.target.checked)}
+                                className="w-4 h-4 rounded text-brand-primary focus:ring-brand-primary border-brand-accent/40"
+                              />
+                              <span className="text-xs font-bold text-brand-primary">
+                                Same residential address as Head of Household (मुखिया के समान पता)
+                              </span>
+                            </label>
+
+                            {member.hasCustomAddress && (
+                              <div className="p-3.5 rounded-xl bg-white border border-brand-accent/30 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 animate-in fade-in">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-body-heading mb-1">Country (देश)</label>
+                                  <select
+                                    value={member.currentCountry || "India"}
+                                    onChange={(e) => updateAdditionalMember(member.id, "currentCountry", e.target.value)}
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-brand-accent/30 text-xs bg-canvas-warm/20"
+                                  >
+                                    <option value="India">India (भारत)</option>
+                                    <option value="Singapore">Singapore</option>
+                                    <option value="United Arab Emirates">UAE (संयुक्त अरब अमीरात)</option>
+                                    <option value="United States">United States</option>
+                                    <option value="United Kingdom">United Kingdom</option>
+                                    <option value="Australia">Australia</option>
+                                    <option value="Canada">Canada</option>
+                                    <option value="Nepal">Nepal</option>
+                                    <option value="Other">Other Country</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-body-heading mb-1">City / District</label>
+                                  <input
+                                    type="text"
+                                    value={member.currentCity || ""}
+                                    onChange={(e) => updateAdditionalMember(member.id, "currentCity", e.target.value)}
+                                    placeholder="e.g. Mumbai"
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-brand-accent/30 text-xs bg-canvas-warm/20"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-body-heading mb-1">State / Province</label>
+                                  <input
+                                    type="text"
+                                    value={member.state || ""}
+                                    onChange={(e) => updateAdditionalMember(member.id, "state", e.target.value)}
+                                    placeholder="e.g. Maharashtra"
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-brand-accent/30 text-xs bg-canvas-warm/20"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-body-heading mb-1">Postal / PIN Code</label>
+                                  <input
+                                    type="text"
+                                    value={member.postalCode || ""}
+                                    onChange={(e) => updateAdditionalMember(member.id, "postalCode", e.target.value)}
+                                    placeholder="e.g. 400001"
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-brand-accent/30 text-xs bg-canvas-warm/20"
+                                  />
+                                </div>
+                                <div className="sm:col-span-2 lg:col-span-3">
+                                  <label className="block text-[10px] font-bold text-body-heading mb-1">Full Residential Address</label>
+                                  <input
+                                    type="text"
+                                    value={member.fullAddress || ""}
+                                    onChange={(e) => updateAdditionalMember(member.id, "fullAddress", e.target.value)}
+                                    placeholder="Flat / House No, Street, Landmark"
+                                    className="w-full px-2.5 py-1.5 rounded-lg border border-brand-accent/30 text-xs bg-canvas-warm/20"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
