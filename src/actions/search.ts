@@ -83,12 +83,14 @@ export async function searchDirectory(filters: SearchFilters = {}) {
       );
     }
 
-    // Filter by Free-Text Query (matching name, profession, native place, city)
+    // Filter by Free-Text Query (matching name, profession, company, native place, city)
     if (cleanQuery) {
       results = results.filter(
         (m) =>
           (m.fullName || "").toLowerCase().includes(cleanQuery) ||
           (m.profession || "").toLowerCase().includes(cleanQuery) ||
+          (m.professionTitle || "").toLowerCase().includes(cleanQuery) ||
+          (m.companyName || "").toLowerCase().includes(cleanQuery) ||
           (m.nativePlace || "").toLowerCase().includes(cleanQuery) ||
           (m.currentCity || "").toLowerCase().includes(cleanQuery)
       );
@@ -106,6 +108,8 @@ export async function searchDirectory(filters: SearchFilters = {}) {
       currentCountry: m.currentCountry,
       profession: m.profession,
       professionTitle: m.professionTitle,
+      companyName: m.companyName,
+      anniversaryDate: m.anniversaryDate,
       photoUrl: m.visibility?.photo === "public_to_members" ? m.photoUrl : undefined,
       gotra: m.gotra,
       birthYear: extractBirthYear(m.dob),

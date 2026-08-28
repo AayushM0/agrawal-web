@@ -46,6 +46,10 @@ export function createUnifiedPassData({ member, household }: PassDataInput) {
     member.currentCity || household?.city || household?.nativePlace || member.nativePlace || "Delhi";
   const nativePlace = member.nativePlace || household?.nativePlace || currentCity;
   const fatherName = member.fatherName || household?.headName || undefined;
+  const isSpouseOrMarriedFemale =
+    member.maritalStatus === "Married" &&
+    (member.gender === "Female" || member.relationToHead === "spouse");
+  const fatherOrHusbandLabel = isSpouseOrMarriedFemale ? "HUSBAND / FATHER" : "FATHER";
 
   return {
     fullName: member.fullName,
@@ -57,5 +61,8 @@ export function createUnifiedPassData({ member, household }: PassDataInput) {
     photoUrl: member.photoUrl,
     nativePlace,
     fatherName,
+    fatherOrHusbandLabel,
+    companyName: member.companyName,
+    profession: member.professionTitle || member.profession,
   };
 }
