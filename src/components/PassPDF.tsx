@@ -261,6 +261,14 @@ export function PassPDF({ passData }: { passData: any }) {
       ? passData.roleLabel.charAt(0).toUpperCase() + passData.roleLabel.slice(1)
       : "Member";
 
+  const isCompatiblePhoto =
+    typeof passData.photoUrl === "string" &&
+    passData.photoUrl.trim().length > 0 &&
+    (passData.photoUrl.startsWith("data:image/jpeg") ||
+      passData.photoUrl.startsWith("data:image/jpg") ||
+      passData.photoUrl.startsWith("data:image/png") ||
+      passData.photoUrl.startsWith("https://"));
+
   return (
     <Document>
       <Page size={[320, 460]} style={styles.page}>
@@ -282,7 +290,7 @@ export function PassPDF({ passData }: { passData: any }) {
             {/* Identity Card */}
             <View style={styles.identityCard}>
               <View style={styles.avatarWrapper}>
-                {passData.photoUrl ? (
+                {isCompatiblePhoto ? (
                   <Image style={styles.avatarImage} src={passData.photoUrl} />
                 ) : (
                   <View style={styles.avatarPlaceholder}>

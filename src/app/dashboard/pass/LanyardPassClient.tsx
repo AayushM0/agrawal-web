@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface PassMember {
@@ -25,11 +26,42 @@ interface PassData {
 
 export default function LanyardPassClient({ passData }: { passData: PassData }) {
   const router = useRouter();
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
   const {
     fullName, fatherName, gotra, householdCode, serialNo, nativePlace,
     currentCity, roleLabel, memberSince, photoUrl,
     allMembers, currentMemberId,
   } = passData;
+
+  const handleDownloadPdf = async () => {
+    setIsDownloading(true);
+    setDownloadError(null);
+    try {
+      const res = await fetch(`/api/pass/pdf?memberId=${currentMemberId}`);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.error || `Download failed with status ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ID_Card_${fullName.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      console.error("PDF download error:", err);
+      const msg = err?.message || "Failed to download PDF pass. Please try again.";
+      setDownloadError(msg);
+      alert(msg);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0d111a] flex flex-col">
@@ -64,18 +96,31 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
             </select>
           )}
 
-          <a
-            href={`/api/pass/pdf?memberId=${currentMemberId}`}
-            download={`ID_Card_${fullName.replace(/\s+/g, "_")}.pdf`}
-            className="flex-1 sm:flex-initial justify-center bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-sm"
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={isDownloading}
+            className="flex-1 sm:flex-initial justify-center bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-50 text-white text-xs sm:text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition-all shadow-sm cursor-pointer"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="6 9 6 2 18 2 18 9"></polyline>
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-              <rect x="6" y="14" width="12" height="8"></rect>
-            </svg>
-            Download PDF
-          </a>
+            {isDownloading ? (
+              <>
+                <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                </svg>
+                Generating PDF...
+              </>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                  <rect x="6" y="14" width="12" height="8"></rect>
+                </svg>
+                Download PDF
+              </>
+            )}
+          </button>
         </div>
       </div>
 
