@@ -258,8 +258,16 @@ function DirectoryContent() {
                     <div>
                       <div className="flex items-start justify-between gap-2 mb-3">
                         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-full bg-brand-accent/20 border border-brand-accent/40 flex items-center justify-center text-brand-primary font-black text-sm shrink-0">
-                            {m.fullName?.charAt(0) || "A"}
+                          <div className="w-10 h-10 rounded-full overflow-hidden bg-brand-accent/20 border border-brand-accent/40 flex items-center justify-center text-brand-primary font-black text-sm shrink-0">
+                            {m.photoUrl ? (
+                              <img
+                                src={m.photoUrl}
+                                alt={m.fullName || "Member"}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              m.fullName?.charAt(0) || "A"
+                            )}
                           </div>
                           <div className="min-w-0">
                             <h4 className="text-sm font-bold text-brand-primary leading-tight truncate">

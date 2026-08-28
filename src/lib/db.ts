@@ -583,7 +583,7 @@ export const db = {
         SELECT 
           m.id, m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
           m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
-          m.current_country as "currentCountry", m.postal_code as "postalCode", state, m.full_address as "fullAddress",
+          m.current_country as "currentCountry", m.postal_code as "postalCode", m.state, m.full_address as "fullAddress",
           m.profession_freetext as "profession", m.profession_title as "professionTitle", m.profession_description as "professionDescription",
           m.company_name as "companyName", m.anniversary_date as "anniversaryDate",
           m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",

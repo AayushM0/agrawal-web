@@ -205,3 +205,24 @@ test("Seam 11: Real @react-pdf/renderer generates valid PDF binaries for all edg
     assert.equal(buffer.subarray(0, 5).toString("utf8"), "%PDF-", `${tc.name} must start with %PDF- header`);
   }
 });
+
+// --- SEAM 12: Directory Photo Rendering, SQL Aliasing & CSP Directives ---
+test("Seam 12: Directory search, getMemberById SQL, and CSP headers adhere to contracts", () => {
+  const dbCode = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const nextConfigCode = fs.readFileSync(path.join(webRoot, "next.config.ts"), "utf8");
+  const directoryPageCode = fs.readFileSync(path.join(webRoot, "src/app/directory/page.tsx"), "utf8");
+  const searchActionCode = fs.readFileSync(path.join(webRoot, "src/actions/search.ts"), "utf8");
+
+  // 1. SQL unambiguous column reference in getMemberById
+  assert.ok(dbCode.includes('m.postal_code as "postalCode", m.state, m.full_address as "fullAddress"'), "getMemberById must qualify m.state to prevent ambiguous column collision");
+
+  // 2. CSP WASM & Blob allowance
+  assert.ok(nextConfigCode.includes("connect-src 'self' https: wss: data: blob:"), "next.config.ts must allow data: and blob: in connect-src");
+
+  // 3. Directory search UI photo rendering
+  assert.ok(directoryPageCode.includes("src={m.photoUrl}"), "Directory page must render img with m.photoUrl");
+
+  // 4. Search action photo projection
+  assert.ok(searchActionCode.includes('m.visibility?.photo === "hidden"'), "Search action must check for hidden photo visibility");
+});
+

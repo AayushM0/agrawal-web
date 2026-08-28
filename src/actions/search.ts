@@ -109,7 +109,7 @@ export async function searchDirectory(filters: SearchFilters = {}) {
       profession: m.profession,
       professionTitle: m.professionTitle,
       companyName: m.companyName,
-      photoUrl: m.visibility?.photo === "public_to_members" ? m.photoUrl : undefined,
+      photoUrl: m.visibility?.photo === "hidden" || m.visibility_photo === "hidden" ? undefined : m.photoUrl,
       gotra: m.gotra,
       birthYear: extractBirthYear(m.dob),
       nativePlace: m.nativePlace,
