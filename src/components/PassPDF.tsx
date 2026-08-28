@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 13,
-    fontFamily: "Times-Bold",
+    fontWeight: "bold",
     color: "#ffffff",
     marginBottom: 2,
     textAlign: "center",
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   },
   nameText: {
     fontSize: 14,
-    fontFamily: "Times-Bold",
+    fontWeight: "bold",
     color: "#1c1917",
     marginBottom: 3,
   },
@@ -298,14 +298,7 @@ export function PassPDF({ passData }: { passData: any }) {
                   </View>
                 )}
                 <View style={styles.verifiedBadge}>
-                  <Svg width="10" height="10" viewBox="0 0 24 24">
-                    <Path
-                      d="M20 6L9 17l-5-5"
-                      stroke="#ffffff"
-                      strokeWidth="4"
-                      fill="none"
-                    />
-                  </Svg>
+                  <Text style={styles.verifiedCheck}>✓</Text>
                 </View>
               </View>
 

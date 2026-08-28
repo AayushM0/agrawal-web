@@ -24,6 +24,8 @@ interface PassData {
   currentMemberId: string;
 }
 
+import { PassPDF } from "@/components/PassPDF";
+
 export default function LanyardPassClient({ passData }: { passData: PassData }) {
   const router = useRouter();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -39,12 +41,23 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
     setIsDownloading(true);
     setDownloadError(null);
     try {
-      const res = await fetch(`/api/pass/pdf?memberId=${currentMemberId}`);
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => null);
-        throw new Error(errJson?.error || `Download failed with status ${res.status}`);
+      let blob: Blob | null = null;
+      try {
+        const res = await fetch(`/api/pass/pdf?memberId=${currentMemberId}`);
+        if (res.ok) {
+          blob = await res.blob();
+        }
+      } catch (fetchErr) {
+        console.warn("Server PDF route request failed, using client renderer fallback...", fetchErr);
       }
-      const blob = await res.blob();
+
+      if (!blob) {
+        // Direct browser rendering fallback via @react-pdf/renderer
+        const { pdf } = await import("@react-pdf/renderer");
+        const doc = <PassPDF passData={passData} />;
+        blob = await pdf(doc).toBlob();
+      }
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
