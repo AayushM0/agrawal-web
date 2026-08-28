@@ -283,7 +283,10 @@ function DirectoryContent() {
 
                       <div className="space-y-1 text-xs text-body-text mb-4">
                         <p className="flex items-center gap-1.5 text-body-heading font-medium truncate">
-                          <span className="truncate">{m.professionTitle || m.profession || "Profession not listed"}</span>
+                          <span className="truncate">
+                            {m.professionTitle || m.profession || "Profession not listed"}
+                            {m.companyName ? ` • ${m.companyName}` : ""}
+                          </span>
                         </p>
 
                         <p className="flex items-center gap-1.5 text-body-muted truncate">

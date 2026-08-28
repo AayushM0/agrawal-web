@@ -57,18 +57,7 @@ async function sendWelcomeEmail(member: any, household: any) {
   if (!process.env.RESEND_API_KEY || !member.email) return;
 
   try {
-    const passData = {
-      fullName: member.fullName,
-      gotra: household.gotra,
-      householdCode: household.householdCode,
-      serialNo: household.serialNo || household.householdCode,
-      currentCity: member.currentCity,
-      roleLabel: member.relationToHead,
-      photoUrl: member.photoUrl,
-      nativePlace: household.nativePlace,
-      fatherName: member.fatherName,
-    };
-
+    const passData = createUnifiedPassData({ member, household });
     const buffer = await renderToBuffer(React.createElement(PassPDF, { passData }) as any);
 
     const res = await fetch("https://api.resend.com/emails", {
