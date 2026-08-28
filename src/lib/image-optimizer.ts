@@ -11,7 +11,7 @@ export async function optimizeImageForUpload(
   quality = 0.85
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    if (!file.type.startsWith("image/")) {
+    if (!file.type.startsWith("image/") && !file.name.match(/\.(jpe?g|png|webp|avif|heic|heif|bmp|gif|tiff)$/i)) {
       return reject(new Error("Selected file is not an image."));
     }
 
@@ -50,12 +50,8 @@ export async function optimizeImageForUpload(
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Try modern WebP, fall back to JPEG
-        let dataUrl = canvas.toDataURL("image/webp", quality);
-        if (!dataUrl.startsWith("data:image/webp")) {
-          dataUrl = canvas.toDataURL("image/jpeg", quality);
-        }
-
+        // Encode as standard JPEG (supported universally by @react-pdf/renderer, HTML canvas, and email)
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
         resolve(dataUrl);
       };
       img.src = event.target?.result as string;

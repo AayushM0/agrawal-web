@@ -459,7 +459,7 @@ export default function DashboardPage() {
                       <span>Upload New Photo</span>
                       <input
                         type="file"
-                        accept="image/png, image/jpeg, image/webp"
+                        accept="image/*,image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif"
                         className="hidden"
                         onChange={handlePhotoUpload}
                       />

@@ -911,7 +911,7 @@ export default function SignupPage() {
                       </label>
                       <input
                         type="file"
-                        accept="image/png, image/jpeg, image/webp"
+                        accept="image/*,image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif"
                         onChange={handleHeadPhotoUpload}
                         className="text-xs text-body-muted file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-canvas-warm file:text-brand-primary hover:file:bg-white"
                       />
@@ -1344,7 +1344,7 @@ export default function SignupPage() {
                             </label>
                             <input
                               type="file"
-                              accept="image/png, image/jpeg, image/webp"
+                              accept="image/*,image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif"
                               onChange={(e) => handleMemberPhoto(member.id, e)}
                               className="text-xs text-body-muted file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-canvas-warm file:text-brand-primary hover:file:bg-white"
                             />
