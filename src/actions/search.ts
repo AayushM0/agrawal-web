@@ -109,7 +109,6 @@ export async function searchDirectory(filters: SearchFilters = {}) {
       profession: m.profession,
       professionTitle: m.professionTitle,
       companyName: m.companyName,
-      anniversaryDate: m.anniversaryDate,
       photoUrl: m.visibility?.photo === "public_to_members" ? m.photoUrl : undefined,
       gotra: m.gotra,
       birthYear: extractBirthYear(m.dob),

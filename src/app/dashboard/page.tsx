@@ -11,6 +11,7 @@ import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
 import LocationSelector from "@/components/LocationSelector";
 import { calculateAge, maskContact } from "@/lib/privacy";
+import { optimizeImageForUpload } from "@/lib/image-optimizer";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -82,19 +83,15 @@ export default function DashboardPage() {
     setMemberSaveSuccess("");
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !editingMember) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert("Please select an image smaller than 2MB.");
-      return;
+    try {
+      const optimized = await optimizeImageForUpload(file, 400, 0.85);
+      setEditingMember({ ...editingMember, photoUrl: optimized });
+    } catch (err: any) {
+      alert(err?.message || "Failed to process image. Please choose another photo.");
     }
-    const reader = new FileReader();
-    reader.onload = (loadEvt) => {
-      const dataUrl = loadEvt.target?.result as string;
-      setEditingMember({ ...editingMember, photoUrl: dataUrl });
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSaveMember = async (e: React.FormEvent) => {
