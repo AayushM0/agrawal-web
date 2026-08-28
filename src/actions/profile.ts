@@ -12,9 +12,13 @@ export interface UpdateProfileInput {
   dob?: string;
   gender?: string;
   maritalStatus?: string;
+  companyName?: string;
+  anniversaryDate?: string;
   currentCity?: string;
   currentCountry?: string;
   profession?: string;
+  professionTitle?: string;
+  professionDescription?: string;
   bio?: string;
   visibility?: {
     contactInfo: "members_only" | "hidden";
@@ -57,9 +61,11 @@ export async function saveMemberProfile(input: UpdateProfileInput) {
     return { success: false, error: "You do not have permission to modify this locked profile." };
   }
 
-  // Father's name validation for Head
-  if (existing.relationToHead === "self" && (!input.fatherName || input.fatherName.trim().length < 2)) {
-    return { success: false, error: "Father's Name (पिता का नाम) is required for Head of Household." };
+  // Father's name validation for Head and family members
+  if (!input.fatherName || input.fatherName.trim().length < 2) {
+    const isSpouseOrMarriedFemale = input.maritalStatus === "Married" && (input.gender === "Female" || existing.relationToHead === "spouse");
+    const label = isSpouseOrMarriedFemale ? "Father's / Husband's Name (पिता / पति का नाम)" : "Father's Name (पिता का नाम)";
+    return { success: false, error: `${label} is required.` };
   }
 
   const success = await db.updateMemberProfile(input.memberId, {
@@ -69,9 +75,13 @@ export async function saveMemberProfile(input: UpdateProfileInput) {
     dob: input.dob?.trim() || undefined,
     gender: input.gender,
     maritalStatus: input.maritalStatus,
+    companyName: input.companyName?.trim() || undefined,
+    anniversaryDate: input.maritalStatus === "Married" && input.anniversaryDate ? input.anniversaryDate.trim() : undefined,
     currentCity: input.currentCity?.trim() || undefined,
     currentCountry: input.currentCountry?.trim() || "India",
-    profession: input.profession?.trim() || undefined,
+    profession: input.professionTitle?.trim() || input.profession?.trim() || undefined,
+    professionTitle: input.professionTitle?.trim() || undefined,
+    professionDescription: input.professionDescription?.trim() || undefined,
     bio: input.bio?.trim() || undefined,
     visibility: input.visibility,
     relationToHead: existing.relationToHead,

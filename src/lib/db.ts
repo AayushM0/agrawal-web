@@ -205,8 +205,38 @@ export const db = {
   async getHouseholds(): Promise<Household[]> {
     if (!pool) throw new Error("Database not connected");
     try {
-      const res = await pool.query("SELECT * FROM households ORDER BY created_at DESC;");
-      return res.rows.map(h => ({
+      const hRes = await pool.query("SELECT * FROM households ORDER BY created_at DESC;");
+      const mRes = await pool.query(`
+        SELECT id, household_id as "householdId", full_name as "fullName", relation_to_head as "relationToHead",
+               dob, gender, marital_status as "maritalStatus", current_city as "currentCity",
+               current_country as "currentCountry", postal_code as "postalCode", state, full_address as "fullAddress",
+               profession_freetext as "profession", profession_title as "professionTitle", profession_description as "professionDescription",
+               company_name as "companyName", anniversary_date as "anniversaryDate",
+               phone, email, father_name as "fatherName", photo_url as "photoUrl", bio,
+               aadhaar_number as "aadhaarNumber", pan_number as "panNumber", passport_number as "passportNumber", govt_id_number as "govtIdNumber",
+               verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
+               visibility_contact, visibility_dob, visibility_photo
+        FROM members ORDER BY (relation_to_head = 'self') DESC, created_at ASC;
+      `);
+
+      const membersByHId = new Map<string, Member[]>();
+      for (const m of mRes.rows) {
+        const hId = String(m.householdId);
+        if (!membersByHId.has(hId)) {
+          membersByHId.set(hId, []);
+        }
+        membersByHId.get(hId)!.push({
+          ...m,
+          dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString() : String(m.dob)) : "",
+          visibility: {
+            contactInfo: m.visibility_contact,
+            dob: m.visibility_dob,
+            photo: m.visibility_photo,
+          }
+        });
+      }
+
+      return hRes.rows.map(h => ({
         id: h.id,
         householdCode: h.household_code,
         serialNo: h.serial_no || h.household_code,
@@ -228,7 +258,7 @@ export const db = {
         verifiedContact: h.verified_contact,
         consentAcceptedAt: h.consent_accepted_at,
         createdAt: h.created_at,
-        members: []
+        members: membersByHId.get(String(h.id)) || []
       }));
     } catch (e) {
       throw e;
@@ -870,7 +900,7 @@ export const db = {
   },
 
   async updateMemberProfile(memberId: string, updates: Partial<Member>): Promise<boolean> {
-        if (!pool) return true;
+    if (!pool) return true;
     try {
       const safeDob = updates.dob ? sanitizeDate(updates.dob) : null;
       const res = await pool.query(
@@ -884,10 +914,14 @@ export const db = {
              current_city = COALESCE($8, current_city),
              current_country = COALESCE($9, current_country),
              profession_freetext = COALESCE($10, profession_freetext),
-             bio = COALESCE($11, bio),
-             visibility_contact = COALESCE($12, visibility_contact),
-             visibility_dob = COALESCE($13, visibility_dob),
-             visibility_photo = COALESCE($14, visibility_photo)
+             profession_title = COALESCE($11, profession_title),
+             profession_description = COALESCE($12, profession_description),
+             company_name = COALESCE($13, company_name),
+             anniversary_date = COALESCE($14, anniversary_date),
+             bio = COALESCE($15, bio),
+             visibility_contact = COALESCE($16, visibility_contact),
+             visibility_dob = COALESCE($17, visibility_dob),
+             visibility_photo = COALESCE($18, visibility_photo)
          WHERE id::text = $1 OR id = $1
          RETURNING id, household_id;`,
         [
@@ -901,6 +935,10 @@ export const db = {
           updates.currentCity?.trim() || null,
           updates.currentCountry?.trim() || null,
           updates.profession?.trim() || null,
+          updates.professionTitle?.trim() || null,
+          updates.professionDescription?.trim() || null,
+          updates.companyName?.trim() || null,
+          updates.anniversaryDate?.trim() || null,
           updates.bio !== undefined ? updates.bio : null,
           updates.visibility?.contactInfo || null,
           updates.visibility?.dob || null,
@@ -912,8 +950,8 @@ export const db = {
       }
       return res.rows.length > 0;
     } catch (e) {
-    throw e;
-  }
+      throw e;
+    }
   },
 
   async updateHouseholdProfile(householdId: string, updates: { nativePlace?: string; gotra?: string; headName?: string }): Promise<boolean> {

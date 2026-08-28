@@ -342,6 +342,52 @@ export default function ModerationQueuePage() {
                   </div>
                 </div>
 
+                {/* Family Members Breakdown */}
+                {h.members && h.members.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-brand-accent/20">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-brand-primary mb-2">
+                      Family Members ({h.members.length})
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      {h.members.map((m, idx) => (
+                        <div key={m.id || idx} className="p-3 rounded-2xl bg-canvas-warm/30 border border-brand-accent/20 flex items-start gap-3 text-xs">
+                          {m.photoUrl ? (
+                            <img src={m.photoUrl} alt={m.fullName} className="w-10 h-10 rounded-full object-cover border border-brand-accent shrink-0" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-brand-primary/10 text-brand-primary font-bold flex items-center justify-center shrink-0">
+                              {m.fullName?.charAt(0)}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-brand-primary truncate">{idx + 1}. {m.fullName}</span>
+                              <span className="text-[10px] font-semibold bg-white px-2 py-0.5 rounded-full border border-brand-accent/30 text-body-muted capitalize">
+                                {m.relationToHead}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-body-heading mt-0.5">
+                              {m.maritalStatus === "Married" && (m.gender === "Female" || m.relationToHead === "spouse")
+                                ? `Father/Husband: ${m.fatherName || "N/A"}`
+                                : `Father: ${m.fatherName || "N/A"}`}
+                              {m.dob && ` • DOB: ${String(m.dob).split("T")[0]}`}
+                            </p>
+                            {(m.professionTitle || m.companyName || m.profession) && (
+                              <p className="text-[11px] text-body-muted truncate mt-0.5">
+                                💼 {m.professionTitle || m.profession}{m.companyName ? ` at ${m.companyName}` : ""}
+                              </p>
+                            )}
+                            {m.maritalStatus === "Married" && m.anniversaryDate && (
+                              <p className="text-[11px] text-brand-gold mt-0.5">
+                                💍 Anniversary: {String(m.anniversaryDate).split("T")[0]}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {h.status === "rejected" && h.rejectionReason && (
                   <div className="mt-3 p-3 rounded-xl bg-red-50 text-xs text-red-700">
                     <strong>Logged Reason:</strong> {h.rejectionReason}
