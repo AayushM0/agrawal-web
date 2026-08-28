@@ -183,7 +183,19 @@ function MessagesDashboardContent() {
     init();
   }, [initialRecipientId]);
 
-  // Load active conversation & manage polling fallback
+  // Periodically refresh conversation list in background if Realtime is not connected
+  useEffect(() => {
+    if (isRealtimeConnected) return;
+
+    const convListInterval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      fetchConversationList();
+    }, 5000);
+
+    return () => clearInterval(convListInterval);
+  }, [isRealtimeConnected]);
+
+  // Load active conversation & manage polling fallback (3 seconds)
   useEffect(() => {
     if (!selectedConv?.id) return;
     fetchMessagesForConv(selectedConv.id, false);
@@ -193,7 +205,7 @@ function MessagesDashboardContent() {
 
     const interval = setInterval(() => {
       fetchMessagesForConv(selectedConv.id, true);
-    }, 10000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [selectedConv?.id, isRealtimeConnected]);
