@@ -304,6 +304,17 @@ export default function MainHeader() {
                 My Dashboard
               </Link>
 
+              <Link
+                href="/settings"
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all ${
+                  pathname === "/settings"
+                    ? "bg-brand-primary text-white"
+                    : "text-body-heading bg-canvas-warm/70 hover:bg-canvas-warm border border-brand-accent/30"
+                }`}
+              >
+                ⚙️ Settings
+              </Link>
+
               <button
                 type="button"
                 onClick={handleLogout}
@@ -429,6 +440,14 @@ export default function MainHeader() {
                     className="flex items-center justify-between p-3 rounded-xl text-xs font-bold text-brand-primary bg-canvas-warm border border-brand-accent/30"
                   >
                     <span>📊 My Household Dashboard</span>
+                    <span>→</span>
+                  </Link>
+
+                  <Link
+                    href="/settings"
+                    className="flex items-center justify-between p-3 rounded-xl text-xs font-bold text-brand-primary bg-canvas-warm border border-brand-accent/30"
+                  >
+                    <span>⚙️ Account Settings</span>
                     <span>→</span>
                   </Link>
 

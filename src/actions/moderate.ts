@@ -67,9 +67,10 @@ async function sendWelcomeEmail(member: any, household: any) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        from: "Maharaja Agrasen Foundation <onboarding@resend.dev>",
+        from: process.env.RESEND_FROM_EMAIL || "Maharaja Agrasen Foundation <verify@maharajaagrasenfoundation.com>",
         to: member.email,
         subject: `Your Official ID (${passData.serialNo}) - Maharaja Agrasen Foundation`,
+        text: `Welcome! Your membership is approved. Your assigned Serial Number is ${passData.serialNo}. Your official ID card is attached to this email.`,
         html: `<p>Welcome! Your membership is approved. Your assigned Serial Number is <strong>${passData.serialNo}</strong>. Your official ID card is attached to this email.</p>`,
         attachments: [
           {
@@ -144,7 +145,7 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              from: "Maharaja Agrasen Foundation <onboarding@resend.dev>",
+              from: process.env.RESEND_FROM_EMAIL || "Maharaja Agrasen Foundation <verify@maharajaagrasenfoundation.com>",
               to: primaryEmail,
               subject: `Household Verified - Official ID Passes for All Members (${serial}) - Maharaja Agrasen Foundation`,
               html: `
@@ -191,7 +192,7 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              from: "Maharaja Agrasen Foundation <onboarding@resend.dev>",
+              from: process.env.RESEND_FROM_EMAIL || "Maharaja Agrasen Foundation <verify@maharajaagrasenfoundation.com>",
               to: item.member.email,
               subject: `Your Official ID Card (${serial}) - Maharaja Agrasen Foundation`,
               html: `

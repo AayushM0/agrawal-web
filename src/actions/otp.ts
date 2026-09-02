@@ -130,9 +130,10 @@ export async function sendOtp(input: SendOtpInput) {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          from: "Maharaja Agrasen Foundation <onboarding@resend.dev>",
+          from: process.env.RESEND_FROM_EMAIL || "Maharaja Agrasen Foundation <verify@maharajaagrasenfoundation.com>",
           to: normalized,
-          subject: `${generatedCode} is your Verification Code`,
+          subject: `${generatedCode} is your Maharaja Agrasen Foundation Verification Code`,
+          text: `Your Maharaja Agrasen Foundation verification passcode is: ${generatedCode}.\n\nThis code is valid for 10 minutes. Do not share it with anyone.`,
           html: emailHtml,
         })
       });

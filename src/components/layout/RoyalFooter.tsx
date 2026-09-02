@@ -61,6 +61,21 @@ export default function RoyalFooter() {
                   Head Dashboard (मुखिया डैशबोर्ड)
                 </Link>
               </li>
+              <li>
+                <Link href="/settings" className="hover:text-brand-primary transition-colors">
+                  Account Settings (सेटिंग्स)
+                </Link>
+              </li>
+              <li>
+                <Link href="/help" className="hover:text-brand-primary transition-colors">
+                  Help Center (सहायता केंद्र)
+                </Link>
+              </li>
+              <li>
+                <Link href="/support" className="hover:text-brand-primary transition-colors">
+                  Support Desk (सहायता डेस्क)
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -81,9 +96,15 @@ export default function RoyalFooter() {
 
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-body-muted">
           <p>© 2026 Maharaja Agrasen Foundation Limited Singapore. All Rights Reserved. एक समाज • एक मंच • एक परिवार</p>
-          <div className="flex gap-4 font-medium">
+          <div className="flex flex-wrap gap-x-4 gap-y-2 font-medium justify-center sm:justify-end">
             <Link href="/privacy" className="hover:text-brand-primary transition-colors">Privacy Policy</Link>
             <Link href="/terms" className="hover:text-brand-primary transition-colors">Terms of Service</Link>
+            <Link href="/cookie-policy" className="hover:text-brand-primary transition-colors">Cookie Policy</Link>
+            <Link href="/accessibility" className="hover:text-brand-primary transition-colors">Accessibility Statement</Link>
+            <Link href="/acceptable-use" className="hover:text-brand-primary transition-colors">Acceptable Use</Link>
+            <Link href="/security-policy" className="hover:text-brand-primary transition-colors">Security Policy</Link>
+            <Link href="/responsible-disclosure" className="hover:text-brand-primary transition-colors">Responsible Disclosure</Link>
+            <Link href="/community-guidelines" className="hover:text-brand-primary transition-colors">Community Guidelines</Link>
           </div>
         </div>
       </div>

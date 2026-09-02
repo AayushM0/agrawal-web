@@ -4,6 +4,8 @@ import "./globals.css";
 import TopNavBar from "@/components/layout/TopNavBar";
 import MainHeader from "@/components/layout/MainHeader";
 import RoyalFooter from "@/components/layout/RoyalFooter";
+import CookieBanner from "@/components/layout/CookieBanner";
+import OfflineIndicator from "@/components/layout/OfflineIndicator";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -42,11 +44,13 @@ export default function RootLayout({
       className={`${poppins.variable} ${notoSansDevanagari.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen flex flex-col bg-canvas-page text-body-text antialiased font-sans overflow-x-hidden">
+        <OfflineIndicator />
         <TopNavBar />
         <MainHeader />
         <div className="flex-1">
           {children}
         </div>
+        <CookieBanner />
         <RoyalFooter />
       </body>
     </html>
