@@ -16,12 +16,16 @@ function MessagesDashboardContent() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [selectedConv, setSelectedConv] = useState<any | null>(null);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messagesByConv, setMessagesByConv] = useState<Record<string, any[]>>({});
   const [newMessageText, setNewMessageText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentMemberId, setCurrentMemberId] = useState<string | null>(null);
+  const activeConvIdRef = useRef<string | null>(null);
+
+  // Active messages are derived strictly from the active conversation ID
+  const activeMessages = selectedConv?.id ? (messagesByConv[selectedConv.id] || []) : [];
 
   // Report Modal State
   const [isReporting, setIsReporting] = useState(false);
@@ -49,15 +53,15 @@ function MessagesDashboardContent() {
     conversationId: selectedConv?.id || null,
     currentMemberId,
     onNewMessage: (incomingMsg) => {
-      // Guard against appending messages from other rooms
-      if (selectedConv?.id && String(incomingMsg.conversationId || incomingMsg.conversation_id) !== String(selectedConv.id)) {
-        return;
-      }
-      setMessages((prev) => {
-        if (prev.some((m) => String(m.id) === String(incomingMsg.id))) {
+      const msgConvId = String(incomingMsg.conversationId || incomingMsg.conversation_id || "");
+      if (!msgConvId) return;
+
+      setMessagesByConv((prev) => {
+        const roomMsgs = prev[msgConvId] || [];
+        if (roomMsgs.some((m) => String(m.id) === String(incomingMsg.id))) {
           return prev;
         }
-        return [...prev, incomingMsg];
+        return { ...prev, [msgConvId]: [...roomMsgs, incomingMsg] };
       });
       fetchConversationList();
     },
@@ -98,23 +102,18 @@ function MessagesDashboardContent() {
       if (isPoll && typeof document !== "undefined" && document.hidden) return;
 
       const res = await getMessages(convId);
-      if (res.success && res.messages) {
-        const fetchedMessages = res.messages;
-        
-        setMessages((prevMessages) => {
-          // If message count and last message ID haven't changed, don't trigger re-render
-          const prevLastId = prevMessages[prevMessages.length - 1]?.id;
-          const newLastId = fetchedMessages[fetchedMessages.length - 1]?.id;
-          if (prevMessages.length === fetchedMessages.length && prevLastId === newLastId) {
-            return prevMessages;
-          }
+      // Drop response if user has switched to another conversation in the meantime
+      if (activeConvIdRef.current !== convId) return;
 
-          return fetchedMessages;
-        });
+      if (res.success && res.messages) {
+        setMessagesByConv((prev) => ({
+          ...prev,
+          [convId]: res.messages || [],
+        }));
 
         if (res.conversation) {
           setSelectedConv((prev: any) => {
-            if (!prev) return res.conversation;
+            if (!prev || String(prev.id) !== String(convId)) return prev;
             return {
               ...prev,
               status: res.conversation.status || prev.status,
@@ -126,6 +125,16 @@ function MessagesDashboardContent() {
       }
     } catch (err: any) {
       console.error("Failed to load messages:", err);
+    }
+  };
+
+  const handleSelectConv = (conv: any) => {
+    if (selectedConv?.id === conv?.id) return;
+    setError(null);
+    setSelectedConv(conv);
+    activeConvIdRef.current = conv?.id || null;
+    if (conv?.id) {
+      fetchMessagesForConv(conv.id, false);
     }
   };
 
@@ -147,7 +156,7 @@ function MessagesDashboardContent() {
             (c: any) => String(c.otherParticipant?.id) === String(initialRecipientId)
           );
           if (existing) {
-            setSelectedConv(existing);
+            handleSelectConv(existing);
             setActiveTab(existing.status === "pending" && !existing.isInitiator ? "requests" : "active");
           } else {
             // Fetch recipient's profile to initialize draft conversation
@@ -168,7 +177,7 @@ function MessagesDashboardContent() {
                   householdCode: prof.householdCode,
                 },
               });
-              setMessages([]);
+              activeConvIdRef.current = null;
             } else {
               setError("Recipient member profile not found.");
             }
@@ -198,13 +207,16 @@ function MessagesDashboardContent() {
   // Load active conversation & manage polling fallback (3 seconds)
   useEffect(() => {
     if (!selectedConv?.id) return;
+    activeConvIdRef.current = selectedConv.id;
     fetchMessagesForConv(selectedConv.id, false);
 
     // If WebSocket is active, 0 DB queries needed!
     if (isRealtimeConnected) return;
 
     const interval = setInterval(() => {
-      fetchMessagesForConv(selectedConv.id, true);
+      if (selectedConv?.id) {
+        fetchMessagesForConv(selectedConv.id, true);
+      }
     }, 3000);
 
     return () => clearInterval(interval);
@@ -230,14 +242,16 @@ function MessagesDashboardContent() {
       } else {
         setNewMessageText("");
         if (res.conversationId) {
+          const newId = res.conversationId;
           setSelectedConv((prev: any) => ({
             ...prev,
-            id: res.conversationId,
+            id: newId,
             isNewDraft: false,
             status: "pending",
             isInitiator: true,
           }));
-          await fetchMessagesForConv(res.conversationId);
+          activeConvIdRef.current = newId;
+          await fetchMessagesForConv(newId);
         } else if (selectedConv?.id) {
           await fetchMessagesForConv(selectedConv.id);
         }
@@ -324,7 +338,7 @@ function MessagesDashboardContent() {
         {/* Messaging Container */}
         <div className="bg-white rounded-xl shadow-md border border-[#E8DCC4] overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[620px]">
           {/* Left Sidebar: Conversations & Requests */}
-          <div className="md:col-span-4 border-r border-[#E8DCC4] flex flex-col bg-[#FAF6F0]/40">
+          <div className={`md:col-span-4 border-r border-[#E8DCC4] flex flex-col bg-[#FAF6F0]/40 ${selectedConv ? "hidden md:flex" : "flex"}`}>
             {/* Tabs */}
             <div className="grid grid-cols-2 border-b border-[#E8DCC4] text-center font-medium text-sm">
               <button
@@ -370,7 +384,7 @@ function MessagesDashboardContent() {
                     return (
                       <button
                         key={conv.id}
-                        onClick={() => setSelectedConv(conv)}
+                        onClick={() => handleSelectConv(conv)}
                         className={`w-full text-left p-4 flex items-center space-x-3 transition ${
                           isSelected ? "bg-[#F5ECE0] border-l-4 border-[#800020]" : "hover:bg-[#FAF6F0]"
                         }`}
@@ -410,7 +424,7 @@ function MessagesDashboardContent() {
                   return (
                     <button
                       key={req.id}
-                      onClick={() => setSelectedConv(req)}
+                      onClick={() => handleSelectConv(req)}
                       className={`w-full text-left p-4 flex items-center space-x-3 transition ${
                         isSelected ? "bg-[#F5ECE0] border-l-4 border-[#800020]" : "hover:bg-[#FAF6F0]"
                       }`}
@@ -433,31 +447,42 @@ function MessagesDashboardContent() {
           </div>
 
           {/* Right Pane: Active Chat Window */}
-          <div className="md:col-span-8 flex flex-col h-[620px] bg-white">
+          <div className={`md:col-span-8 flex flex-col h-[620px] bg-white ${selectedConv ? "flex" : "hidden md:flex"}`}>
             {selectedConv ? (
               <>
                 {/* Chat Header */}
-                <div className="px-6 py-4 border-b border-[#E8DCC4] flex items-center justify-between bg-[#FDFBF7]">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 rounded-full bg-[#800020] text-[#D4AF37] flex items-center justify-center font-bold text-sm overflow-hidden">
+                <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-[#E8DCC4] flex items-center justify-between bg-[#FDFBF7]">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedConv(null);
+                        activeConvIdRef.current = null;
+                      }}
+                      className="md:hidden p-1.5 -ml-1 mr-1 rounded-lg text-[#800020] hover:bg-[#F5ECE0] font-bold text-lg leading-none"
+                      aria-label="Back to conversations"
+                    >
+                      ←
+                    </button>
+                    <div className="w-10 h-10 rounded-full bg-[#800020] text-[#D4AF37] flex items-center justify-center font-bold text-sm overflow-hidden flex-shrink-0">
                       {selectedConv.otherParticipant?.photoUrl ? (
                         <img src={selectedConv.otherParticipant.photoUrl} alt="" className="w-full h-full object-cover" />
                       ) : (
                         selectedConv.otherParticipant?.fullName?.charAt(0) || "M"
                       )}
                     </div>
-                    <div>
-                      <h3 className="font-serif font-bold text-[#2A1810] text-base">
+                    <div className="min-w-0">
+                      <h3 className="font-serif font-bold text-[#2A1810] text-base truncate">
                         {selectedConv.otherParticipant?.fullName}
                       </h3>
-                      <div className="flex items-center space-x-2 text-xs text-gray-500">
+                      <div className="flex items-center space-x-2 text-xs text-gray-500 truncate">
                         {selectedConv.otherParticipant?.gotra && <span>Gotra: {selectedConv.otherParticipant.gotra}</span>}
                         {selectedConv.otherParticipant?.city && <span>• {selectedConv.otherParticipant.city}</span>}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-shrink-0">
                     {isRealtimeConnected && (
                       <span className="flex items-center space-x-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -520,39 +545,41 @@ function MessagesDashboardContent() {
                 )}
 
                 {/* Messages List */}
-                <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-[#FAF6F0]/20">
-                  {messages.length === 0 ? (
+                <div className="flex-1 p-4 sm:p-6 overflow-y-auto space-y-4 bg-[#FAF6F0]/20">
+                  {activeMessages.length === 0 ? (
                     <div className="text-center py-12 text-sm text-gray-400">
                       Send a respectful greeting to introduce yourself.
                     </div>
                   ) : (
-                    messages.map((msg) => {
-                      const isMe = String(msg.senderId) !== String(selectedConv.otherParticipant?.id);
-                      return (
-                        <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                          <div
-                            className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
-                              isMe
-                                ? "bg-[#800020] text-white rounded-br-none"
-                                : "bg-white border border-[#E8DCC4] text-[#2A1810] rounded-bl-none"
-                            }`}
-                          >
-                            <p className="whitespace-pre-wrap leading-relaxed">{msg.messageBody}</p>
+                    activeMessages
+                      .filter((msg) => !selectedConv?.id || String(msg.conversationId || msg.conversation_id) === String(selectedConv.id))
+                      .map((msg) => {
+                        const isMe = String(msg.senderId) !== String(selectedConv.otherParticipant?.id);
+                        return (
+                          <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                            <div
+                              className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+                                isMe
+                                  ? "bg-[#800020] text-white rounded-br-none"
+                                  : "bg-white border border-[#E8DCC4] text-[#2A1810] rounded-bl-none"
+                              }`}
+                            >
+                              <p className="whitespace-pre-wrap leading-relaxed">{msg.messageBody}</p>
 
-                            {/* In-Stream Anti-Fraud Warning */}
-                            {msg.isFlagged && (
-                              <div className="mt-2 text-[11px] bg-red-100 border border-red-300 text-red-800 p-2 rounded flex items-center space-x-1.5">
-                                <span>⚠️</span>
-                                <span><b>Safety Alert:</b> {msg.flagReason || "Potential payment solicitation. Never send money."}</span>
-                              </div>
-                            )}
+                              {/* In-Stream Anti-Fraud Warning */}
+                              {msg.isFlagged && (
+                                <div className="mt-2 text-[11px] bg-red-100 border border-red-300 text-red-800 p-2 rounded flex items-center space-x-1.5">
+                                  <span>⚠️</span>
+                                  <span><b>Safety Alert:</b> {msg.flagReason || "Potential payment solicitation. Never send money."}</span>
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-gray-400 mt-1 px-1">
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </span>
                           </div>
-                          <span className="text-[10px] text-gray-400 mt-1 px-1">
-                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                        </div>
-                      );
-                    })
+                        );
+                      })
                   )}
                 </div>
 
@@ -564,23 +591,24 @@ function MessagesDashboardContent() {
                 )}
 
                 {/* Message Input Box */}
-                <form onSubmit={handleSendMessage} className="p-4 border-t border-[#E8DCC4] bg-white flex items-center space-x-3">
+                <form onSubmit={handleSendMessage} className="p-3 sm:p-4 border-t border-[#E8DCC4] bg-white flex items-center gap-2 sm:gap-3">
                   <input
                     type="text"
                     value={newMessageText}
                     onChange={(e) => setNewMessageText(e.target.value)}
                     placeholder="Type a message..."
                     maxLength={2000}
-                    disabled={selectedConv.status === "blocked" || (selectedConv.status === "pending" && selectedConv.isInitiator && messages.length > 0)}
-                    className="flex-1 px-4 py-2.5 text-sm border border-[#D4AF37]/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#800020] bg-[#FAF6F0]/30 disabled:opacity-50"
+                    disabled={selectedConv.status === "blocked" || (selectedConv.status === "pending" && selectedConv.isInitiator && activeMessages.length > 0)}
+                    className="flex-1 min-w-0 px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm border border-[#D4AF37]/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#800020] bg-[#FAF6F0]/30 disabled:opacity-50"
                   />
                   <button
                     type="submit"
                     disabled={sending || !newMessageText.trim() || selectedConv.status === "blocked"}
-                    className="px-5 py-2.5 bg-[#800020] text-[#D4AF37] font-bold text-sm rounded-xl hover:bg-[#68001A] transition disabled:opacity-50 flex items-center space-x-1"
+                    aria-label="Send Message"
+                    className="shrink-0 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-[#800020] text-[#D4AF37] font-bold text-xs sm:text-sm rounded-xl hover:bg-[#68001A] transition disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-sm"
                   >
-                    <span>{sending ? "..." : "Send"}</span>
-                    <span>✉️</span>
+                    <span className="hidden sm:inline">{sending ? "..." : "Send"}</span>
+                    <span className="text-sm">➤</span>
                   </button>
                 </form>
               </>

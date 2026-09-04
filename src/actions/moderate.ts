@@ -6,51 +6,11 @@ import { Household } from "@/types/household";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { PassPDF } from "@/components/PassPDF";
 import { getBaseUrl, createUnifiedPassData } from "@/lib/pass";
+import { sendTwilioSms } from "@/lib/telecom/twilio";
 import React from "react";
 
 async function sendSMS(phone: string, text: string) {
-  const sid = process.env.TWILIO_ACCOUNT_SID?.replace(/['"]/g, "").trim();
-  const token = process.env.TWILIO_AUTH_TOKEN?.replace(/['"]/g, "").trim();
-  const from = process.env.TWILIO_PHONE_NUMBER?.replace(/['"]/g, "").trim();
-
-  if (!sid || !token || !from) {
-    console.warn("[TWILIO SMS SKIP] Missing or incomplete Twilio configuration in environment variables:", {
-      hasSid: !!sid,
-      hasToken: !!token,
-      hasFrom: !!from,
-    });
-    return;
-  }
-
-  if (!phone) {
-    console.warn("[TWILIO SMS SKIP] Recipient phone number is empty.");
-    return;
-  }
-
-  try {
-    const authHeader = "Basic " + Buffer.from(`${sid}:${token}`).toString("base64");
-    const body = new URLSearchParams({
-      Body: text,
-      From: from,
-      To: phone,
-    });
-
-    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: "POST",
-      headers: {
-        "Authorization": authHeader,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: body.toString(),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error("[TWILIO SMS ERROR]", err);
-    }
-  } catch (e) {
-    console.error("SMS failed:", e);
-  }
+  await sendTwilioSms(phone, text);
 }
 
 async function sendWelcomeEmail(member: any, household: any) {

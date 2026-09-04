@@ -1547,7 +1547,7 @@ export const db = {
     if (!pool) throw new Error("Database not connected");
     const table = entityType === "household" ? "households" : "members";
     await pool.query(
-      `UPDATE ${table} SET password_hash = $1, updated_at = NOW() WHERE id = $2;`,
+      `UPDATE ${table} SET password_hash = $1 WHERE id = $2;`,
       [newHash, id]
     );
   },

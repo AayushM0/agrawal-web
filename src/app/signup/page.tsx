@@ -987,26 +987,33 @@ export default function SignupPage() {
                   </div>
 
                   {/* Photo Upload & Preview */}
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border-2 border-brand-accent flex items-center justify-center text-xl font-bold text-brand-primary shrink-0 shadow-sm">
-                      {headPhotoUrl ? (
-                        <img src={headPhotoUrl} alt="Head Profile" className="w-full h-full object-cover" />
-                      ) : (
-                        headName ? headName.charAt(0).toUpperCase() : "H"
-                      )}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 sm:p-3.5 rounded-xl bg-white/70 border border-brand-accent/30 shadow-xs">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border-2 border-brand-accent flex items-center justify-center text-lg sm:text-xl font-bold text-brand-primary shrink-0 shadow-xs">
+                        {headPhotoUrl ? (
+                          <img src={headPhotoUrl} alt="Head Profile" className="w-full h-full object-cover" />
+                        ) : (
+                          headName ? headName.charAt(0).toUpperCase() : "H"
+                        )}
+                      </div>
+                      <div className="sm:hidden flex-1 min-w-0">
+                        <label className="block text-xs font-bold text-body-heading leading-tight">
+                          Profile Photo <span className="text-[11px] font-normal text-body-muted block">(मुखिया का फोटो) *</span>
+                        </label>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-bold text-body-heading mb-1">
+                    <div className="flex-1 min-w-0 w-full">
+                      <label className="hidden sm:block text-xs font-bold text-body-heading mb-1">
                         Profile Photo (मुखिया का फोटो) *
                       </label>
                       <input
                         type="file"
                         accept="image/*,image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif"
                         onChange={handleHeadPhotoUpload}
-                        className="text-xs text-body-muted file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-canvas-warm file:text-brand-primary hover:file:bg-white"
+                        className="block w-full max-w-full text-xs text-body-muted file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-canvas-warm file:text-brand-primary hover:file:bg-white truncate cursor-pointer"
                       />
                       {!headPhotoUrl && (
-                        <span className="text-[10px] text-amber-700 font-semibold block mt-0.5">
+                        <span className="text-[10px] text-amber-700 font-semibold block mt-1">
                           ⚠️ Photo upload is mandatory for official ID pass
                         </span>
                       )}
@@ -1420,26 +1427,33 @@ export default function SignupPage() {
                         </div>
 
                         {/* Member Photo Upload & Avatar Preview */}
-                        <div className="flex items-center gap-4 p-3.5 rounded-xl bg-white border border-brand-accent/30 shadow-xs">
-                          <div className="w-14 h-14 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border-2 border-brand-accent flex items-center justify-center text-lg font-bold text-brand-primary shrink-0 shadow-xs">
-                            {member.photoUrl ? (
-                              <img src={member.photoUrl} alt={member.fullName || "Member"} className="w-full h-full object-cover" />
-                            ) : (
-                              member.fullName ? member.fullName.charAt(0).toUpperCase() : `${index + 2}`
-                            )}
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 sm:p-3.5 rounded-xl bg-white border border-brand-accent/30 shadow-xs">
+                          <div className="flex items-center gap-3 sm:gap-4">
+                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border-2 border-brand-accent flex items-center justify-center text-base sm:text-lg font-bold text-brand-primary shrink-0 shadow-xs">
+                              {member.photoUrl ? (
+                                <img src={member.photoUrl} alt={member.fullName || "Member"} className="w-full h-full object-cover" />
+                              ) : (
+                                member.fullName ? member.fullName.charAt(0).toUpperCase() : `${index + 2}`
+                              )}
+                            </div>
+                            <div className="sm:hidden flex-1 min-w-0">
+                              <label className="block text-xs font-bold text-body-heading leading-tight">
+                                Member Profile Photo <span className="text-[11px] font-normal text-body-muted block">(सदस्य का फोटो) *</span>
+                              </label>
+                            </div>
                           </div>
-                          <div>
-                            <label className="block text-xs font-bold text-body-heading mb-1">
+                          <div className="flex-1 min-w-0 w-full">
+                            <label className="hidden sm:block text-xs font-bold text-body-heading mb-1">
                               Member Profile Photo (सदस्य का फोटो) *
                             </label>
                             <input
                               type="file"
                               accept="image/*,image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif"
                               onChange={(e) => handleMemberPhoto(member.id, e)}
-                              className="text-xs text-body-muted file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-canvas-warm file:text-brand-primary hover:file:bg-white"
+                              className="block w-full max-w-full text-xs text-body-muted file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-canvas-warm file:text-brand-primary hover:file:bg-white truncate cursor-pointer"
                             />
                             {!member.photoUrl && (
-                              <span className="text-[10px] text-amber-700 font-semibold block mt-0.5">
+                              <span className="text-[10px] text-amber-700 font-semibold block mt-1">
                                 ⚠️ Photo upload is mandatory for ID pass generation
                               </span>
                             )}
