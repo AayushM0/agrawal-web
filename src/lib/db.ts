@@ -664,6 +664,117 @@ export const db = {
     } catch (e) { throw e; }
   },
 
+  async addMemberToHousehold(householdId: string, member: Partial<Member>): Promise<any> {
+    if (!pool) throw new Error("Database not connected");
+
+    // 1. Quota guard (A04: Resource Exhaustion defense)
+    const countRes = await pool.query(
+      "SELECT COUNT(*)::int as count FROM members WHERE household_id::text = $1;",
+      [householdId]
+    );
+    const count = countRes.rows[0]?.count || 0;
+    if (count >= 25) {
+      throw new Error("Household has reached maximum member capacity (25 members).");
+    }
+
+    // 2. Fetch household for address/native inheritance if not specified
+    const hRes = await pool.query(
+      "SELECT city, country, postal_code, state, full_address, native_place FROM households WHERE id::text = $1 LIMIT 1;",
+      [householdId]
+    );
+    const household = hRes.rows[0] || {};
+
+    // 3. Validation: relation to head cannot be 'self'
+    const safeRel = member.relationToHead || "other";
+    if (safeRel === "self") {
+      throw new Error("Cannot add a duplicate Head of Household ('self').");
+    }
+
+    const safeDob = member.dob ? sanitizeDate(member.dob) : null;
+    const cleanPhone = member.phone?.trim() ? normalizePhoneNumber(member.phone.trim()) : null;
+    const cleanEmail = member.email?.trim() ? member.email.trim().toLowerCase() : null;
+
+    const insertQuery = `
+      INSERT INTO members (
+        id, household_id, full_name, relation_to_head, dob, gender, marital_status,
+        current_city, current_country, postal_code, state, full_address,
+        profession_freetext, profession_title, profession_description,
+        company_name, anniversary_date,
+        phone, email, father_name, photo_url, bio,
+        visibility_contact, visibility_dob, visibility_photo,
+        verified_by_self, owner_locked, password_hash
+      ) VALUES (
+        gen_random_uuid(), $1, $2, $3, $4, $5, $6,
+        $7, $8, $9, $10, $11,
+        $12, $13, $14,
+        $15, $16,
+        $17, $18, $19, $20, $21,
+        $22, $23, $24,
+        false, false, null
+      ) RETURNING *;
+    `;
+
+    const res = await pool.query(insertQuery, [
+      householdId,
+      member.fullName?.trim(),
+      safeRel,
+      safeDob,
+      member.gender || "Male",
+      member.maritalStatus || "Unmarried",
+      member.currentCity?.trim() || household.city || household.native_place || "",
+      member.currentCountry?.trim() || household.country || "India",
+      member.postalCode?.trim() || household.postal_code || null,
+      member.state?.trim() || household.state || null,
+      member.fullAddress?.trim() || household.full_address || null,
+      member.profession?.trim() || member.professionTitle?.trim() || "Not specified",
+      member.professionTitle?.trim() || member.profession?.trim() || null,
+      member.professionDescription?.trim() || null,
+      member.companyName?.trim() || null,
+      member.maritalStatus === "Married" && member.anniversaryDate ? member.anniversaryDate.trim() : null,
+      cleanPhone,
+      cleanEmail,
+      member.fatherName?.trim() || null,
+      member.photoUrl || null,
+      member.bio?.trim() || null,
+      member.visibility?.contactInfo || "hidden",
+      member.visibility?.dob || "hidden",
+      member.visibility?.photo || "public_to_members",
+    ]);
+
+    const m = res.rows[0];
+    return {
+      id: m.id,
+      householdId: m.household_id,
+      fullName: m.full_name,
+      relationToHead: m.relation_to_head,
+      dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString() : String(m.dob)) : "",
+      gender: m.gender,
+      maritalStatus: m.marital_status,
+      currentCity: m.current_city,
+      currentCountry: m.current_country,
+      postalCode: m.postal_code,
+      state: m.state,
+      fullAddress: m.full_address,
+      profession: m.profession_freetext,
+      professionTitle: m.profession_title,
+      professionDescription: m.profession_description,
+      companyName: m.company_name,
+      anniversaryDate: m.anniversary_date,
+      phone: m.phone,
+      email: m.email,
+      fatherName: m.father_name,
+      photoUrl: m.photo_url,
+      bio: m.bio,
+      verifiedBySelf: m.verified_by_self,
+      ownerLocked: m.owner_locked,
+      visibility: {
+        contactInfo: m.visibility_contact,
+        dob: m.visibility_dob,
+        photo: m.visibility_photo,
+      }
+    };
+  },
+
   async updateHouseholdStatus(id: string, status: "live" | "rejected" | "pending_review", rejectionReason?: string): Promise<Household | null> {
     if (!pool) throw new Error("Database not connected");
     try {
