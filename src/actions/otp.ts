@@ -151,90 +151,7 @@ export async function sendOtp(input: SendOtpInput) {
     }
   }
 
-  // 2. Dispatch via Twilio Verify API (SMS)
-  const twilioSid = process.env.TWILIO_ACCOUNT_SID?.replace(/['"]/g, "").trim();
-  const twilioToken = process.env.TWILIO_AUTH_TOKEN?.replace(/['"]/g, "").trim();
-  const twilioVerifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID?.replace(/['"]/g, "").trim();
-  const twilioPhone = process.env.TWILIO_PHONE_NUMBER?.replace(/['"]/g, "").trim();
-
-  if (isPhone && twilioSid && twilioToken && twilioVerifyServiceSid) {
-    try {
-      const cookieStore = await cookies();
-      cookieStore.set("otp_challenge", `verify_api:${normalized}`, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 10 * 60,
-      });
-
-      const authHeader = "Basic " + Buffer.from(twilioSid + ":" + twilioToken).toString("base64");
-      
-      const res = await fetch(`https://verify.twilio.com/v2/Services/${twilioVerifyServiceSid}/Verifications`, {
-        method: "POST",
-        headers: {
-          "Authorization": authHeader,
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: new URLSearchParams({ To: normalized, Channel: "sms" })
-      });
-
-      if (!res.ok) {
-         const errorData = await res.json().catch(() => ({}));
-         console.error("[TWILIO VERIFY ERROR]", errorData);
-         return { success: false, error: "Failed to send SMS verification code via Twilio Verify." };
-      }
-
-      return { success: true, message: `A 6-digit verification passcode has been sent via SMS to ${normalized}.` };
-    } catch (err: any) {
-      console.error("[TWILIO VERIFY ERROR]", err);
-      return { success: false, error: `Failed to send SMS verification code: ${err.message}` };
-    }
-  }
-
-  // 3. Dispatch via Twilio Standard SMS Messages API
-  if (isPhone && twilioSid && twilioToken && twilioPhone) {
-    try {
-      const generatedCode = crypto.randomInt(100000, 999999).toString();
-      const expiresAt = Date.now() + 10 * 60 * 1000;
-      const challengeToken = signOtpChallenge(normalized, generatedCode, expiresAt, 0);
-      const cookieStore = await cookies();
-      cookieStore.set("otp_challenge", challengeToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 10 * 60,
-      });
-
-      const authHeader = "Basic " + Buffer.from(twilioSid + ":" + twilioToken).toString("base64");
-      const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
-        method: "POST",
-        headers: {
-          "Authorization": authHeader,
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          From: twilioPhone,
-          To: normalized,
-          Body: `Your Maharaja Agrasen Foundation verification passcode is: ${generatedCode}. Valid for 10 minutes.`,
-        }),
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        console.error("[TWILIO SMS ERROR]", errData);
-        return { success: false, error: "Failed to deliver SMS via Twilio Messages API." };
-      }
-
-      return { success: true, message: `A 6-digit verification passcode has been sent via SMS to ${normalized}.` };
-    } catch (err: any) {
-      console.error("[TWILIO SMS ERROR]", err);
-      return { success: false, error: `Failed to send SMS: ${err.message}` };
-    }
-  }
-
-  // Fallback: When no SMS/Email credentials exist in hosting environment
+  // Fallback / Development: generate signed HMAC OTP challenge
   const generatedCode = crypto.randomInt(100000, 999999).toString();
   const expiresAt = Date.now() + 10 * 60 * 1000;
   const challengeToken = signOtpChallenge(normalized, generatedCode, expiresAt, 0);
@@ -246,10 +163,11 @@ export async function sendOtp(input: SendOtpInput) {
     path: "/",
     maxAge: 10 * 60,
   });
+
   console.warn(
-    `[OTP DEV FALLBACK] No gateway configured on this server for ${isPhone ? "phone" : "email"} (${normalized}). Ensure TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_VERIFY_SERVICE_SID or RESEND_API_KEY are configured in Vercel Environment Variables. Code: ${generatedCode}`
+    `[OTP DEV FALLBACK] Resend API key not configured. Simulated code for ${normalized}: ${generatedCode}`
   );
-  return { success: true, message: "A 6-digit verification passcode has been dispatched." };
+  return { success: true, message: "A 6-digit verification code has been dispatched." };
 }
 
 export interface VerifyOtpInput {
@@ -268,7 +186,7 @@ export async function verifyOtp(input: VerifyOtpInput) {
   }
 
   if (!checkRateLimit(`verify_${normalized}`, 5, 10 * 60 * 1000)) {
-    return { success: false, error: "Too many failed attempts. Please request a new OTP." };
+    return { success: false, error: "Too many failed attempts. Please request a new verification code." };
   }
 
   const enteredOtp = input.otp.trim();
@@ -276,52 +194,13 @@ export async function verifyOtp(input: VerifyOtpInput) {
   const challengeCookie = cookieStore.get("otp_challenge")?.value;
 
   if (!challengeCookie) {
-    return { success: false, error: "OTP expired or not requested. Please click Send OTP." };
+    return { success: false, error: "Verification code expired or not requested. Please request a new code." };
   }
 
-  // Route: Twilio Verify API check (phone OTP path)
-  if (challengeCookie.startsWith("verify_api:")) {
-    const expectedRecipient = challengeCookie.slice("verify_api:".length);
-    if (expectedRecipient !== normalized) {
-      return { success: false, error: "Contact details do not match the OTP request." };
-    }
-    
-    try {
-      const twilioSid = process.env.TWILIO_ACCOUNT_SID?.replace(/['"]/g, "").trim();
-      const twilioToken = process.env.TWILIO_AUTH_TOKEN?.replace(/['"]/g, "").trim();
-      const twilioVerifyServiceSid = process.env.TWILIO_VERIFY_SERVICE_SID?.replace(/['"]/g, "").trim();
-
-      if (!twilioSid || !twilioToken || !twilioVerifyServiceSid) {
-        return { success: false, error: "Twilio Verify API is not properly configured on this server." };
-      }
-
-      const authHeader = "Basic " + Buffer.from(twilioSid + ":" + twilioToken).toString("base64");
-      const res = await fetch(`https://verify.twilio.com/v2/Services/${twilioVerifyServiceSid}/VerificationCheck`, {
-        method: "POST",
-        headers: {
-          "Authorization": authHeader,
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: new URLSearchParams({ To: normalized, Code: enteredOtp })
-      });
-      
-      const check = await res.json();
-      if (check.status !== "approved") {
-        return { success: false, error: "Invalid OTP code. Please check the SMS and try again." };
-      }
-
-      cookieStore.delete("otp_challenge");
-      return { success: true, verifiedAt: new Date().toISOString(), message: "Identity verified successfully." };
-    } catch (err: any) {
-      console.error("[TWILIO VERIFY CHECK ERROR]", err);
-      return { success: false, error: "Invalid or expired OTP code. Please request a new one." };
-    }
-  }
-
-  // Route: HMAC cookie verification
+  // Route: Secure HMAC cookie verification
   const challenge = verifyOtpChallenge(challengeCookie);
   if (!challenge) {
-    return { success: false, error: "Verification token expired. Please request a new OTP." };
+    return { success: false, error: "Verification token expired. Please request a new verification code." };
   }
 
   if (challenge.recipient !== normalized) {
