@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS households (
     pan_number TEXT,
     passport_number TEXT,
     govt_id_number TEXT,
+    password_hash TEXT,
     status household_status NOT NULL DEFAULT 'pending_review',
     rejection_reason TEXT,
     consent_accepted_at TIMESTAMPTZ NOT NULL,
@@ -78,6 +79,7 @@ CREATE TABLE IF NOT EXISTS members (
     pan_number TEXT,
     passport_number TEXT,
     govt_id_number TEXT,
+    password_hash TEXT,
     verified_by_self BOOLEAN NOT NULL DEFAULT FALSE,
     claim_token TEXT UNIQUE,
     owner_locked BOOLEAN NOT NULL DEFAULT FALSE,
@@ -120,6 +122,18 @@ ALTER TABLE members ADD COLUMN IF NOT EXISTS aadhaar_number TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS pan_number TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS passport_number TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE households ADD COLUMN IF NOT EXISTS password_hash TEXT;
+
+-- 2b. Login Attempts Table (OWASP Brute-Force Defense)
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    identifier VARCHAR(255) NOT NULL,
+    ip_address VARCHAR(45) NOT NULL,
+    success BOOLEAN NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_lookup ON login_attempts(identifier, ip_address, created_at DESC);
 
 -- 3. Conversations Table (Member-to-Member Messaging)
 CREATE TABLE IF NOT EXISTS conversations (

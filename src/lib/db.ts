@@ -103,6 +103,18 @@ async function ensureSchema(client: any) {
       ALTER TABLE members ADD COLUMN IF NOT EXISTS aadhaar_number TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS passport_number TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS password_hash TEXT;
+
+      ALTER TABLE households ADD COLUMN IF NOT EXISTS password_hash TEXT;
+
+      CREATE TABLE IF NOT EXISTS login_attempts (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          identifier VARCHAR(255) NOT NULL,
+          ip_address VARCHAR(45) NOT NULL,
+          success BOOLEAN NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_login_attempts_lookup ON login_attempts (identifier, ip_address, created_at DESC);
 
       CREATE TABLE IF NOT EXISTS conversations (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -797,7 +809,7 @@ export const db = {
       if (isEmail) {
         // 1. Search in members table by email
         const mRes = await pool.query(
-          `SELECT m.*, h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+          `SELECT m.*, COALESCE(m.password_hash, h.password_hash) as "passwordHash", h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
            FROM members m
            JOIN households h ON m.household_id = h.id
            WHERE LOWER(m.email) = LOWER($1)
@@ -816,12 +828,13 @@ export const db = {
             currentCountry: r.current_country,
             gotra: r.gotra,
             photoUrl: r.photo_url,
+            passwordHash: r.passwordHash || r.password_hash,
           };
         }
 
         // 2. Search in households table by verified email contact (head of household)
         const hRes = await pool.query(
-          `SELECT m.*, h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+          `SELECT m.*, COALESCE(m.password_hash, h.password_hash) as "passwordHash", h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
            FROM households h
            JOIN members m ON m.household_id = h.id AND m.relation_to_head = 'self'
            WHERE LOWER(h.verified_contact) = LOWER($1)
@@ -839,6 +852,7 @@ export const db = {
             currentCountry: r.current_country,
             gotra: r.gotra,
             photoUrl: r.photo_url,
+            passwordHash: r.passwordHash || r.password_hash,
           };
         }
 
@@ -847,7 +861,7 @@ export const db = {
         const phoneLike = last10 ? `%${last10}` : canonical;
         // 1. Search in members table by phone
         const mRes = await pool.query(
-          `SELECT m.*, h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+          `SELECT m.*, COALESCE(m.password_hash, h.password_hash) as "passwordHash", h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
            FROM members m
            JOIN households h ON m.household_id = h.id
            WHERE m.phone = $1 OR m.phone = $2 OR (m.phone LIKE $3 AND $3 != '%')
@@ -866,12 +880,13 @@ export const db = {
             currentCountry: r.current_country,
             gotra: r.gotra,
             photoUrl: r.photo_url,
+            passwordHash: r.passwordHash || r.password_hash,
           };
         }
 
         // 2. Search in households table by verified phone (head of household)
         const hRes = await pool.query(
-          `SELECT m.*, h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+          `SELECT m.*, COALESCE(m.password_hash, h.password_hash) as "passwordHash", h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
            FROM households h
            JOIN members m ON m.household_id = h.id AND m.relation_to_head = 'self'
            WHERE h.verified_contact = $1 OR h.verified_contact = $2 OR (h.verified_contact LIKE $3 AND $3 != '%')
@@ -889,6 +904,7 @@ export const db = {
             currentCountry: r.current_country,
             gotra: r.gotra,
             photoUrl: r.photo_url,
+            passwordHash: r.passwordHash || r.password_hash,
           };
         }
 
@@ -1381,4 +1397,44 @@ export const db = {
       console.warn("Record admin attempt non-fatal:", err);
     }
   },
+
+  async recordLoginAttempt(identifier: string, ip: string, success: boolean): Promise<void> {
+    if (!pool) return;
+    try {
+      await pool.query(
+        `INSERT INTO login_attempts (identifier, ip_address, success, created_at)
+         VALUES ($1, $2, $3, NOW());`,
+        [identifier.toLowerCase().trim(), ip, success]
+      );
+    } catch (err) {
+      console.warn("Record login attempt non-fatal:", err);
+    }
+  },
+
+  async getRecentLoginAttempts(identifier: string, ip: string, minutes: number = 15): Promise<Array<{ success: boolean; created_at: Date }>> {
+    if (!pool) return [];
+    try {
+      const res = await pool.query(
+        `SELECT success, created_at FROM login_attempts
+         WHERE (identifier = $1 OR ip_address = $2)
+           AND created_at > NOW() - ($3 || ' minutes')::INTERVAL
+         ORDER BY created_at DESC;`,
+        [identifier.toLowerCase().trim(), ip, minutes]
+      );
+      return res.rows.map((r: any) => ({ success: r.success, created_at: r.created_at }));
+    } catch (err) {
+      console.error("[DB ERROR] getRecentLoginAttempts:", err);
+      return [];
+    }
+  },
+
+  async updatePasswordHash(entityType: "household" | "member", id: string, newHash: string): Promise<void> {
+    if (!pool) throw new Error("Database not connected");
+    const table = entityType === "household" ? "households" : "members";
+    await pool.query(
+      `UPDATE ${table} SET password_hash = $1, updated_at = NOW() WHERE id = $2;`,
+      [newHash, id]
+    );
+  },
 };
+
