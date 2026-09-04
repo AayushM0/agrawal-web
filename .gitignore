@@ -34,3 +34,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local scratch scripts & agent working files
+refactor-*.mjs
+fix-ts.mjs
+scripts/clean-db.mjs
+ACTIVITY_LOG.md
+changes.md
+tasks/
+docs/
+
