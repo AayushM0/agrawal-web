@@ -22,7 +22,7 @@ export default function SecurityPolicyPage() {
 
             <section>
               <h2 className="text-base sm:text-lg font-bold text-brand-primary mb-2">
-                1. Database Isolation & Supabase RLS
+                1. Database Isolation & Row-Level Security (RLS)
               </h2>
               <p>
                 Our PostgreSQL database enforces strict **Row Level Security (RLS)** policies on all tables. This means that anonymous web requests from the browser cannot query, read, or modify database tables. All standard data queries are processed exclusively through secure, server-side Next.js Server Actions connecting as a database owner.
@@ -34,7 +34,7 @@ export default function SecurityPolicyPage() {
                 2. Cryptographic Secret Management
               </h2>
               <p>
-                All sensitive credentials (including Supabase API credentials, database URIs, Pusher socket credentials, and authentication secrets) are stored in secure environment variables within the hosting infrastructure (Vercel Project Dashboard). The codebase contains **zero hardcoded fallback secrets**. If an environment variable is misconfigured or missing, the server actions will fail immediately rather than resorting to an insecure default.
+                All sensitive credentials (including database connection strings, API keys, Pusher socket credentials, and authentication secrets) are stored in secure environment variables within the hosting infrastructure (Vercel Project Dashboard). The codebase contains **zero hardcoded fallback secrets**. If an environment variable is misconfigured or missing, the server actions will fail immediately rather than resorting to an insecure default.
               </p>
             </section>
 

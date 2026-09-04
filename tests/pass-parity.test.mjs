@@ -77,3 +77,29 @@ test("Pass Parity 4: src directory contains zero references to legacy domains or
   scanDir(path.join(webRoot, "src"));
 });
 
+test("Pass Parity 5: frontend pages and components contain zero mentions of OWASP or Supabase", () => {
+  function scanFrontend(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        scanFrontend(fullPath);
+      } else if (/\.(tsx|jsx)$/.test(entry.name)) {
+        const content = fs.readFileSync(fullPath, "utf8");
+        assert.ok(
+          !content.toLowerCase().includes("owasp"),
+          `Frontend file ${fullPath} must not mention OWASP`
+        );
+        assert.ok(
+          !content.toLowerCase().includes("supabase"),
+          `Frontend file ${fullPath} must not mention Supabase`
+        );
+      }
+    }
+  }
+
+  scanFrontend(path.join(webRoot, "src/app"));
+  scanFrontend(path.join(webRoot, "src/components"));
+});
+
+

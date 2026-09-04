@@ -183,7 +183,7 @@ export default function ModerationQueuePage() {
         {isLoading ? (
           <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">
             <div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-            <p className="text-xs font-bold text-body-muted">Loading live moderation queue from Supabase...</p>
+            <p className="text-xs font-bold text-body-muted">Loading live moderation queue...</p>
           </div>
         ) : filter === "reports" ? (
           reports.length === 0 ? (

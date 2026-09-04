@@ -842,7 +842,7 @@ export default function SignupPage() {
                       Create Household Password (सुरक्षित पासवर्ड बनाएं) *
                     </label>
                     <span className="text-[10px] text-body-muted">
-                      OWASP Top 10 Compliant
+                      Enterprise-Grade Security
                     </span>
                   </div>
 
@@ -953,7 +953,7 @@ export default function SignupPage() {
               </div>
 
               <div className="text-[11px] text-body-muted text-center pt-3 border-t border-brand-accent/20">
-                🔒 Protected by End-to-End Rate Limiting, OWASP Password Hashing &amp; Email Verification.
+                🔒 Protected by Multi-Layer Rate Limiting, Encrypted Password Hashing &amp; Email Verification.
               </div>
             </div>
           )}
