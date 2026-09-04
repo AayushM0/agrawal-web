@@ -6,10 +6,12 @@ import { gotras } from "../data/gotras";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { createSession } from "./auth";
 import { validateProfileImage } from "@/lib/image-validator";
+import { validatePassword, hashPassword } from "@/lib/auth-crypto";
 
 export interface RegisterHouseholdInput {
   headName: string;
   verifiedContact: string;
+  password: string;
   gotra: string;
   nativePlace: string;
   country?: string;
@@ -39,6 +41,16 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
   if (!input.consentAccepted) {
     return { success: false, error: "Consent to Privacy Policy and Terms is required." };
   }
+
+  // 1b. Password Complexity Validation
+  if (!input.password) {
+    return { success: false, error: "Password is required." };
+  }
+  const passwordCheck = validatePassword(input.password);
+  if (!passwordCheck.valid) {
+    return { success: false, error: passwordCheck.error || "Password does not meet complexity requirements." };
+  }
+  const passwordHash = await hashPassword(input.password);
 
   // 2. Head details sanitization and validation
   const cleanHeadName = input.headName?.trim();
@@ -304,6 +316,7 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
       panNumber: idx === 0 ? cleanPan : (m.panNumber ? m.panNumber.trim().toUpperCase() : undefined),
       passportNumber: idx === 0 ? cleanPassport : (m.passportNumber?.trim().toUpperCase() || undefined),
       govtIdNumber: idx === 0 ? cleanGovtId : (m.govtIdNumber?.trim().toUpperCase() || undefined),
+      passwordHash: idx === 0 ? passwordHash : undefined,
       id: `m-${Date.now()}-${idx}`,
       verifiedBySelf: isAutoClaimed, // Head is self-verified; members without separate contact are auto-claimed
       ownerLocked: isAutoClaimed,
@@ -331,6 +344,7 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     panNumber: isIndia ? cleanPan : undefined,
     passportNumber: !isIndia ? cleanPassport : undefined,
     govtIdNumber: !isIndia ? cleanGovtId : undefined,
+    passwordHash,
     status: "pending_review",
     verifiedContact: canonicalContact,
     consentAcceptedAt: new Date().toISOString(),

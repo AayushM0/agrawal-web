@@ -420,13 +420,13 @@ export const db = {
           id, household_code, serial_no, head_user_id, head_name, native_place, gotra,
           country, postal_code, state, city, full_address,
           aadhaar_number, pan_number, passport_number, govt_id_number,
-          status, verified_contact, consent_accepted_at
+          status, verified_contact, consent_accepted_at, password_hash
         )
         VALUES (
           gen_random_uuid(), $1, $2, gen_random_uuid(), $3, $4, $5,
           $6, $7, $8, $9, $10,
           $11, $12, $13, $14,
-          $15, $16, $17
+          $15, $16, $17, $18
         )
         RETURNING id, serial_no;
       `;
@@ -448,6 +448,7 @@ export const db = {
         household.status,
         household.verifiedContact,
         household.consentAcceptedAt || new Date().toISOString(),
+        household.passwordHash || null,
       ]);
       const dbHouseholdId = hRes.rows[0].id;
       const actualSerialNo = hRes.rows[0].serial_no || serialNo;
@@ -464,7 +465,8 @@ export const db = {
             company_name, anniversary_date,
             phone, email, father_name, photo_url, bio,
             aadhaar_number, pan_number, passport_number, govt_id_number,
-            visibility_contact, visibility_dob, visibility_photo, verified_by_self, owner_locked
+            visibility_contact, visibility_dob, visibility_photo, verified_by_self, owner_locked,
+            password_hash
           ) VALUES (
             gen_random_uuid(), $1, $2, $3, $4, $5, $6,
             $7, $8, $9, $10, $11,
@@ -472,7 +474,8 @@ export const db = {
             $15, $16,
             $17, $18, $19, $20, $21,
             $22, $23, $24, $25,
-            $26, $27, $28, $29, $30
+            $26, $27, $28, $29, $30,
+            $31
           );
         `;
         await client.query(insertMQuery, [
@@ -506,6 +509,7 @@ export const db = {
           m.visibility?.photo || "public_to_members",
           m.verifiedBySelf || false,
           m.ownerLocked || false,
+          m.passwordHash || (safeRel === "self" ? household.passwordHash : null) || null,
         ]);
       }
 

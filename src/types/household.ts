@@ -33,6 +33,7 @@ export interface Member {
   panNumber?: string;
   passportNumber?: string;
   govtIdNumber?: string;
+  passwordHash?: string;
   verifiedBySelf: boolean;
   ownerLocked: boolean;
   visibility: FieldVisibility;
@@ -55,6 +56,7 @@ export interface Household {
   panNumber?: string;
   passportNumber?: string;
   govtIdNumber?: string;
+  passwordHash?: string;
   status: "pending_review" | "live" | "rejected";
   rejectionReason?: string;
   consentAcceptedAt?: string;
