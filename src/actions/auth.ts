@@ -192,13 +192,20 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
 
   // If account exists, send OTP via Resend
   if (member || household) {
-    const otpRes = await sendOtp({ recipient: cleanEmail, type: "email" });
-    if (!otpRes.success) {
-      return { success: false, error: otpRes.error || "Failed to dispatch verification code.", message: "" };
+    try {
+      const otpRes = await sendOtp({ recipient: cleanEmail, type: "email" });
+      if (!otpRes.success) {
+        console.warn("requestPasswordReset sendOtp warning:", otpRes.error);
+      }
+    } catch (err) {
+      console.error("requestPasswordReset sendOtp error:", err);
     }
+  } else {
+    // Mitigate timing side-channel: normalize network latency to prevent account enumeration
+    await new Promise((r) => setTimeout(r, 350 + Math.random() * 200));
   }
 
-  // OWASP Anti-enumeration: Return generic success regardless of account existence
+  // Anti-enumeration: Return generic success regardless of account existence
   return {
     success: true,
     message: "If an account exists with this email, a 6-digit verification code has been sent.",
@@ -246,7 +253,8 @@ export async function resetPasswordWithOtp(params: {
   }
   if (member) {
     await db.updatePasswordHash("member", member.id, newHash);
-    if (member.householdId) {
+    // Only update household credential if the member is the designated household head
+    if (member.householdId && member.relationToHead === "self") {
       await db.updatePasswordHash("household", member.householdId, newHash);
     }
   }

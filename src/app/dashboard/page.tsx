@@ -35,21 +35,24 @@ export default function DashboardPage() {
 
   // Add Member Modal State
   const [isAddingMember, setIsAddingMember] = useState(false);
-  const [newMemberPhoto, setNewMemberPhoto] = useState("");
-  const [newFullName, setNewFullName] = useState("");
-  const [newRelationToHead, setNewRelationToHead] = useState<"spouse" | "son" | "daughter" | "parent" | "other">("spouse");
-  const [newFatherName, setNewFatherName] = useState("");
-  const [newDob, setNewDob] = useState("");
-  const [newGender, setNewGender] = useState("Female");
-  const [newMaritalStatus, setNewMaritalStatus] = useState("Married");
-  const [newAnniversaryDate, setNewAnniversaryDate] = useState("");
-  const [newProfessionTitle, setNewProfessionTitle] = useState("");
-  const [newCompanyName, setNewCompanyName] = useState("");
-  const [newCurrentCity, setNewCurrentCity] = useState("");
-  const [newCurrentCountry, setNewCurrentCountry] = useState("India");
-  const [newPhone, setNewPhone] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [newBio, setNewBio] = useState("");
+  const initialNewMemberForm = {
+    photo: "",
+    fullName: "",
+    relationToHead: "spouse" as "spouse" | "son" | "daughter" | "parent" | "other",
+    fatherName: "",
+    dob: "",
+    gender: "Female",
+    maritalStatus: "Married",
+    anniversaryDate: "",
+    professionTitle: "",
+    companyName: "",
+    currentCity: "",
+    currentCountry: "India",
+    phone: "",
+    email: "",
+    bio: "",
+  };
+  const [newMemberForm, setNewMemberForm] = useState(initialNewMemberForm);
   const [isSavingNewMember, setIsSavingNewMember] = useState(false);
   const [addMemberError, setAddMemberError] = useState("");
   const [addMemberSuccess, setAddMemberSuccess] = useState("");
@@ -186,21 +189,11 @@ export default function DashboardPage() {
   };
 
   const openAddMemberModal = () => {
-    setNewMemberPhoto("");
-    setNewFullName("");
-    setNewRelationToHead("spouse");
-    setNewFatherName("");
-    setNewDob("");
-    setNewGender("Female");
-    setNewMaritalStatus("Married");
-    setNewAnniversaryDate("");
-    setNewProfessionTitle("");
-    setNewCompanyName("");
-    setNewCurrentCity(household?.city || household?.nativePlace || "");
-    setNewCurrentCountry(household?.country || "India");
-    setNewPhone("");
-    setNewEmail("");
-    setNewBio("");
+    setNewMemberForm({
+      ...initialNewMemberForm,
+      currentCity: household?.city || household?.nativePlace || "",
+      currentCountry: household?.country || "India",
+    });
     setAddMemberError("");
     setAddMemberSuccess("");
     setIsAddingMember(true);
@@ -224,7 +217,7 @@ export default function DashboardPage() {
 
     try {
       const optimized = await optimizeImageForUpload(file, 400, 0.85);
-      setNewMemberPhoto(optimized);
+      setNewMemberForm((prev) => ({ ...prev, photo: optimized }));
     } catch (err: any) {
       alert(err?.message || "Failed to process image. Please choose another photo.");
     }
@@ -232,14 +225,18 @@ export default function DashboardPage() {
 
   const handleAddMemberSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newFullName.trim() || newFullName.trim().length < 2) {
+    if (!newMemberForm.fullName.trim() || newMemberForm.fullName.trim().length < 2) {
       setAddMemberError("Full Name must be at least 2 characters.");
       return;
     }
 
-    const isSpouseOrMarriedFemale = newMaritalStatus === "Married" && (newGender === "Female" || newRelationToHead === "spouse");
-    const label = isSpouseOrMarriedFemale ? "Father's / Husband's Name (पिता / पति का नाम)" : "Father's Name (पिता का नाम)";
-    if (!newFatherName.trim() || newFatherName.trim().length < 2) {
+    const isSpouseOrMarriedFemale =
+      newMemberForm.maritalStatus === "Married" &&
+      (newMemberForm.gender === "Female" || newMemberForm.relationToHead === "spouse");
+    const label = isSpouseOrMarriedFemale
+      ? "Father's / Husband's Name (पिता / पति का नाम)"
+      : "Father's Name (पिता का नाम)";
+    if (!newMemberForm.fatherName.trim() || newMemberForm.fatherName.trim().length < 2) {
       setAddMemberError(`${label} is required.`);
       return;
     }
@@ -249,21 +246,24 @@ export default function DashboardPage() {
     setAddMemberSuccess("");
 
     const res = await addHouseholdMember({
-      fullName: newFullName.trim(),
-      relationToHead: newRelationToHead,
-      fatherName: newFatherName.trim(),
-      dob: newDob || undefined,
-      gender: newGender,
-      maritalStatus: newMaritalStatus,
-      anniversaryDate: newMaritalStatus === "Married" && newAnniversaryDate ? newAnniversaryDate : undefined,
-      professionTitle: newProfessionTitle.trim() || undefined,
-      companyName: newCompanyName.trim() || undefined,
-      currentCity: newCurrentCity.trim() || undefined,
-      currentCountry: newCurrentCountry.trim() || "India",
-      phone: newPhone.trim() || undefined,
-      email: newEmail.trim() || undefined,
-      photoUrl: newMemberPhoto || undefined,
-      bio: newBio.trim() || undefined,
+      fullName: newMemberForm.fullName.trim(),
+      relationToHead: newMemberForm.relationToHead,
+      fatherName: newMemberForm.fatherName.trim(),
+      dob: newMemberForm.dob || undefined,
+      gender: newMemberForm.gender,
+      maritalStatus: newMemberForm.maritalStatus,
+      anniversaryDate:
+        newMemberForm.maritalStatus === "Married" && newMemberForm.anniversaryDate
+          ? newMemberForm.anniversaryDate
+          : undefined,
+      professionTitle: newMemberForm.professionTitle.trim() || undefined,
+      companyName: newMemberForm.companyName.trim() || undefined,
+      currentCity: newMemberForm.currentCity.trim() || undefined,
+      currentCountry: newMemberForm.currentCountry.trim() || "India",
+      phone: newMemberForm.phone.trim() || undefined,
+      email: newMemberForm.email.trim() || undefined,
+      photoUrl: newMemberForm.photo || undefined,
+      bio: newMemberForm.bio.trim() || undefined,
     });
 
     setIsSavingNewMember(false);
@@ -993,8 +993,8 @@ export default function DashboardPage() {
               {/* Photo Upload with Security Validation */}
               <div className="flex items-center gap-4 p-3 bg-canvas-warm/50 rounded-2xl border border-brand-accent/20">
                 <div className="w-14 h-14 rounded-full overflow-hidden bg-white border-2 border-brand-accent flex items-center justify-center text-xl font-bold text-brand-primary shrink-0 shadow-xs">
-                  {newMemberPhoto ? (
-                    <img src={newMemberPhoto} alt="New Member Preview" className="w-full h-full object-cover" />
+                  {newMemberForm.photo ? (
+                    <img src={newMemberForm.photo} alt="New Member Preview" className="w-full h-full object-cover" />
                   ) : (
                     <span>👤</span>
                   )}
@@ -1022,8 +1022,8 @@ export default function DashboardPage() {
                   type="text"
                   required
                   placeholder="e.g. Priya Agrawal"
-                  value={newFullName}
-                  onChange={(e) => setNewFullName(e.target.value)}
+                  value={newMemberForm.fullName}
+                  onChange={(e) => setNewMemberForm((prev) => ({ ...prev, fullName: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                 />
               </div>
@@ -1034,12 +1034,14 @@ export default function DashboardPage() {
                   Relationship to Head (मुखिया से संबंध) *
                 </label>
                 <select
-                  value={newRelationToHead}
+                  value={newMemberForm.relationToHead}
                   onChange={(e) => {
                     const rel = e.target.value as any;
-                    setNewRelationToHead(rel);
-                    if (rel === "son") setNewGender("Male");
-                    else if (rel === "daughter") setNewGender("Female");
+                    setNewMemberForm((prev) => ({
+                      ...prev,
+                      relationToHead: rel,
+                      ...(rel === "son" ? { gender: "Male" } : rel === "daughter" ? { gender: "Female" } : {}),
+                    }));
                   }}
                   className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                 >
@@ -1054,7 +1056,7 @@ export default function DashboardPage() {
               {/* Cultural Father's / Husband's Name */}
               <div>
                 <label className="block text-xs font-bold text-body-heading mb-1">
-                  {newMaritalStatus === "Married" && (newGender === "Female" || newRelationToHead === "spouse")
+                  {newMemberForm.maritalStatus === "Married" && (newMemberForm.gender === "Female" || newMemberForm.relationToHead === "spouse")
                     ? "Father's / Husband's Name (पिता / पति का नाम) *"
                     : "Father's Full Name (पिता का नाम) *"}
                 </label>
@@ -1062,12 +1064,12 @@ export default function DashboardPage() {
                   type="text"
                   required
                   placeholder={
-                    newMaritalStatus === "Married" && (newGender === "Female" || newRelationToHead === "spouse")
+                    newMemberForm.maritalStatus === "Married" && (newMemberForm.gender === "Female" || newMemberForm.relationToHead === "spouse")
                       ? "e.g. Husband's or Father's Name"
                       : "e.g. Shri Ramesh Agarwal"
                   }
-                  value={newFatherName}
-                  onChange={(e) => setNewFatherName(e.target.value)}
+                  value={newMemberForm.fatherName}
+                  onChange={(e) => setNewMemberForm((prev) => ({ ...prev, fatherName: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                 />
               </div>
@@ -1079,8 +1081,8 @@ export default function DashboardPage() {
                     Gender (लिंग) *
                   </label>
                   <select
-                    value={newGender}
-                    onChange={(e) => setNewGender(e.target.value)}
+                    value={newMemberForm.gender}
+                    onChange={(e) => setNewMemberForm((prev) => ({ ...prev, gender: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   >
                     <option value="Male">Male</option>
@@ -1093,8 +1095,8 @@ export default function DashboardPage() {
                     Marital Status (वैवाहिक स्थिति) *
                   </label>
                   <select
-                    value={newMaritalStatus}
-                    onChange={(e) => setNewMaritalStatus(e.target.value)}
+                    value={newMemberForm.maritalStatus}
+                    onChange={(e) => setNewMemberForm((prev) => ({ ...prev, maritalStatus: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   >
                     <option value="Married">Married</option>
@@ -1113,20 +1115,20 @@ export default function DashboardPage() {
                   </label>
                   <input
                     type="date"
-                    value={newDob}
-                    onChange={(e) => setNewDob(e.target.value)}
+                    value={newMemberForm.dob}
+                    onChange={(e) => setNewMemberForm((prev) => ({ ...prev, dob: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   />
                 </div>
-                {newMaritalStatus === "Married" && (
+                {newMemberForm.maritalStatus === "Married" && (
                   <div>
                     <label className="block text-xs font-bold text-body-heading mb-1">
                       Wedding Anniversary (विवाह तिथि)
                     </label>
                     <input
                       type="date"
-                      value={newAnniversaryDate}
-                      onChange={(e) => setNewAnniversaryDate(e.target.value)}
+                      value={newMemberForm.anniversaryDate}
+                      onChange={(e) => setNewMemberForm((prev) => ({ ...prev, anniversaryDate: e.target.value }))}
                       className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                     />
                   </div>
@@ -1142,8 +1144,8 @@ export default function DashboardPage() {
                   <input
                     type="text"
                     placeholder="e.g. Software Engineer, Trader"
-                    value={newProfessionTitle}
-                    onChange={(e) => setNewProfessionTitle(e.target.value)}
+                    value={newMemberForm.professionTitle}
+                    onChange={(e) => setNewMemberForm((prev) => ({ ...prev, professionTitle: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   />
                 </div>
@@ -1154,8 +1156,8 @@ export default function DashboardPage() {
                   <input
                     type="text"
                     placeholder="e.g. Jindal Enterprises"
-                    value={newCompanyName}
-                    onChange={(e) => setNewCompanyName(e.target.value)}
+                    value={newMemberForm.companyName}
+                    onChange={(e) => setNewMemberForm((prev) => ({ ...prev, companyName: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   />
                 </div>
@@ -1170,8 +1172,8 @@ export default function DashboardPage() {
                   <input
                     type="text"
                     placeholder="e.g. Mumbai"
-                    value={newCurrentCity}
-                    onChange={(e) => setNewCurrentCity(e.target.value)}
+                    value={newMemberForm.currentCity}
+                    onChange={(e) => setNewMemberForm((prev) => ({ ...prev, currentCity: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   />
                 </div>
@@ -1182,8 +1184,8 @@ export default function DashboardPage() {
                   <input
                     type="text"
                     placeholder="e.g. India"
-                    value={newCurrentCountry}
-                    onChange={(e) => setNewCurrentCountry(e.target.value)}
+                    value={newMemberForm.currentCountry}
+                    onChange={(e) => setNewMemberForm((prev) => ({ ...prev, currentCountry: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   />
                 </div>
@@ -1198,8 +1200,8 @@ export default function DashboardPage() {
                   <input
                     type="tel"
                     placeholder="e.g. +91 98765 43210"
-                    value={newPhone}
-                    onChange={(e) => setNewPhone(e.target.value)}
+                    value={newMemberForm.phone}
+                    onChange={(e) => setNewMemberForm((prev) => ({ ...prev, phone: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   />
                   <span className="text-[10px] text-body-muted block mt-0.5">Masked publicly in directory.</span>
@@ -1211,8 +1213,8 @@ export default function DashboardPage() {
                   <input
                     type="email"
                     placeholder="e.g. priya@example.com"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
+                    value={newMemberForm.email}
+                    onChange={(e) => setNewMemberForm((prev) => ({ ...prev, email: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   />
                   <span className="text-[10px] text-body-muted block mt-0.5">Can be used to claim profile later.</span>
@@ -1228,8 +1230,8 @@ export default function DashboardPage() {
                   rows={2}
                   maxLength={300}
                   placeholder="Share education, background or achievements..."
-                  value={newBio}
-                  onChange={(e) => setNewBio(e.target.value)}
+                  value={newMemberForm.bio}
+                  onChange={(e) => setNewMemberForm((prev) => ({ ...prev, bio: e.target.value }))}
                   className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                 />
               </div>

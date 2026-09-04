@@ -192,26 +192,27 @@ export async function addHouseholdMember(input: AddMemberInput): Promise<{
   }
 
   // 4. Contact Collision Guard (A07)
-  if (input.email && input.email.trim()) {
-    const cleanEmail = input.email.trim().toLowerCase();
-    const contactCheck = await db.checkContactExists(cleanEmail);
-    if (contactCheck.exists) {
-      return {
-        success: false,
-        error: `The email ${cleanEmail} is already registered to another member or household in the directory.`
-      };
-    }
+  const emailPromise = input.email?.trim()
+    ? db.checkContactExists(input.email.trim().toLowerCase())
+    : Promise.resolve({ exists: false });
+  const phonePromise = input.phone?.trim()
+    ? db.checkContactExists(input.phone.trim())
+    : Promise.resolve({ exists: false });
+
+  const [emailCheck, phoneCheck] = await Promise.all([emailPromise, phonePromise]);
+
+  if (emailCheck.exists) {
+    return {
+      success: false,
+      error: `The email ${input.email!.trim().toLowerCase()} is already registered to another member or household in the directory.`
+    };
   }
 
-  if (input.phone && input.phone.trim()) {
-    const cleanPhone = input.phone.trim();
-    const contactCheck = await db.checkContactExists(cleanPhone);
-    if (contactCheck.exists) {
-      return {
-        success: false,
-        error: `The phone number ${cleanPhone} is already registered to another member or household in the directory.`
-      };
-    }
+  if (phoneCheck.exists) {
+    return {
+      success: false,
+      error: `The phone number ${input.phone!.trim()} is already registered to another member or household in the directory.`
+    };
   }
 
   try {
