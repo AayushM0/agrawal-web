@@ -60,10 +60,10 @@ export default function SupportPage() {
               <div>
                 <span className="text-[10px] text-body-muted block font-bold">Email Communications</span>
                 <a
-                  href="mailto:contact@agrasenfoundation.org"
+                  href="mailto:contact@maharajaagrasenfoundation.com"
                   className="text-xs font-bold text-brand-primary hover:underline block mt-1"
                 >
-                  📧 contact@agrasenfoundation.org
+                  📧 contact@maharajaagrasenfoundation.com
                 </a>
               </div>
             </div>

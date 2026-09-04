@@ -93,8 +93,8 @@ export default function PrivacyPage() {
                 This Privacy Policy and our data practices are governed by the laws of the Republic of Singapore. For any questions, data deletion requests, or concerns, please contact our Data Protection Officer at:
               </p>
               <div className="mt-3 p-4 bg-canvas-warm rounded-2xl border border-brand-accent/30 font-semibold text-brand-primary">
-                📧 contact@agrasenfoundation.org <br />
-                🌐 www.agrasenvaishakhara.com <br />
+                📧 contact@maharajaagrasenfoundation.com <br />
+                🌐 www.maharajaagrasenfoundation.com <br />
                 🏛️ Maharaja Agrasen Foundation Limited Singapore
               </div>
             </section>

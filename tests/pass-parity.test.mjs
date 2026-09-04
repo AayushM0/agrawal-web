@@ -52,3 +52,28 @@ test("Pass Parity 3: moderate.ts does not contain hardcoded test domains", () =>
   assert.ok(!code.includes("agrasenvaishakhara.com"), "moderate.ts must not contain hardcoded agrasenvaishakhara.com");
   assert.ok(code.includes("getBaseUrl"), "moderate.ts must use getBaseUrl()");
 });
+
+test("Pass Parity 4: src directory contains zero references to legacy domains or emails", () => {
+  function scanDir(dir) {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        scanDir(fullPath);
+      } else if (/\.(tsx?|jsx?|mjs|json|css)$/.test(entry.name)) {
+        const content = fs.readFileSync(fullPath, "utf8");
+        assert.ok(
+          !content.includes("agrasenvaishakhara.com"),
+          `File ${fullPath} must not contain agrasenvaishakhara.com`
+        );
+        assert.ok(
+          !content.includes("agrasenfoundation.org"),
+          `File ${fullPath} must not contain agrasenfoundation.org`
+        );
+      }
+    }
+  }
+
+  scanDir(path.join(webRoot, "src"));
+});
+

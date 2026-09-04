@@ -57,7 +57,7 @@ export default function AccessibilityPage() {
                 If you encounter any accessibility issues while navigating the directory or using the registration wizard, please let us know. We welcome your feedback and will work to address any reported barriers:
               </p>
               <div className="mt-3 p-4 bg-canvas-warm rounded-2xl border border-brand-accent/30 font-semibold text-brand-primary">
-                📧 contact@agrasenfoundation.org <br />
+                📧 contact@maharajaagrasenfoundation.com <br />
                 🏛️ Maharaja Agrasen Foundation Limited Singapore
               </div>
             </section>

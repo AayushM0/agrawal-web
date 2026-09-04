@@ -15,7 +15,7 @@ export default function MaintenancePage() {
           The Maharaja Agrasen Foundation Global Directory is undergoing scheduled maintenance or database optimization to keep our RLS policies and PII protection robust. We will be back online shortly.
         </p>
         <div className="p-3 bg-canvas-warm rounded-xl border border-brand-accent/30 font-semibold text-[11px] text-brand-primary">
-          📧 Support: contact@agrasenfoundation.org
+          📧 Support: contact@maharajaagrasenfoundation.com
         </div>
       </div>
     </div>

@@ -70,7 +70,7 @@ export default function AcceptableUsePage() {
                 Violations of this Acceptable Use Policy are taken extremely seriously. Moderators reserve the right to suspend or block households and members immediately. To report spamming, data harvesting, or abusive messaging on the platform, please contact us at:
               </p>
               <div className="mt-3 p-4 bg-canvas-warm rounded-2xl border border-brand-accent/30 font-semibold text-brand-primary">
-                📧 contact@agrasenfoundation.org <br />
+                📧 contact@maharajaagrasenfoundation.com <br />
                 🏛️ Maharaja Agrasen Foundation Limited Singapore
               </div>
             </section>

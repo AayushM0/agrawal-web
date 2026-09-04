@@ -88,8 +88,8 @@ export default function RoyalFooter() {
               Founder & Chairman — Maharaja Agrasen Foundation Limited Singapore
             </p>
             <p className="text-xs text-body-muted">
-              📧 contact@agrasenfoundation.org<br />
-              🌐 www.agrasenvaishakhara.com
+              📧 contact@maharajaagrasenfoundation.com<br />
+              🌐 www.maharajaagrasenfoundation.com
             </p>
           </div>
         </div>

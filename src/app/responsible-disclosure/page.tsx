@@ -28,7 +28,7 @@ export default function ResponsibleDisclosurePage() {
                 Please email vulnerability findings to:
               </p>
               <div className="mt-2 p-4 bg-canvas-warm rounded-2xl border border-brand-accent/30 font-mono font-semibold text-brand-primary">
-                security@agrasenfoundation.org
+                security@maharajaagrasenfoundation.com
               </div>
               <p className="mt-2">
                 Please include a detailed description of the issue, steps to reproduce, and any relevant screenshot or proof-of-concept script. Please do not disclose the vulnerability publicly until we have patched it.
