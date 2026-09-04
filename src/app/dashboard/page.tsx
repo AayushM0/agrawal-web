@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { getCurrentHouseholdDashboard } from "@/actions/dashboard";
 import { createClaimInvite } from "@/actions/claim";
 import { clearSession } from "@/actions/auth";
-import { saveMemberProfile, saveHouseholdInfo } from "@/actions/profile";
+import { saveMemberProfile, saveHouseholdInfo, addHouseholdMember } from "@/actions/profile";
 import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
 import LocationSelector from "@/components/LocationSelector";
@@ -32,6 +32,27 @@ export default function DashboardPage() {
   const [householdNativePlace, setHouseholdNativePlace] = useState("");
   const [isSavingHousehold, setIsSavingHousehold] = useState(false);
   const [householdSaveError, setHouseholdSaveError] = useState("");
+
+  // Add Member Modal State
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [newMemberPhoto, setNewMemberPhoto] = useState("");
+  const [newFullName, setNewFullName] = useState("");
+  const [newRelationToHead, setNewRelationToHead] = useState<"spouse" | "son" | "daughter" | "parent" | "other">("spouse");
+  const [newFatherName, setNewFatherName] = useState("");
+  const [newDob, setNewDob] = useState("");
+  const [newGender, setNewGender] = useState("Female");
+  const [newMaritalStatus, setNewMaritalStatus] = useState("Married");
+  const [newAnniversaryDate, setNewAnniversaryDate] = useState("");
+  const [newProfessionTitle, setNewProfessionTitle] = useState("");
+  const [newCompanyName, setNewCompanyName] = useState("");
+  const [newCurrentCity, setNewCurrentCity] = useState("");
+  const [newCurrentCountry, setNewCurrentCountry] = useState("India");
+  const [newPhone, setNewPhone] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newBio, setNewBio] = useState("");
+  const [isSavingNewMember, setIsSavingNewMember] = useState(false);
+  const [addMemberError, setAddMemberError] = useState("");
+  const [addMemberSuccess, setAddMemberSuccess] = useState("");
 
   useEffect(() => {
     loadData();
@@ -161,6 +182,99 @@ export default function DashboardPage() {
       loadData();
     } else {
       setHouseholdSaveError(res.error || "Failed to update family origin.");
+    }
+  };
+
+  const openAddMemberModal = () => {
+    setNewMemberPhoto("");
+    setNewFullName("");
+    setNewRelationToHead("spouse");
+    setNewFatherName("");
+    setNewDob("");
+    setNewGender("Female");
+    setNewMaritalStatus("Married");
+    setNewAnniversaryDate("");
+    setNewProfessionTitle("");
+    setNewCompanyName("");
+    setNewCurrentCity(household?.city || household?.nativePlace || "");
+    setNewCurrentCountry(household?.country || "India");
+    setNewPhone("");
+    setNewEmail("");
+    setNewBio("");
+    setAddMemberError("");
+    setAddMemberSuccess("");
+    setIsAddingMember(true);
+  };
+
+  const handleNewMemberPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Whitelist image MIME types and reject SVG/scripts
+    const validTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!validTypes.includes(file.type)) {
+      alert("Invalid file format. Please upload a standard JPG, PNG, or WebP image.");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File size exceeds 5MB limit. Please select a smaller photo.");
+      return;
+    }
+
+    try {
+      const optimized = await optimizeImageForUpload(file, 400, 0.85);
+      setNewMemberPhoto(optimized);
+    } catch (err: any) {
+      alert(err?.message || "Failed to process image. Please choose another photo.");
+    }
+  };
+
+  const handleAddMemberSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFullName.trim() || newFullName.trim().length < 2) {
+      setAddMemberError("Full Name must be at least 2 characters.");
+      return;
+    }
+
+    const isSpouseOrMarriedFemale = newMaritalStatus === "Married" && (newGender === "Female" || newRelationToHead === "spouse");
+    const label = isSpouseOrMarriedFemale ? "Father's / Husband's Name (पिता / पति का नाम)" : "Father's Name (पिता का नाम)";
+    if (!newFatherName.trim() || newFatherName.trim().length < 2) {
+      setAddMemberError(`${label} is required.`);
+      return;
+    }
+
+    setIsSavingNewMember(true);
+    setAddMemberError("");
+    setAddMemberSuccess("");
+
+    const res = await addHouseholdMember({
+      fullName: newFullName.trim(),
+      relationToHead: newRelationToHead,
+      fatherName: newFatherName.trim(),
+      dob: newDob || undefined,
+      gender: newGender,
+      maritalStatus: newMaritalStatus,
+      anniversaryDate: newMaritalStatus === "Married" && newAnniversaryDate ? newAnniversaryDate : undefined,
+      professionTitle: newProfessionTitle.trim() || undefined,
+      companyName: newCompanyName.trim() || undefined,
+      currentCity: newCurrentCity.trim() || undefined,
+      currentCountry: newCurrentCountry.trim() || "India",
+      phone: newPhone.trim() || undefined,
+      email: newEmail.trim() || undefined,
+      photoUrl: newMemberPhoto || undefined,
+      bio: newBio.trim() || undefined,
+    });
+
+    setIsSavingNewMember(false);
+    if (res.success) {
+      setAddMemberSuccess(res.message || "Family member added successfully!");
+      setTimeout(() => {
+        setIsAddingMember(false);
+        loadData();
+      }, 1000);
+    } else {
+      setAddMemberError(res.error || "Failed to add family member.");
     }
   };
 
@@ -320,7 +434,7 @@ export default function DashboardPage() {
 
         {/* Member Management List */}
         <div className="bg-white border border-brand-accent/30 rounded-3xl p-5 sm:p-8 shadow-warm">
-          <div className="flex items-center justify-between mb-5 pb-4 border-b border-brand-accent/20">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-brand-accent/20">
             <div>
               <h2 className="text-base sm:text-lg font-extrabold text-brand-primary">
                 Family Members &amp; Profile Management
@@ -329,6 +443,14 @@ export default function DashboardPage() {
                 You can edit personal details, profession, bio, and privacy settings anytime. Phone &amp; Email are permanently masked.
               </p>
             </div>
+            <button
+              type="button"
+              onClick={openAddMemberModal}
+              className="self-start sm:self-center px-4 py-2 rounded-full text-xs font-bold text-white va-btn-join transition-all shadow-goldCta flex items-center gap-1.5 shrink-0"
+            >
+              <span>+</span>
+              <span>Add Family Member</span>
+            </button>
           </div>
 
           <div className="space-y-3">
@@ -838,6 +960,306 @@ export default function DashboardPage() {
                   className="px-5 py-2 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta"
                 >
                   {isSavingHousehold ? "Saving..." : "Save Family Origin ✓"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Member Modal */}
+      {isAddingMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white border-2 border-brand-accent/40 rounded-3xl p-5 sm:p-7 max-w-lg w-full shadow-warm max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-brand-accent/20">
+              <div>
+                <h3 className="text-base font-bold text-brand-primary">
+                  Add Family Member • नया पारिवारिक सदस्य जोड़ें
+                </h3>
+                <p className="text-[11px] text-body-muted">
+                  Add your spouse, child, parent, or dependent. They can claim their profile anytime.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddingMember(false)}
+                className="text-body-muted hover:text-brand-primary p-1 text-base font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddMemberSubmit} className="space-y-4">
+              {/* Photo Upload with Security Validation */}
+              <div className="flex items-center gap-4 p-3 bg-canvas-warm/50 rounded-2xl border border-brand-accent/20">
+                <div className="w-14 h-14 rounded-full overflow-hidden bg-white border-2 border-brand-accent flex items-center justify-center text-xl font-bold text-brand-primary shrink-0 shadow-xs">
+                  {newMemberPhoto ? (
+                    <img src={newMemberPhoto} alt="New Member Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <span>👤</span>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="block text-xs font-bold text-body-heading mb-1">
+                    Photograph (फ़ोटो)
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleNewMemberPhotoUpload}
+                    className="block w-full text-[11px] text-body-muted file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[11px] file:font-semibold file:bg-amber-100 file:text-brand-primary hover:file:bg-amber-200 cursor-pointer"
+                  />
+                  <span className="text-[10px] text-body-muted block mt-0.5">JPG, PNG, or WebP. Auto-compressed securely.</span>
+                </div>
+              </div>
+
+              {/* Full Name */}
+              <div>
+                <label className="block text-xs font-bold text-body-heading mb-1">
+                  Full Name (पूरा नाम) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Priya Agrawal"
+                  value={newFullName}
+                  onChange={(e) => setNewFullName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                />
+              </div>
+
+              {/* Relationship to Head */}
+              <div>
+                <label className="block text-xs font-bold text-body-heading mb-1">
+                  Relationship to Head (मुखिया से संबंध) *
+                </label>
+                <select
+                  value={newRelationToHead}
+                  onChange={(e) => {
+                    const rel = e.target.value as any;
+                    setNewRelationToHead(rel);
+                    if (rel === "son") setNewGender("Male");
+                    else if (rel === "daughter") setNewGender("Female");
+                  }}
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                >
+                  <option value="spouse">Spouse (पति / पत्नी)</option>
+                  <option value="son">Son (पुत्र)</option>
+                  <option value="daughter">Daughter (पुत्री)</option>
+                  <option value="parent">Parent (माता / पिता)</option>
+                  <option value="other">Other Dependent (अन्य)</option>
+                </select>
+              </div>
+
+              {/* Cultural Father's / Husband's Name */}
+              <div>
+                <label className="block text-xs font-bold text-body-heading mb-1">
+                  {newMaritalStatus === "Married" && (newGender === "Female" || newRelationToHead === "spouse")
+                    ? "Father's / Husband's Name (पिता / पति का नाम) *"
+                    : "Father's Full Name (पिता का नाम) *"}
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={
+                    newMaritalStatus === "Married" && (newGender === "Female" || newRelationToHead === "spouse")
+                      ? "e.g. Husband's or Father's Name"
+                      : "e.g. Shri Ramesh Agarwal"
+                  }
+                  value={newFatherName}
+                  onChange={(e) => setNewFatherName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                />
+              </div>
+
+              {/* Gender & Marital Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Gender (लिंग) *
+                  </label>
+                  <select
+                    value={newGender}
+                    onChange={(e) => setNewGender(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Marital Status (वैवाहिक स्थिति) *
+                  </label>
+                  <select
+                    value={newMaritalStatus}
+                    onChange={(e) => setNewMaritalStatus(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                  >
+                    <option value="Married">Married</option>
+                    <option value="Unmarried">Unmarried</option>
+                    <option value="Widowed">Widowed</option>
+                    <option value="Divorced">Divorced</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Date of Birth & Anniversary */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Date of Birth (जन्म तिथि)
+                  </label>
+                  <input
+                    type="date"
+                    value={newDob}
+                    onChange={(e) => setNewDob(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                  />
+                </div>
+                {newMaritalStatus === "Married" && (
+                  <div>
+                    <label className="block text-xs font-bold text-body-heading mb-1">
+                      Wedding Anniversary (विवाह तिथि)
+                    </label>
+                    <input
+                      type="date"
+                      value={newAnniversaryDate}
+                      onChange={(e) => setNewAnniversaryDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Profession Title & Company */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Profession Title (व्यवसाय / पद)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Software Engineer, Trader"
+                    value={newProfessionTitle}
+                    onChange={(e) => setNewProfessionTitle(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Company / Organization (कंपनी)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Jindal Enterprises"
+                    value={newCompanyName}
+                    onChange={(e) => setNewCompanyName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                  />
+                </div>
+              </div>
+
+              {/* City & Country */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Current City (वर्तमान शहर)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Mumbai"
+                    value={newCurrentCity}
+                    onChange={(e) => setNewCurrentCity(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Current Country (देश)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. India"
+                    value={newCurrentCountry}
+                    onChange={(e) => setNewCurrentCountry(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                  />
+                </div>
+              </div>
+
+              {/* Optional Contact Phone & Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Mobile Phone (Optional / वैकल्पिक)
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. +91 98765 43210"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                  />
+                  <span className="text-[10px] text-body-muted block mt-0.5">Masked publicly in directory.</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Email Address (Optional / वैकल्पिक)
+                  </label>
+                  <input
+                    type="email"
+                    placeholder="e.g. priya@example.com"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                  />
+                  <span className="text-[10px] text-body-muted block mt-0.5">Can be used to claim profile later.</span>
+                </div>
+              </div>
+
+              {/* Bio */}
+              <div>
+                <label className="block text-xs font-bold text-body-heading mb-1">
+                  Short Bio (परिचय)
+                </label>
+                <textarea
+                  rows={2}
+                  maxLength={300}
+                  placeholder="Share education, background or achievements..."
+                  value={newBio}
+                  onChange={(e) => setNewBio(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                />
+              </div>
+
+              {addMemberError && (
+                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
+                  {addMemberError}
+                </div>
+              )}
+
+              {addMemberSuccess && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-xs text-emerald-800 font-bold">
+                  ✓ {addMemberSuccess}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-brand-accent/20">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingMember(false)}
+                  className="px-4 py-2 rounded-full text-xs font-bold text-body-heading hover:bg-canvas-warm border border-brand-accent/30"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingNewMember}
+                  className="px-5 py-2 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta"
+                >
+                  {isSavingNewMember ? "Adding Member..." : "Save & Add Member ✓"}
                 </button>
               </div>
             </form>
