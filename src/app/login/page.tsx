@@ -3,32 +3,24 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { sendOtp, verifyOtp } from "@/actions/otp";
-import { checkContactRegistration } from "@/actions/register";
-import { getSession, createSession, verifyAdminPassword, loginWithVerifiedContact } from "@/actions/auth";
-import PhoneInputWithCountry from "@/components/PhoneInputWithCountry";
+import { getSession, createSession, verifyAdminPassword, loginWithPassword } from "@/actions/auth";
 
 export default function LoginPage() {
   const router = useRouter();
 
   const [role, setRole] = useState<"head" | "admin">("head");
-  const [loginMethod, setLoginMethod] = useState<"phone" | "email">("phone");
   const [contact, setContact] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [adminPassword, setAdminPassword] = useState("");
-  const [otp, setOtp] = useState("");
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpMessage, setOtpMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [notRegistered, setNotRegistered] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = sessionStorage.getItem("agrawal_login_contact");
       if (stored) {
         setContact(stored);
-        setLoginMethod(stored.includes("@") ? "email" : "phone");
         sessionStorage.removeItem("agrawal_login_contact");
       }
 
@@ -53,57 +45,17 @@ export default function LoginPage() {
     checkAuth();
   }, [router]);
 
-  const handleSendOtp = async () => {
-    if (!contact.trim() || contact.trim().length < 5) {
-      setErrorMessage("Please enter a valid mobile number or email address.");
-      return;
-    }
-    setIsSendingOtp(true);
-    setErrorMessage("");
-    setOtpMessage("");
-    setNotRegistered(false);
-
-    // 1. Check whether contact exists in the database
-    const checkRes = await checkContactRegistration(contact.trim());
-    if (!checkRes.isRegistered) {
-      setIsSendingOtp(false);
-      setNotRegistered(true);
-      setErrorMessage("This contact number/email is not registered with any family yet. Redirecting to Free Registration...");
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("agrawal_signup_contact", contact.trim());
-      }
-      setTimeout(() => {
-        router.push("/signup");
-      }, 1500);
-      return;
-    }
-
-    // 2. Contact exists -> dispatch OTP
-    const isPhone = !contact.includes("@");
-    const res = await sendOtp({
-      recipient: contact,
-      type: isPhone ? "whatsapp" : "email",
-    });
-
-    setIsSendingOtp(false);
-    if (res.success) {
-      setOtpSent(true);
-      setOtpMessage(res.message || "Passcode sent successfully.");
-    } else {
-      setErrorMessage(res.error || "Failed to send OTP. Please check your contact details.");
-    }
-  };
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
-    
-    // 1. If Admin role, verify master security password first
+
+    // 1. If Admin role, verify master security password
     if (role === "admin") {
       if (!adminPassword.trim()) {
         setErrorMessage("Admin Master Password is required to access the moderation portal.");
         return;
       }
+      setIsSubmitting(true);
       const adminRes = await verifyAdminPassword(adminPassword);
       if (!adminRes.success) {
         setIsSubmitting(false);
@@ -124,34 +76,29 @@ export default function LoginPage() {
       return;
     }
 
-    // 2. If Household Head role, verify OTP
+    // 2. Member Password Authentication (Head or Family Member)
     if (!contact.trim()) {
-      setErrorMessage("Please enter your registered mobile number or email.");
+      setErrorMessage("Please enter your registered email address or mobile number.");
       return;
     }
 
-    if (!otp.trim() || otp.trim().length !== 6) {
-      setErrorMessage("Please enter the 6-digit verification passcode (OTP).");
+    if (!password) {
+      setErrorMessage("Please enter your account password.");
       return;
     }
 
     setIsSubmitting(true);
-
-    const verifyRes = await verifyOtp({ recipient: contact, otp });
-    if (!verifyRes.success) {
-      setIsSubmitting(false);
-      setErrorMessage(verifyRes.error || "Invalid or expired OTP passcode.");
-      return;
-    }
-
-    const loginRes = await loginWithVerifiedContact(contact);
-    if (!loginRes.success) {
-      setIsSubmitting(false);
-      setErrorMessage(loginRes.error || "Failed to locate registered family record.");
-      return;
-    }
-
+    const loginRes = await loginWithPassword({
+      identifier: contact.trim(),
+      password,
+    });
     setIsSubmitting(false);
+
+    if (!loginRes.success) {
+      setErrorMessage(loginRes.error || "Invalid email or password.");
+      return;
+    }
+
     router.push("/dashboard");
   };
 
@@ -246,139 +193,73 @@ export default function LoginPage() {
                 </div>
               </div>
             ) : (
-              /* HOUSEHOLD HEAD LOGIN FORM */
+              /* MEMBER PASSWORD LOGIN FORM */
               <div className="space-y-4 pt-2">
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-body-heading">
-                      Verification Method
-                    </label>
-                    <div className="flex gap-3 text-xs">
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="loginMethod"
-                          checked={loginMethod === "phone"}
-                          onChange={() => {
-                            setLoginMethod("phone");
-                            setContact("");
-                            setOtpSent(false);
-                            setOtpMessage("");
-                            setErrorMessage("");
-                          }}
-                          className="text-brand-primary focus:ring-brand-primary"
-                        />
-                        <span className="font-semibold text-body-heading">Mobile (OTP)</span>
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="loginMethod"
-                          checked={loginMethod === "email"}
-                          onChange={() => {
-                            setLoginMethod("email");
-                            setContact("");
-                            setOtpSent(false);
-                            setOtpMessage("");
-                            setErrorMessage("");
-                          }}
-                          className="text-brand-primary focus:ring-brand-primary"
-                        />
-                        <span className="font-semibold text-body-heading">Email (OTP)</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    {loginMethod === "phone" ? (
-                      <div className="w-full sm:flex-1">
-                        <PhoneInputWithCountry
-                          value={contact}
-                          onChange={(full) => {
-                            setContact(full);
-                            setOtpSent(false);
-                            setOtpMessage("");
-                            setErrorMessage("");
-                          }}
-                          placeholder="e.g. 98765 43210"
-                        />
-                      </div>
-                    ) : (
-                      <input
-                        type="email"
-                        value={contact}
-                        onChange={(e) => {
-                          setContact(e.target.value);
-                          setOtpSent(false);
-                          setOtpMessage("");
-                          setErrorMessage("");
-                        }}
-                        placeholder="registered@example.com"
-                        className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                      />
-                    )}
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      disabled={isSendingOtp}
-                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold bg-canvas-warm text-brand-primary border border-brand-accent hover:bg-white transition-all shrink-0"
-                    >
-                      {isSendingOtp ? "Sending..." : (otpSent ? "Resend" : "Send OTP")}
-                    </button>
-                  </div>
-                </div>
-
-                {otpMessage && (
-                  <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] font-semibold text-emerald-800">
-                    {otpMessage}
-                  </div>
-                )}
-
-                <div>
                   <label className="block text-xs font-bold text-body-heading mb-1.5">
-                    One-Time Passcode (OTP)
+                    Email Address or Mobile Number *
                   </label>
                   <input
                     type="text"
-                    maxLength={6}
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    placeholder="Enter 6-digit OTP"
-                    className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs font-mono text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    value={contact}
+                    onChange={(e) => {
+                      setContact(e.target.value);
+                      setErrorMessage("");
+                    }}
+                    placeholder="e.g. agarwal.family@example.com or 9876543210"
+                    className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                   />
                   <span className="text-[11px] text-body-muted block mt-1">
-                    Passcode delivered via WhatsApp or Email.
+                    Enter the email address or phone number registered with your family.
                   </span>
                 </div>
-              </div>
-            )}
 
-            {notRegistered && (
-              <div className="p-4 rounded-2xl bg-amber-50 border-2 border-brand-gold/60 space-y-2 animate-in fade-in">
-                <div className="flex items-start gap-2.5">
-                  <span className="text-xl">🏡</span>
-                  <div>
-                    <h4 className="text-xs font-bold text-brand-primary">No Family Registration Found</h4>
-                    <p className="text-[11px] text-body-text leading-relaxed mt-0.5">
-                      This mobile/email is not registered with any family. Please complete the one-time free registration first.
-                    </p>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-body-heading">
+                      Password *
+                    </label>
+                    <Link
+                      href="/forgot-password"
+                      className="text-[11px] font-semibold text-brand-primary hover:underline"
+                    >
+                      Forgot Password?
+                    </Link>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setErrorMessage("");
+                      }}
+                      placeholder="Enter your account password"
+                      className="w-full pl-4 pr-10 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
                   </div>
                 </div>
-                <Link
-                  href="/signup"
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      sessionStorage.setItem("agrawal_signup_contact", contact.trim());
-                    }
-                  }}
-                  className="block w-full py-2 px-4 rounded-xl text-xs font-bold text-center text-white va-btn-join shadow-sm mt-1"
-                >
-                  Register Family Free (Sign Up) →
-                </Link>
               </div>
             )}
 
-            {errorMessage && !notRegistered && (
+            {errorMessage && (
               <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
                 ⚠️ {errorMessage}
               </div>
