@@ -365,10 +365,13 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     householdStatus: "pending_review",
   });
 
+  const primaryMember = created.members?.find((m: any) => m.relationToHead === "self") || created.members?.[0];
+  const primarySerial = headMember?.serialNo || primaryMember?.serialNo || created.serialNo || householdCode;
+
   return {
     success: true,
-    householdCode: created.serialNo || householdCode,
-    serialNo: created.serialNo || householdCode,
+    householdCode: primarySerial,
+    serialNo: primarySerial,
     message: "Registration submitted successfully into community moderation queue.",
   };
 }
@@ -384,9 +387,11 @@ export async function checkContactRegistration(contact: string) {
 
   const existing = await db.getHouseholdByContact(canonicalContact);
   if (existing) {
+    const headMember = existing.members?.find((m: any) => m.relationToHead === "self") || existing.members?.[0];
+    const primarySerial = headMember?.serialNo || existing.serialNo || existing.householdCode;
     return {
       isRegistered: true,
-      householdCode: existing.serialNo || existing.householdCode,
+      householdCode: primarySerial,
       headName: existing.headName,
     };
   }

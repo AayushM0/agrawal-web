@@ -104,6 +104,8 @@ async function ensureSchema(client: any) {
       ALTER TABLE members ADD COLUMN IF NOT EXISTS passport_number TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS password_hash TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS serial_no VARCHAR(32) UNIQUE;
+      CREATE INDEX IF NOT EXISTS idx_members_serial_no ON members(serial_no);
 
       ALTER TABLE households ADD COLUMN IF NOT EXISTS password_hash TEXT;
 
@@ -199,18 +201,64 @@ async function ensureSchema(client: any) {
   }
 }
 
-async function generateNextSerialNo(client: any): Promise<string> {
+async function generateNextHouseholdNo(client: any): Promise<string> {
   try {
     const countRes = await client.query("SELECT COUNT(*) as count FROM households;");
-    const count = parseInt(countRes.rows[0]?.count || "0", 10) + 1;
-    const part1 = String(Math.floor(count / 1000000) % 1000).padStart(3, "0");
-    const part2 = String(Math.floor(count / 1000) % 1000).padStart(3, "0");
-    const part3 = String(count % 1000).padStart(3, "0");
-    return `MAFL-${part1}-${part2}-${part3}`;
+    let count = parseInt(countRes.rows[0]?.count || "0", 10) + 1;
+    let candidate = "";
+    let isUnique = false;
+    while (!isUnique) {
+      const part1 = String(Math.floor(count / 1000000) % 1000).padStart(3, "0");
+      const part2 = String(Math.floor(count / 1000) % 1000).padStart(3, "0");
+      const part3 = String(count % 1000).padStart(3, "0");
+      candidate = `HHN-${part1}-${part2}-${part3}`;
+      const checkRes = await client.query(
+        "SELECT id FROM households WHERE serial_no = $1 OR household_code = $1 LIMIT 1;",
+        [candidate]
+      );
+      if (checkRes.rows.length === 0) {
+        isUnique = true;
+      } else {
+        count++;
+      }
+    }
+    return candidate;
+  } catch {
+    const rand = Math.floor(100000000 + Math.random() * 900000000).toString();
+    return `HHN-${rand.slice(0, 3)}-${rand.slice(3, 6)}-${rand.slice(6, 9)}`;
+  }
+}
+
+async function generateNextMemberSerialNo(client: any): Promise<string> {
+  try {
+    const countRes = await client.query("SELECT COUNT(*) as count FROM members;");
+    let count = parseInt(countRes.rows[0]?.count || "0", 10) + 1;
+    let candidate = "";
+    let isUnique = false;
+    while (!isUnique) {
+      const part1 = String(Math.floor(count / 1000000) % 1000).padStart(3, "0");
+      const part2 = String(Math.floor(count / 1000) % 1000).padStart(3, "0");
+      const part3 = String(count % 1000).padStart(3, "0");
+      candidate = `MAFL-${part1}-${part2}-${part3}`;
+      const checkRes = await client.query(
+        "SELECT id FROM members WHERE serial_no = $1 LIMIT 1;",
+        [candidate]
+      );
+      if (checkRes.rows.length === 0) {
+        isUnique = true;
+      } else {
+        count++;
+      }
+    }
+    return candidate;
   } catch {
     const rand = Math.floor(100000000 + Math.random() * 900000000).toString();
     return `MAFL-${rand.slice(0, 3)}-${rand.slice(3, 6)}-${rand.slice(6, 9)}`;
   }
+}
+
+async function generateNextSerialNo(client: any): Promise<string> {
+  return generateNextHouseholdNo(client);
 }
 
 export const db = {
@@ -227,7 +275,7 @@ export const db = {
                phone, email, father_name as "fatherName", photo_url as "photoUrl", bio,
                aadhaar_number as "aadhaarNumber", pan_number as "panNumber", passport_number as "passportNumber", govt_id_number as "govtIdNumber",
                verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
-               visibility_contact, visibility_dob, visibility_photo
+               visibility_contact, visibility_dob, visibility_photo, serial_no as "serialNo"
         FROM members ORDER BY (relation_to_head = 'self') DESC, created_at ASC;
       `);
 
@@ -240,6 +288,7 @@ export const db = {
         membersByHId.get(hId)!.push({
           ...m,
           dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString() : String(m.dob)) : "",
+          serialNo: m.serialNo || m.serial_no || "",
           visibility: {
             contactInfo: m.visibility_contact,
             dob: m.visibility_dob,
@@ -362,13 +411,14 @@ export const db = {
                 phone, email, father_name as "fatherName", photo_url as "photoUrl", bio,
                 aadhaar_number as "aadhaarNumber", pan_number as "panNumber", passport_number as "passportNumber", govt_id_number as "govtIdNumber",
                 verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
-                visibility_contact, visibility_dob, visibility_photo
+                visibility_contact, visibility_dob, visibility_photo, serial_no as "serialNo"
          FROM members WHERE household_id = $1 ORDER BY created_at ASC;`,
         [h.id]
       );
       const members = mRes.rows.map(m => ({
         ...m,
         dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString() : String(m.dob)) : "",
+        serialNo: m.serialNo || m.serial_no || "",
         visibility: {
           contactInfo: m.visibility_contact,
           dob: m.visibility_dob,
@@ -413,7 +463,7 @@ export const db = {
       await client.query("BEGIN");
       await ensureSchema(client);
       
-      const serialNo = household.serialNo || (await generateNextSerialNo(client));
+      const serialNo = household.serialNo || (await generateNextHouseholdNo(client));
 
       const insertHQuery = `
         INSERT INTO households (
@@ -453,9 +503,11 @@ export const db = {
       const dbHouseholdId = hRes.rows[0].id;
       const actualSerialNo = hRes.rows[0].serial_no || serialNo;
 
+      const createdMembers: Member[] = [];
       for (const m of household.members) {
         const safeDob = sanitizeDate(m.dob);
         const safeRel = sanitizeRelation(m.relationToHead);
+        const mSerialNo = (m as any).serialNo || (await generateNextMemberSerialNo(client));
 
         const insertMQuery = `
           INSERT INTO members (
@@ -466,7 +518,7 @@ export const db = {
             phone, email, father_name, photo_url, bio,
             aadhaar_number, pan_number, passport_number, govt_id_number,
             visibility_contact, visibility_dob, visibility_photo, verified_by_self, owner_locked,
-            password_hash
+            password_hash, serial_no
           ) VALUES (
             gen_random_uuid(), $1, $2, $3, $4, $5, $6,
             $7, $8, $9, $10, $11,
@@ -475,10 +527,11 @@ export const db = {
             $17, $18, $19, $20, $21,
             $22, $23, $24, $25,
             $26, $27, $28, $29, $30,
-            $31
-          );
+            $31, $32
+          )
+          RETURNING id, serial_no;
         `;
-        await client.query(insertMQuery, [
+        const mRes = await client.query(insertMQuery, [
           dbHouseholdId,
           m.fullName,
           safeRel,
@@ -510,11 +563,17 @@ export const db = {
           m.verifiedBySelf || false,
           m.ownerLocked || false,
           m.passwordHash || (safeRel === "self" ? household.passwordHash : null) || null,
+          mSerialNo,
         ]);
+        createdMembers.push({
+          ...m,
+          id: mRes.rows[0].id,
+          serialNo: mRes.rows[0].serial_no,
+        });
       }
 
       await client.query("COMMIT");
-      return { ...household, id: dbHouseholdId, serialNo: actualSerialNo };
+      return { ...household, id: dbHouseholdId, serialNo: actualSerialNo, members: createdMembers };
     } catch (e) {
       if (client) {
         try { await client.query("ROLLBACK"); } catch {}
@@ -537,7 +596,8 @@ export const db = {
           m.company_name as "companyName", m.anniversary_date as "anniversaryDate",
           m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
           m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
-          h.household_code as "householdCode", h.serial_no as "serialNo", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
+          m.serial_no as "serialNo",
+          h.household_code as "householdCode", h.serial_no as "householdSerialNo", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
         FROM members m
         JOIN households h ON m.household_id = h.id;
       `;
@@ -546,7 +606,8 @@ export const db = {
       return res.rows.map(r => ({
         ...r,
         dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
-        serialNo: r.serialNo || r.householdCode,
+        serialNo: r.serialNo || r.householdSerialNo || r.householdCode,
+        householdSerialNo: r.householdSerialNo || r.householdCode,
         visibility: {
           contactInfo: r.visibility_contact,
           dob: r.visibility_dob,
@@ -605,10 +666,11 @@ export const db = {
           m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
           m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
           m.aadhaar_number as "aadhaarNumber", m.pan_number as "panNumber", m.passport_number as "passportNumber", m.govt_id_number as "govtIdNumber",
-          h.household_code as "householdCode", h.serial_no as "serialNo", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
+          m.serial_no as "serialNo",
+          h.household_code as "householdCode", h.serial_no as "householdSerialNo", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
         FROM members m
         JOIN households h ON m.household_id = h.id
-        WHERE m.id::text = $1 OR h.household_code = $1 OR h.serial_no = $1 OR h.id::text = $1;
+        WHERE m.id::text = $1 OR m.serial_no = $1 OR h.household_code = $1 OR h.serial_no = $1 OR h.id::text = $1;
       `;
       const res = await pool.query(query, [memberId]);
       if (res.rows.length === 0) return null;
@@ -616,7 +678,8 @@ export const db = {
       return {
         ...r,
         dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
-        serialNo: r.serialNo || r.householdCode,
+        serialNo: r.serialNo || r.householdSerialNo || r.householdCode,
+        householdSerialNo: r.householdSerialNo || r.householdCode,
         visibility: {
           contactInfo: r.visibility_contact,
           dob: r.visibility_dob,
@@ -652,13 +715,14 @@ export const db = {
                 phone, email, father_name as "fatherName", photo_url as "photoUrl", bio,
                 aadhaar_number as "aadhaarNumber", pan_number as "panNumber", passport_number as "passportNumber", govt_id_number as "govtIdNumber",
                 verified_by_self as "verifiedBySelf", owner_locked as "ownerLocked",
-                visibility_contact, visibility_dob, visibility_photo
+                visibility_contact, visibility_dob, visibility_photo, serial_no as "serialNo"
          FROM members WHERE household_id::text = $1 ORDER BY created_at ASC;`,
         [householdId]
       );
       return res.rows.map(m => ({
         ...m,
         dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString() : String(m.dob)) : "",
+        serialNo: m.serialNo || m.serial_no || "",
         visibility: { contactInfo: m.visibility_contact, dob: m.visibility_dob, photo: m.visibility_photo }
       }));
     } catch (e) { throw e; }
@@ -693,6 +757,7 @@ export const db = {
     const safeDob = member.dob ? sanitizeDate(member.dob) : null;
     const cleanPhone = member.phone?.trim() ? normalizePhoneNumber(member.phone.trim()) : null;
     const cleanEmail = member.email?.trim() ? member.email.trim().toLowerCase() : null;
+    const mSerialNo = member.serialNo || (await generateNextMemberSerialNo(pool));
 
     const insertQuery = `
       INSERT INTO members (
@@ -702,7 +767,7 @@ export const db = {
         company_name, anniversary_date,
         phone, email, father_name, photo_url, bio,
         visibility_contact, visibility_dob, visibility_photo,
-        verified_by_self, owner_locked, password_hash
+        verified_by_self, owner_locked, password_hash, serial_no
       ) VALUES (
         gen_random_uuid(), $1, $2, $3, $4, $5, $6,
         $7, $8, $9, $10, $11,
@@ -710,7 +775,7 @@ export const db = {
         $15, $16,
         $17, $18, $19, $20, $21,
         $22, $23, $24,
-        false, false, null
+        false, false, null, $25
       ) RETURNING *;
     `;
 
@@ -739,6 +804,7 @@ export const db = {
       member.visibility?.contactInfo || "hidden",
       member.visibility?.dob || "hidden",
       member.visibility?.photo || "public_to_members",
+      mSerialNo,
     ]);
 
     const m = res.rows[0];
@@ -767,6 +833,7 @@ export const db = {
       bio: m.bio,
       verifiedBySelf: m.verified_by_self,
       ownerLocked: m.owner_locked,
+      serialNo: m.serial_no || mSerialNo,
       visibility: {
         contactInfo: m.visibility_contact,
         dob: m.visibility_dob,
@@ -924,7 +991,7 @@ export const db = {
       if (isEmail) {
         // 1. Search in members table by email
         const mRes = await pool.query(
-          `SELECT m.*, COALESCE(m.password_hash, h.password_hash) as "passwordHash", h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+          `SELECT m.*, COALESCE(m.password_hash, h.password_hash) as "passwordHash", h.household_code as "householdCode", h.serial_no as "householdSerialNo", m.serial_no as "memberSerialNo", h.status as "householdStatus"
            FROM members m
            JOIN households h ON m.household_id = h.id
            WHERE LOWER(m.email) = LOWER($1)
@@ -943,13 +1010,14 @@ export const db = {
             currentCountry: r.current_country,
             gotra: r.gotra,
             photoUrl: r.photo_url,
+            serialNo: r.memberSerialNo || r.householdSerialNo || r.householdCode,
             passwordHash: r.passwordHash || r.password_hash,
           };
         }
 
         // 2. Search in households table by verified email contact (head of household)
         const hRes = await pool.query(
-          `SELECT m.*, COALESCE(m.password_hash, h.password_hash) as "passwordHash", h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+          `SELECT m.*, COALESCE(m.password_hash, h.password_hash) as "passwordHash", h.household_code as "householdCode", h.serial_no as "householdSerialNo", m.serial_no as "memberSerialNo", h.status as "householdStatus"
            FROM households h
            JOIN members m ON m.household_id = h.id AND m.relation_to_head = 'self'
            WHERE LOWER(h.verified_contact) = LOWER($1)
@@ -967,6 +1035,7 @@ export const db = {
             currentCountry: r.current_country,
             gotra: r.gotra,
             photoUrl: r.photo_url,
+            serialNo: r.memberSerialNo || r.householdSerialNo || r.householdCode,
             passwordHash: r.passwordHash || r.password_hash,
           };
         }
@@ -976,7 +1045,7 @@ export const db = {
         const phoneLike = last10 ? `%${last10}` : canonical;
         // 1. Search in members table by phone
         const mRes = await pool.query(
-          `SELECT m.*, COALESCE(m.password_hash, h.password_hash) as "passwordHash", h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+          `SELECT m.*, COALESCE(m.password_hash, h.password_hash) as "passwordHash", h.household_code as "householdCode", h.serial_no as "householdSerialNo", m.serial_no as "memberSerialNo", h.status as "householdStatus"
            FROM members m
            JOIN households h ON m.household_id = h.id
            WHERE m.phone = $1 OR m.phone = $2 OR (m.phone LIKE $3 AND $3 != '%')
@@ -995,13 +1064,14 @@ export const db = {
             currentCountry: r.current_country,
             gotra: r.gotra,
             photoUrl: r.photo_url,
+            serialNo: r.memberSerialNo || r.householdSerialNo || r.householdCode,
             passwordHash: r.passwordHash || r.password_hash,
           };
         }
 
         // 2. Search in households table by verified phone (head of household)
         const hRes = await pool.query(
-          `SELECT m.*, COALESCE(m.password_hash, h.password_hash) as "passwordHash", h.household_code as "householdCode", h.serial_no as "serialNo", h.status as "householdStatus"
+          `SELECT m.*, COALESCE(m.password_hash, h.password_hash) as "passwordHash", h.household_code as "householdCode", h.serial_no as "householdSerialNo", m.serial_no as "memberSerialNo", h.status as "householdStatus"
            FROM households h
            JOIN members m ON m.household_id = h.id AND m.relation_to_head = 'self'
            WHERE h.verified_contact = $1 OR h.verified_contact = $2 OR (h.verified_contact LIKE $3 AND $3 != '%')
@@ -1019,6 +1089,7 @@ export const db = {
             currentCountry: r.current_country,
             gotra: r.gotra,
             photoUrl: r.photo_url,
+            serialNo: r.memberSerialNo || r.householdSerialNo || r.householdCode,
             passwordHash: r.passwordHash || r.password_hash,
           };
         }

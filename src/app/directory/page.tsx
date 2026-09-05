@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { searchDirectory } from "@/actions/search";
 import { gotras } from "@/data/gotras";
+import { calculateAge } from "@/lib/privacy";
 
 function DirectoryContent() {
   const searchParams = useSearchParams();
@@ -275,11 +276,15 @@ function DirectoryContent() {
                             </h4>
                             <div className="flex items-center gap-1.5 text-[11px] text-brand-gold font-semibold font-devanagari">
                               <span className="truncate">Gotra: {m.gotra}</span>
-                              {m.birthYear && (
+                              {m.dob && calculateAge(m.dob) !== null ? (
+                                <span className="text-[10px] font-sans font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded">
+                                  Age {calculateAge(m.dob)} yrs
+                                </span>
+                              ) : m.birthYear ? (
                                 <span className="text-[10px] font-sans font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded">
                                   Born {m.birthYear}
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                         </div>

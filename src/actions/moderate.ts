@@ -52,7 +52,8 @@ async function sendWelcomeEmail(member: any, household: any) {
 
 async function notifyHouseholdMembers(householdId: string, household: any) {
   const members = await db.getMembersByHousehold(householdId);
-  const serial = household.serialNo || household.householdCode;
+  const headMember = members.find((m) => m.relationToHead === "self") || members[0];
+  const primarySerial = headMember?.serialNo || household.serialNo || household.householdCode;
   const passUrl = `${getBaseUrl()}/dashboard/pass`;
 
   // 1. Generate ID Pass PDF buffer for every family member in parallel to prevent Vercel 10s Serverless timeout
@@ -64,9 +65,10 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
         filename: `ID_Card_${member.fullName.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`,
         content: buffer.toString("base64"),
         member,
+        passData,
       };
     } catch (err) {
-      console.error("PDF generation failed for member:", member.fullName, err);
+      console.error(`Failed to generate PDF pass for member ${member.fullName}:`, err);
       return null;
     }
   });
@@ -77,7 +79,6 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
   );
 
   // 2. Identify primary email destination (Head email or verified household email)
-  const headMember = members.find((m) => m.relationToHead === "self");
   const primaryEmail =
     headMember?.email ||
     (household.verifiedContact && household.verifiedContact.includes("@")
@@ -91,7 +92,7 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
     const memberSummaryList = members
       .map(
         (m, idx) =>
-          `<li><strong>#${idx + 1}: ${m.fullName}</strong> (${m.relationToHead === "self" ? "Head of Household" : m.relationToHead})</li>`
+          `<li><strong>#${idx + 1}: ${m.fullName}</strong> (${m.relationToHead === "self" ? "Head of Household" : m.relationToHead})${m.serialNo ? ` — Serial No: <code>${m.serialNo}</code>` : ""}</li>`
       )
       .join("");
 
@@ -107,11 +108,11 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
             body: JSON.stringify({
               from: process.env.RESEND_FROM_EMAIL || "Maharaja Agrasen Foundation <verify@maharajaagrasenfoundation.com>",
               to: primaryEmail,
-              subject: `Household Verified - Official ID Passes for All Members (${serial}) - Maharaja Agrasen Foundation`,
+              subject: `Household Verified - Official ID Passes for All Members (${primarySerial}) - Maharaja Agrasen Foundation`,
               html: `
                 <h2>Congratulations! Your Household is Approved</h2>
                 <p>Your Maharaja Agrasen Foundation household registration has been verified and approved.</p>
-                <p><strong>Assigned Serial Number:</strong> ${serial}</p>
+                <p><strong>Assigned Serial Number:</strong> ${primarySerial}</p>
                 <p>Official ID cards for all <strong>${members.length} registered member(s)</strong> are attached to this email:</p>
                 <ul>${memberSummaryList}</ul>
                 <p>You can also log in to your household dashboard at any time to view and download live passes for all members: <a href="${passUrl}">${passUrl}</a></p>
@@ -145,6 +146,7 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
       )
       .map(async (item) => {
         try {
+          const memberSerial = item.passData?.serialNo || item.member.serialNo || primarySerial;
           const res = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
@@ -154,10 +156,10 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
             body: JSON.stringify({
               from: process.env.RESEND_FROM_EMAIL || "Maharaja Agrasen Foundation <verify@maharajaagrasenfoundation.com>",
               to: item.member.email,
-              subject: `Your Official ID Card (${serial}) - Maharaja Agrasen Foundation`,
+              subject: `Your Official ID Card (${memberSerial}) - Maharaja Agrasen Foundation`,
               html: `
                 <h2>Welcome, ${item.member.fullName}!</h2>
-                <p>Your membership under household <strong>${serial}</strong> is approved.</p>
+                <p>Your membership is approved. Your assigned Serial Number is <strong>${memberSerial}</strong>.</p>
                 <p>Your official ID card is attached to this email. You can also view it online at: <a href="${passUrl}">${passUrl}</a></p>
               `,
               attachments: [{ filename: item.filename, content: item.content }],
@@ -186,17 +188,18 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
     notificationsToAwait.push(
       sendSMS(
         primaryPhone,
-        `Your Maharaja Agrasen Foundation household membership is approved! Serial No: ${serial}. ID passes for all ${members.length} member(s) are ready at: ${passUrl}`
+        `Your Maharaja Agrasen Foundation household membership is approved! Serial No: ${primarySerial}. ID passes for all ${members.length} member(s) are ready at: ${passUrl}`
       )
     );
   }
 
   for (const member of members) {
     if (member.phone && member.phone !== primaryPhone) {
+      const memberSerial = member.serialNo || primarySerial;
       notificationsToAwait.push(
         sendSMS(
           member.phone,
-          `Welcome ${member.fullName}! Your Maharaja Agrasen Foundation ID pass (${serial}) is approved. Access here: ${passUrl}`
+          `Welcome ${member.fullName}! Your Maharaja Agrasen Foundation ID pass (${memberSerial}) is approved. Access here: ${passUrl}`
         )
       );
     }

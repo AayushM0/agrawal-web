@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { getMemberProfile } from "@/actions/search";
 import { revealContact } from "@/actions/reveal";
-import { maskPhone, maskEmail } from "@/lib/privacy";
+import { maskPhone, maskEmail, calculateAge } from "@/lib/privacy";
 
 export default function MemberProfilePage() {
   const params = useParams();
@@ -102,11 +102,15 @@ export default function MemberProfilePage() {
                 <span className="text-[11px] font-mono font-bold va-badge-gold px-2.5 py-0.5 rounded-full">
                   #{member.serialNo || member.householdCode}
                 </span>
-                {member.birthYear && (
+                {member.dob && calculateAge(member.dob) !== null ? (
+                  <span className="text-[11px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
+                    Age {calculateAge(member.dob)} yrs
+                  </span>
+                ) : member.birthYear ? (
                   <span className="text-[11px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
                     Born {member.birthYear}
                   </span>
-                )}
+                ) : null}
               </div>
               <p className="text-xs font-bold text-brand-gold font-devanagari mb-1">
                 Gotra: {member.gotra} {member.relationToHead && `• Relation: ${member.relationToHead.toUpperCase()}`}

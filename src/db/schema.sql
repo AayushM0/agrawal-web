@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS members (
     passport_number TEXT,
     govt_id_number TEXT,
     password_hash TEXT,
+    serial_no VARCHAR(32) UNIQUE,
     verified_by_self BOOLEAN NOT NULL DEFAULT FALSE,
     claim_token TEXT UNIQUE,
     owner_locked BOOLEAN NOT NULL DEFAULT FALSE,
@@ -94,6 +95,7 @@ CREATE TABLE IF NOT EXISTS members (
 
 -- Indexes for Fast Faceted Search & Radius Queries
 CREATE INDEX IF NOT EXISTS idx_members_household_id ON members(household_id);
+CREATE INDEX IF NOT EXISTS idx_members_serial_no ON members(serial_no);
 CREATE INDEX IF NOT EXISTS idx_members_search_vector ON members USING gin(search_vector);
 CREATE INDEX IF NOT EXISTS idx_members_coordinates ON members USING gist(coordinates);
 CREATE INDEX IF NOT EXISTS idx_members_trgm_name ON members USING gin(full_name gin_trgm_ops);
@@ -123,6 +125,7 @@ ALTER TABLE members ADD COLUMN IF NOT EXISTS pan_number TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS passport_number TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS serial_no VARCHAR(32) UNIQUE;
 ALTER TABLE households ADD COLUMN IF NOT EXISTS password_hash TEXT;
 
 -- 2b. Login Attempts Table (OWASP Brute-Force Defense)

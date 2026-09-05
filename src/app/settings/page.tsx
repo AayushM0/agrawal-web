@@ -169,7 +169,7 @@ export default function SettingsPage() {
               </div>
               <div className="p-3 bg-canvas-warm/40 rounded-xl border border-brand-accent/25">
                 <span className="text-[10px] text-body-muted block">Assigned Serial ID (क्रमांक)</span>
-                <strong className="font-mono text-brand-primary">#{household.serialNo || household.householdCode}</strong>
+                <strong className="font-mono text-brand-primary">#{household.members?.find((m: any) => m.relationToHead === "self")?.serialNo || household.members?.[0]?.serialNo || household.serialNo || household.householdCode}</strong>
               </div>
               <div className="p-3 bg-canvas-warm/40 rounded-xl border border-brand-accent/25">
                 <span className="text-[10px] text-body-muted block">Gotra / Lineage</span>

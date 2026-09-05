@@ -290,7 +290,7 @@ export default function ModerationQueuePage() {
                         Gotra: {h.gotra}
                       </span>
                       <span className="text-xs font-mono font-bold text-brand-primary bg-canvas-warm px-2.5 py-0.5 rounded-full border border-brand-accent/40">
-                        #{h.serialNo || h.householdCode}
+                        #{h.members?.find((m: any) => m.relationToHead === "self")?.serialNo || h.serialNo || h.householdCode}
                       </span>
                     </div>
 
@@ -310,12 +310,12 @@ export default function ModerationQueuePage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {h.status === "pending_review" && (
                       <>
                         <button
                           onClick={() => handleApprove(h.id)}
-                          className="px-4 py-2 rounded-full text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-sm"
+                          className="px-4 py-2 rounded-full text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 transition-all shadow-xs"
                         >
                           ✓ Approve Family
                         </button>
@@ -359,11 +359,18 @@ export default function ModerationQueuePage() {
                             </div>
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between gap-1">
                               <span className="font-bold text-brand-primary truncate">{idx + 1}. {m.fullName}</span>
-                              <span className="text-[10px] font-semibold bg-white px-2 py-0.5 rounded-full border border-brand-accent/30 text-body-muted capitalize">
-                                {m.relationToHead}
-                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {m.serialNo && (
+                                  <span className="text-[10px] font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-brand-accent/30 text-brand-primary">
+                                    #{m.serialNo}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-semibold bg-white px-2 py-0.5 rounded-full border border-brand-accent/30 text-body-muted capitalize">
+                                  {m.relationToHead}
+                                </span>
+                              </div>
                             </div>
                             <p className="text-[11px] text-body-heading mt-0.5">
                               {m.maritalStatus === "Married" && (m.gender === "Female" || m.relationToHead === "spouse")

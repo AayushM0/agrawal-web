@@ -328,6 +328,8 @@ export default function DashboardPage() {
   const isLive = household.status === "live";
   const isPending = household.status === "pending_review";
   const isRejected = household.status === "rejected";
+  const headMember = household.members?.find((m) => m.relationToHead === "self") || household.members?.[0];
+  const primarySerial = headMember?.serialNo || household.serialNo || household.householdCode;
 
   return (
     <main className="py-8 sm:py-12 bg-canvas-page min-h-[85vh]">
@@ -361,7 +363,7 @@ export default function DashboardPage() {
 
             <div className="flex flex-wrap sm:flex-col items-start sm:items-end gap-2">
               <span className="text-xs font-mono font-bold bg-canvas-warm border border-brand-accent px-3 py-1 rounded-full text-brand-primary">
-                #{household.serialNo || household.householdCode}
+                #{primarySerial}
               </span>
               {isLive && (
                 <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300">
@@ -483,6 +485,11 @@ export default function DashboardPage() {
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full va-badge-gold uppercase shrink-0">
                             {m.relationToHead}
                           </span>
+                          {m.serialNo && (
+                            <span className="text-[10px] font-mono font-bold bg-amber-50 text-brand-primary border border-amber-200 px-1.5 py-0.5 rounded-md shrink-0">
+                              #{m.serialNo}
+                            </span>
+                          )}
                           {age !== null && (
                             <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full shrink-0">
                               {age} yrs

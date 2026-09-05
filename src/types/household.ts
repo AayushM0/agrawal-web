@@ -36,6 +36,7 @@ export interface Member {
   passwordHash?: string;
   verifiedBySelf: boolean;
   ownerLocked: boolean;
+  serialNo?: string;
   visibility: FieldVisibility;
 }
 
