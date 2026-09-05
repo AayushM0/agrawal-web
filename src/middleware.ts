@@ -84,6 +84,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // 4. Directory route requires an activated account (protect community member contacts)
+  if (isProtectedDirectoryRoute && session && session.isActivated === false) {
+    const dashboardUrl = new URL("/dashboard", req.url);
+    dashboardUrl.searchParams.set("activate", "required");
+    return NextResponse.redirect(dashboardUrl);
+  }
+
   return NextResponse.next();
 }
 

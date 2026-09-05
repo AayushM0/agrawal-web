@@ -1,6 +1,6 @@
 # Issue 01: Frictionless Registration to Moderation Queue
 
-Status: ready-for-agent
+Status: resolved
 
 ## Parent
 
@@ -17,14 +17,14 @@ A frictionless initial registration experience that allows new community members
 
 ## Acceptance criteria
 
-- [ ] Step 1 validates both email and mobile formats with live feedback.
-- [ ] Attempting to register with an already-registered email or mobile shows a warning and provides a direct path to log in.
-- [ ] Advancing past Step 1 does not dispatch an OTP and does not prompt for a password.
-- [ ] Head of Household details in Step 2 receive the validated email and phone from Step 1.
-- [ ] Household submission succeeds without providing a password.
-- [ ] Database stores the household with `status = 'pending_review'` and `password_hash = null`.
-- [ ] User receives an unactivated session (`isActivated: false, hasPassword: false`) and lands on `/dashboard`.
-- [ ] All untouched fields and forms (Gotra selection, photos, location selectors, Aadhaar/PAN) remain 100% intact.
+- [x] Step 1 validates both email and mobile formats with live feedback.
+- [x] Attempting to register with an already-registered email or mobile shows a warning and provides a direct path to log in.
+- [x] Advancing past Step 1 does not dispatch an OTP and does not prompt for a password.
+- [x] Head of Household details in Step 2 receive the validated email and phone from Step 1.
+- [x] Household submission succeeds without providing a password.
+- [x] Database stores the household with `status = 'pending_review'` and `password_hash = null`.
+- [x] User receives an unactivated session (`isActivated: false, hasPassword: false`) and lands on `/dashboard`.
+- [x] All untouched fields and forms (Gotra selection, photos, location selectors, Aadhaar/PAN) remain 100% intact.
 
 ## Blocked by
 

@@ -1,6 +1,6 @@
 # Issue 02: Dashboard Read-Only Preview & Gated Action Interceptor
 
-Status: ready-for-agent
+Status: resolved
 
 ## Parent
 
@@ -18,12 +18,12 @@ A read-only dashboard preview experience for newly registered households, combin
 
 ## Acceptance criteria
 
-- [ ] Unactivated session displays a prominent gold review banner on `/dashboard`.
-- [ ] User can view their household card, members, and serial number in preview mode.
-- [ ] Clicking "Edit Profile" on an unactivated account triggers an activation prompt rather than opening the edit form directly.
-- [ ] Clicking "Edit Family Origin" or "Add Member" on an unactivated account triggers an activation prompt.
-- [ ] Server actions for profile modification reject unactivated sessions with an explicit error.
-- [ ] Directory access is restricted to fully activated members.
+- [x] Unactivated session displays a prominent gold review banner on `/dashboard`.
+- [x] User can view their household card, members, and serial number in preview mode.
+- [x] Clicking "Edit Profile" on an unactivated account triggers an activation prompt rather than opening the edit form directly.
+- [x] Clicking "Edit Family Origin" or "Add Member" on an unactivated account triggers an activation prompt.
+- [x] Server actions for profile modification reject unactivated sessions with an explicit error.
+- [x] Directory access is restricted to fully activated members.
 
 ## Blocked by
 

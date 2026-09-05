@@ -8,6 +8,7 @@ export async function getCurrentHouseholdDashboard(): Promise<{
   success: boolean;
   household: Household | null;
   sessionContact: string | null;
+  isActivated: boolean;
 }> {
   const session = await getSession();
   if (!session || !session.contact) {
@@ -15,6 +16,7 @@ export async function getCurrentHouseholdDashboard(): Promise<{
       success: true,
       household: null,
       sessionContact: null,
+      isActivated: false,
     };
   }
 
@@ -23,5 +25,6 @@ export async function getCurrentHouseholdDashboard(): Promise<{
     success: true,
     household: household || null,
     sessionContact: session.contact,
+    isActivated: session.isActivated !== false,
   };
 }

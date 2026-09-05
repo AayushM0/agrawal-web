@@ -33,6 +33,10 @@ export async function saveMemberProfile(input: UpdateProfileInput) {
     return { success: false, error: "You must be signed in to edit profile details." };
   }
 
+  if (session.isActivated === false) {
+    return { success: false, error: "Account activation required. Please verify OTP and set a password to edit profile details." };
+  }
+
   if (!input.memberId) {
     return { success: false, error: "Member ID is required." };
   }
@@ -103,6 +107,10 @@ export async function saveHouseholdInfo(householdId: string, updates: { nativePl
     return { success: false, error: "You must be signed in to edit household details." };
   }
 
+  if (session.isActivated === false) {
+    return { success: false, error: "Account activation required. Please verify OTP and set a password to edit family origin." };
+  }
+
   const household = await db.getHouseholdByContact(session.contact);
   if (!household) {
     return { success: false, error: "Associated household not found." };
@@ -158,6 +166,10 @@ export async function addHouseholdMember(input: AddMemberInput): Promise<{
   const session = await getSession();
   if (!session || !session.contact) {
     return { success: false, error: "Authentication required. Please sign in to add family members." };
+  }
+
+  if (session.isActivated === false) {
+    return { success: false, error: "Account activation required. Please verify OTP and set a password to add family members." };
   }
 
   const household = await db.getHouseholdByContact(session.contact);

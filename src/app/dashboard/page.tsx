@@ -57,6 +57,19 @@ export default function DashboardPage() {
   const [addMemberError, setAddMemberError] = useState("");
   const [addMemberSuccess, setAddMemberSuccess] = useState("");
 
+  const [isActivated, setIsActivated] = useState(true);
+  const [showActivationModal, setShowActivationModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  const requireActivation = (action: () => void) => {
+    if (!isActivated) {
+      setPendingAction(() => action);
+      setShowActivationModal(true);
+      return;
+    }
+    action();
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -67,11 +80,13 @@ export default function DashboardPage() {
     if (res.success && res.household) {
       setHousehold(res.household);
       setSessionContact(res.sessionContact);
+      setIsActivated(res.isActivated !== false);
       setHouseholdGotra(res.household.gotra || gotras[0].name);
       setHouseholdNativePlace(res.household.nativePlace || "");
     } else {
       setHousehold(null);
       setSessionContact(res.sessionContact);
+      setIsActivated(res.isActivated || false);
     }
     setIsLoading(false);
   }
@@ -347,7 +362,7 @@ export default function DashboardPage() {
                 </h1>
                 <button
                   type="button"
-                  onClick={() => setIsEditingHousehold(true)}
+                  onClick={() => requireActivation(() => setIsEditingHousehold(true))}
                   className="px-3 py-1 rounded-full text-[11px] font-bold text-brand-primary bg-canvas-warm border border-brand-accent hover:bg-white transition-all shadow-xs"
                 >
                   ✏️ Edit Family Origin
@@ -395,6 +410,27 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
+
+          {!isActivated && (
+            <div className="mt-4 p-4 rounded-2xl bg-amber-50 border-2 border-brand-gold/60 text-xs text-amber-900 leading-relaxed flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-start gap-2.5">
+                <span className="text-xl">🔐</span>
+                <div>
+                  <strong className="text-brand-primary block text-sm mb-0.5">Account Activation • Preview Mode • खाता सक्रियण आवश्यक है</strong>
+                  <p className="text-body-muted text-[11px]">
+                    Your family profile has been received for review. You can preview all details below in preview mode. To edit profiles, add family members, or access the Member Directory, please verify your contact and create your password.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowActivationModal(true)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white va-btn-join whitespace-nowrap shadow-sm self-stretch sm:self-auto text-center"
+              >
+                {"Verify & Set Password →"}
+              </button>
+            </div>
+          )}
 
           {isPending && (
             <div className="mt-4 p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-900 leading-relaxed">
@@ -447,7 +483,7 @@ export default function DashboardPage() {
             </div>
             <button
               type="button"
-              onClick={openAddMemberModal}
+              onClick={() => requireActivation(openAddMemberModal)}
               className="self-start sm:self-center px-4 py-2 rounded-full text-xs font-bold text-white va-btn-join transition-all shadow-goldCta flex items-center gap-1.5 shrink-0"
             >
               <span>+</span>
@@ -519,7 +555,7 @@ export default function DashboardPage() {
                       {canEditThisMember && (
                         <button
                           type="button"
-                          onClick={() => openEditMemberModal(m)}
+                          onClick={() => requireActivation(() => openEditMemberModal(m))}
                           className="flex-1 sm:flex-initial text-center px-3.5 py-1.5 rounded-full text-xs font-bold text-white va-btn-join transition-all shadow-xs"
                         >
                           ✏️ Edit Profile
@@ -529,7 +565,7 @@ export default function DashboardPage() {
                       {!m.ownerLocked && m.relationToHead !== "self" && (
                         <button
                           type="button"
-                          onClick={() => handleCopyClaimLink(m.id)}
+                          onClick={() => requireActivation(() => handleCopyClaimLink(m.id))}
                           className="flex-1 sm:flex-initial text-center px-3.5 py-1.5 rounded-full text-xs font-bold text-brand-primary bg-white border border-brand-accent hover:bg-canvas-warm transition-all"
                         >
                           {copiedToken === m.id ? "✓ Link Copied!" : "Invite to Claim"}
