@@ -9,9 +9,7 @@ import { getBaseUrl, createUnifiedPassData } from "@/lib/pass";
 import { sendTwilioSms } from "@/lib/telecom/twilio";
 import React from "react";
 
-async function sendSMS(phone: string, text: string) {
-  await sendTwilioSms(phone, text);
-}
+const sendSMS = sendTwilioSms;
 
 async function sendWelcomeEmail(member: any, household: any) {
   if (!process.env.RESEND_API_KEY || !member.email) return;

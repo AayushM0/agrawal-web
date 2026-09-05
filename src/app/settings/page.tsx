@@ -140,6 +140,9 @@ export default function SettingsPage() {
     );
   }
 
+  const headMember = household.members?.find((m: any) => m.relationToHead === "self") || household.members?.[0];
+  const assignedSerial = headMember?.serialNo || household.serialNo || household.householdCode;
+
   return (
     <main className="py-8 sm:py-12 bg-canvas-page min-h-screen">
       <div className="max-w-3xl mx-auto px-4">
@@ -169,7 +172,7 @@ export default function SettingsPage() {
               </div>
               <div className="p-3 bg-canvas-warm/40 rounded-xl border border-brand-accent/25">
                 <span className="text-[10px] text-body-muted block">Assigned Serial ID (क्रमांक)</span>
-                <strong className="font-mono text-brand-primary">#{household.members?.find((m: any) => m.relationToHead === "self")?.serialNo || household.members?.[0]?.serialNo || household.serialNo || household.householdCode}</strong>
+                <strong className="font-mono text-brand-primary">#{assignedSerial}</strong>
               </div>
               <div className="p-3 bg-canvas-warm/40 rounded-xl border border-brand-accent/25">
                 <span className="text-[10px] text-body-muted block">Gotra / Lineage</span>

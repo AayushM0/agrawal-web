@@ -365,8 +365,7 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     householdStatus: "pending_review",
   });
 
-  const primaryMember = created.members?.find((m: any) => m.relationToHead === "self") || created.members?.[0];
-  const primarySerial = headMember?.serialNo || primaryMember?.serialNo || created.serialNo || householdCode;
+  const primarySerial = headMember?.serialNo || created.members?.[0]?.serialNo || created.serialNo || householdCode;
 
   return {
     success: true,
