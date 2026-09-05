@@ -11,7 +11,7 @@ import { validatePassword, hashPassword } from "@/lib/auth-crypto";
 export interface RegisterHouseholdInput {
   headName: string;
   verifiedContact: string;
-  password: string;
+  password?: string;
   gotra: string;
   nativePlace: string;
   country?: string;
@@ -42,15 +42,15 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     return { success: false, error: "Consent to Privacy Policy and Terms is required." };
   }
 
-  // 1b. Password Complexity Validation
-  if (!input.password) {
-    return { success: false, error: "Password is required." };
+  // 1b. Password Complexity Validation (Optional during frictionless registration)
+  let passwordHash: string | undefined = undefined;
+  if (input.password) {
+    const passwordCheck = validatePassword(input.password);
+    if (!passwordCheck.valid) {
+      return { success: false, error: passwordCheck.error || "Password does not meet complexity requirements." };
+    }
+    passwordHash = await hashPassword(input.password);
   }
-  const passwordCheck = validatePassword(input.password);
-  if (!passwordCheck.valid) {
-    return { success: false, error: passwordCheck.error || "Password does not meet complexity requirements." };
-  }
-  const passwordHash = await hashPassword(input.password);
 
   // 2. Head details sanitization and validation
   const cleanHeadName = input.headName?.trim();
@@ -363,6 +363,8 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     role: "head",
     contact: canonicalContact,
     householdStatus: "pending_review",
+    isActivated: false,
+    hasPassword: Boolean(passwordHash),
   });
 
   const primarySerial = headMember?.serialNo || created.members?.[0]?.serialNo || created.serialNo || householdCode;

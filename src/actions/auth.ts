@@ -13,6 +13,8 @@ export interface SessionData {
   role: "head" | "member" | "admin";
   contact: string;
   householdStatus?: "pending_review" | "live" | "rejected";
+  isActivated?: boolean;
+  hasPassword?: boolean;
   loggedInAt?: number;
 }
 

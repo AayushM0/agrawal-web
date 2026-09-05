@@ -134,9 +134,11 @@ export default function SignupPage() {
   // Step 4: Consent State
   const [consentGiven, setConsentGiven] = useState(false);
 
-  // Step 1 Handlers
-  const handleSendOtp = async () => {
+  // Step 1: Frictionless Contact Validation & Advance Handler
+  const handleStep1Next = async () => {
     const cleanEmail = contactValue.trim().toLowerCase();
+    const cleanPhone = headPhone.trim();
+
     if (!cleanEmail || !cleanEmail.includes("@") || cleanEmail.length < 5) {
       const msg = "Please enter a valid primary email address.";
       setOtpError(msg);
@@ -144,89 +146,51 @@ export default function SignupPage() {
       return;
     }
 
+    if (!cleanPhone || cleanPhone.replace(/[^0-9]/g, "").length < 7) {
+      const msg = "Please enter a valid mobile phone number.";
+      setOtpError(msg);
+      showToast(msg, "error");
+      return;
+    }
+
     setIsSendingOtp(true);
     setOtpError("");
-    setOtpMessage("");
     setAlreadyRegisteredInfo(null);
 
-    // 1. Check if email is already registered in directory
-    const checkRes = await checkContactRegistration(cleanEmail);
-    if (checkRes.isRegistered) {
+    try {
+      // 1. Check if either email or phone is already registered in directory
+      const [emailRes, phoneRes] = await Promise.all([
+        checkContactRegistration(cleanEmail),
+        checkContactRegistration(cleanPhone)
+      ]);
+
       setIsSendingOtp(false);
-      setAlreadyRegisteredInfo(checkRes);
-      const msg = "This email is already registered! Redirecting to Member Login...";
-      setOtpError(msg);
-      showToast(msg, "warning");
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("agrawal_login_contact", cleanEmail);
+
+      if (emailRes.isRegistered || phoneRes.isRegistered) {
+        const conflict = emailRes.isRegistered ? emailRes : phoneRes;
+        setAlreadyRegisteredInfo(conflict);
+        const msg = emailRes.isRegistered
+          ? "This email is already registered! Redirecting to Member Login..."
+          : "This phone number is already registered! Redirecting to Member Login...";
+        setOtpError(msg);
+        showToast(msg, "warning");
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("agrawal_login_contact", emailRes.isRegistered ? cleanEmail : cleanPhone);
+        }
+        setTimeout(() => {
+          router.push("/login");
+        }, 1500);
+        return;
       }
-      setTimeout(() => {
-        router.push("/login");
-      }, 1500);
-      return;
-    }
 
-    // 2. Dispatch OTP via Resend email
-    const res = await sendOtp({ recipient: cleanEmail, type: "email" });
-    setIsSendingOtp(false);
-    if (res.success) {
-      setOtpMessage(res.message || "A 6-digit verification code has been dispatched to your email.");
-      showToast("Verification code dispatched to your email inbox!", "success");
-    } else {
-      const msg = res.error || "Failed to send verification code.";
-      setOtpError(msg);
-      showToast(msg, "error");
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!otpValue.trim() || otpValue.trim().length !== 6) {
-      const msg = "Please enter the 6-digit verification code.";
-      setOtpError(msg);
-      showToast(msg, "error");
-      return;
-    }
-    if (!password) {
-      const msg = "Please create a password for your account.";
-      setOtpError(msg);
-      showToast(msg, "error");
-      return;
-    }
-    if (password.length < 8) {
-      const msg = "Password must be at least 8 characters long.";
-      setOtpError(msg);
-      showToast(msg, "error");
-      return;
-    }
-    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
-      const msg = "Password must contain uppercase, lowercase, and a number.";
-      setOtpError(msg);
-      showToast(msg, "error");
-      return;
-    }
-    if (password !== confirmPassword) {
-      const msg = "Passwords do not match.";
-      setOtpError(msg);
-      showToast(msg, "error");
-      return;
-    }
-
-    setIsVerifyingOtp(true);
-    setOtpError("");
-    setOtpMessage("");
-    const res = await verifyOtp({ recipient: contactValue.trim().toLowerCase(), otp: otpValue.trim() });
-    setIsVerifyingOtp(false);
-    if (res.success) {
-      setOtpVerified(true);
-      setOtpMessage("✓ Email and password verified! Advancing to Head & Family Details...");
-      showToast("Email verified! Proceeding to Step 2...", "success");
-      setTimeout(() => {
-        setStep(2);
-      }, 400);
-    } else {
-      const msg = res.error || "Invalid verification code.";
-      setOtpError(msg);
-      showToast(msg, "error");
+      // Synchronize head email and proceed directly to Step 2
+      setHeadEmail(cleanEmail);
+      showToast("Contact details verified! Proceeding to Family Details...", "success");
+      setStep(2);
+    } catch (err: any) {
+      setIsSendingOtp(false);
+      setOtpError("Unable to verify contact availability. Please try again.");
+      showToast("Network error checking contacts. Please retry.", "error");
     }
   };
 
@@ -599,7 +563,7 @@ export default function SignupPage() {
       const res = await registerHousehold({
         headName: headName.trim(),
         verifiedContact: contactValue.trim(),
-        password: password,
+        password: password ? password : undefined,
         gotra,
         nativePlace: nativePlace.trim(),
         country: country.trim(),
@@ -743,14 +707,14 @@ export default function SignupPage() {
         {/* Wizard Step Container */}
         <div className="bg-white border border-brand-accent/30 rounded-3xl p-5 sm:p-8 shadow-warm">
           
-          {/* STEP 1: CONTACT VERIFICATION & PASSWORD SETUP */}
+          {/* STEP 1: CONTACT DETAILS (Frictionless Onboarding) */}
           {step === 1 && (
             <div>
               <h2 className="text-base sm:text-lg font-bold text-brand-primary mb-1">
-                Step 1: Account Security &amp; Email Verification
+                Step 1: Contact Information • संपर्क जानकारी
               </h2>
               <p className="text-xs text-body-muted mb-6">
-                Verify your primary email address and establish a secure password for your household directory account.
+                Enter your primary email address and mobile phone number to begin your family registration. No password is required at this stage.
               </p>
 
               <div className="space-y-4 mb-6">
@@ -760,26 +724,32 @@ export default function SignupPage() {
                     Primary Email Address (ईमेल आईडी) *
                   </label>
                   <p className="text-[11px] text-body-muted mb-2">
-                    Official verification codes, moderation updates, and recovery access will be sent to this email.
+                    Official announcements, moderation notices, and digital ID card passes will be sent here.
                   </p>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="email"
-                      value={contactValue}
-                      disabled={otpVerified}
-                      onChange={(e) => setContactValue(e.target.value)}
-                      placeholder="e.g. agarwal.family@example.com"
-                      className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      disabled={isSendingOtp || otpVerified}
-                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold bg-canvas-warm text-brand-primary border border-brand-accent hover:bg-white transition-all shrink-0"
-                    >
-                      {isSendingOtp ? "Sending Code..." : "Send Verification Code"}
-                    </button>
-                  </div>
+                  <input
+                    type="email"
+                    value={contactValue}
+                    onChange={(e) => setContactValue(e.target.value)}
+                    placeholder="e.g. agarwal.family@example.com"
+                    className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                  />
+                </div>
+
+                {/* Mobile Phone Number with Country Selector */}
+                <div>
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Mobile Phone Number (मोबाइल नंबर) *
+                  </label>
+                  <p className="text-[11px] text-body-muted mb-2">
+                    Primary contact number for official membership records and account verification.
+                  </p>
+                  <PhoneInputWithCountry
+                    value={headPhone}
+                    onChange={(val) => setHeadPhone(val)}
+                    countryCode={phoneDialCode}
+                    onCountryChange={(dial) => setPhoneDialCode(dial)}
+                    placeholder="e.g. 9876543210"
+                  />
                 </div>
 
                 {/* ALREADY REGISTERED BANNER */}
@@ -789,7 +759,7 @@ export default function SignupPage() {
                       <span className="text-xl">🏡</span>
                       <div>
                         <h4 className="text-xs font-bold text-brand-primary">
-                          This email is already registered!
+                          This contact is already registered!
                         </h4>
                         <p className="text-[11px] text-body-muted mt-0.5">
                           A household profile {alreadyRegisteredInfo.headName && `(${alreadyRegisteredInfo.headName})`} under reference <strong>#{alreadyRegisteredInfo.householdCode}</strong> already exists in the Global Directory.
@@ -808,152 +778,35 @@ export default function SignupPage() {
                   </div>
                 )}
 
-                {/* OTP Error or Success Messages */}
-                {otpMessage && (
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800">
-                    {otpMessage}
-                  </div>
-                )}
+                {/* Error Messages */}
                 {otpError && (
                   <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
                     ⚠️ {otpError}
                   </div>
                 )}
 
-                {/* OTP Passcode Input */}
-                <div className="pt-2">
-                  <label className="block text-xs font-bold text-body-heading mb-1.5">
-                    Enter 6-Digit Email Verification Code *
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={otpValue}
-                    onChange={(e) => setOtpValue(e.target.value.replace(/[^0-9]/g, ""))}
-                    placeholder="e.g. 123456"
-                    className="w-full sm:w-64 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs tracking-widest font-mono text-body-heading bg-white focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                  />
-                </div>
-
-                {/* Account Password Setup */}
-                <div className="pt-4 border-t border-brand-accent/20 space-y-3.5">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-body-heading">
-                      Create Household Password (सुरक्षित पासवर्ड बनाएं) *
-                    </label>
-                    <span className="text-[10px] text-body-muted">
-                      Enterprise-Grade Security
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-body-muted mb-1">
-                        Password *
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showPassword ? "text" : "password"}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Min 8 characters"
-                          className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
-                          aria-label={showPassword ? "Hide password" : "Show password"}
-                        >
-                          {showPassword ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                            </svg>
-                          ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-body-muted mb-1">
-                        Confirm Password *
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showConfirmPassword ? "text" : "password"}
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Re-enter password"
-                          className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
-                          aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                        >
-                          {showConfirmPassword ? (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                            </svg>
-                          ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Password Strength Checklist */}
-                  <div className="p-3 rounded-xl bg-canvas-warm/40 border border-brand-accent/30 text-[11px] space-y-1">
-                    <span className="font-bold text-brand-primary block mb-1">Password Requirements:</span>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-body-muted">
-                      <div className={`flex items-center gap-1.5 ${hasMinLength ? "text-emerald-700 font-semibold" : ""}`}>
-                        <span>{hasMinLength ? "✓" : "○"}</span> At least 8 characters
-                      </div>
-                      <div className={`flex items-center gap-1.5 ${hasUpperCase ? "text-emerald-700 font-semibold" : ""}`}>
-                        <span>{hasUpperCase ? "✓" : "○"}</span> Uppercase letter (A-Z)
-                      </div>
-                      <div className={`flex items-center gap-1.5 ${hasLowerCase ? "text-emerald-700 font-semibold" : ""}`}>
-                        <span>{hasLowerCase ? "✓" : "○"}</span> Lowercase letter (a-z)
-                      </div>
-                      <div className={`flex items-center gap-1.5 ${hasNumber ? "text-emerald-700 font-semibold" : ""}`}>
-                        <span>{hasNumber ? "✓" : "○"}</span> Number (0-9)
-                      </div>
-                      <div className={`flex items-center gap-1.5 col-span-2 ${isMatching ? "text-emerald-700 font-semibold" : ""}`}>
-                        <span>{isMatching ? "✓" : "○"}</span> Passwords match
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Continue button */}
+                {/* Proceed Button */}
                 <div className="pt-2">
                   <button
                     type="button"
-                    onClick={handleVerifyOtp}
-                    disabled={isVerifyingOtp || otpValue.length !== 6 || !isPasswordReady}
-                    className={`w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold text-white transition-all shrink-0 ${
-                      otpValue.length === 6 && isPasswordReady && !isVerifyingOtp
-                        ? "va-btn-join"
-                        : "bg-gray-400 opacity-60 cursor-not-allowed"
-                    }`}
+                    onClick={handleStep1Next}
+                    disabled={isSendingOtp}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs font-bold text-white va-btn-join transition-all shadow-md flex items-center justify-center gap-2"
                   >
-                    {isVerifyingOtp ? "Verifying & Securing..." : "Verify & Continue to Step 2 →"}
+                    {isSendingOtp ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Checking availability...</span>
+                      </>
+                    ) : (
+                      <span>Proceed to Family Details →</span>
+                    )}
                   </button>
                 </div>
               </div>
 
               <div className="text-[11px] text-body-muted text-center pt-3 border-t border-brand-accent/20">
-                🔒 Protected by Multi-Layer Rate Limiting, Encrypted Password Hashing &amp; Email Verification.
+                🔒 Privacy First: Your contact information is never published publicly and remains strictly protected under community privacy bylaws.
               </div>
             </div>
           )}
