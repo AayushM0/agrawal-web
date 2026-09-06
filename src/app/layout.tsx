@@ -29,8 +29,41 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.maharajaagrasenfoundation.com"),
   title: "Maharaja Agrasen Foundation Limited Singapore — One Community • One Platform • One Global Family",
   description: "Connecting Agarwals worldwide in a verified, trusted, and free community platform under Maharaja Agrasen Foundation Limited Singapore.",
+  openGraph: {
+    title: "Maharaja Agrasen Foundation Limited Singapore",
+    description: "One Community • One Platform • One Global Family. Connecting Agarwals worldwide in a verified, trusted, and free community platform.",
+    url: "https://www.maharajaagrasenfoundation.com",
+    siteName: "Maharaja Agrasen Foundation Singapore",
+    images: [
+      {
+        url: "/images/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Maharaja Agrasen Foundation Limited Singapore",
+      },
+      {
+        url: "/images/logo-square.png",
+        width: 500,
+        height: 500,
+        alt: "Maharaja Agrasen Foundation Limited Singapore Emblem",
+      },
+    ],
+    locale: "en_SG",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Maharaja Agrasen Foundation Limited Singapore",
+    description: "One Community • One Platform • One Global Family. Connecting Agarwals worldwide in a verified, trusted, and free community platform.",
+    images: ["/images/og-image.jpg"],
+  },
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/images/logo-square.png",
+  },
 };
 
 export default function RootLayout({
