@@ -109,6 +109,8 @@ export async function loginWithPassword(params: {
   success: boolean;
   role?: "head" | "member";
   householdStatus?: string;
+  needsActivation?: boolean;
+  contact?: string;
   error?: string;
 }> {
   const { identifier, password } = params;
@@ -140,6 +142,16 @@ export async function loginWithPassword(params: {
 
     const storedHash = member?.passwordHash || household?.passwordHash;
 
+    // Detect unactivated accounts registered without upfront password
+    if (!storedHash && (member || household)) {
+      return {
+        success: false,
+        needsActivation: true,
+        contact: canonicalContact,
+        error: "Your account is pending activation. Please verify your contact with OTP and set your password to log in.",
+      };
+    }
+
     // OWASP Timing attack defense: if account does not exist or has no password hash, perform dummy compare
     const DUMMY_HASH = "$2a$12$e8k4Vv2wV9kF7Xh20z.GTuV9x8oD7Q9P4j8s5.Vv8A6p.12345678";
     const hashToVerify = storedHash || DUMMY_HASH;
@@ -166,6 +178,8 @@ export async function loginWithPassword(params: {
       role: effectiveRole,
       contact: canonicalContact,
       householdStatus: effectiveStatus,
+      isActivated: true,
+      hasPassword: true,
     });
 
     return {

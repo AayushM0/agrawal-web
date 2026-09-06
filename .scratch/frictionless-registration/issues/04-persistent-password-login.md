@@ -1,6 +1,6 @@
 # Issue 04: Persistent Password Authentication & Login Fallback
 
-Status: ready-for-agent
+Status: resolved
 
 ## Parent
 
@@ -16,10 +16,10 @@ Standard persistent password authentication for returning members, combined with
 
 ## Acceptance criteria
 
-- [ ] Returning members can authenticate at `/login` using their newly created password.
-- [ ] Attempting to log in with an unactivated account triggers the activation view rather than a confusing generic error.
-- [ ] Completing activation on `/login` sets the password and establishes an active session.
-- [ ] All existing login features (remember contact, password visibility toggle, admin login tab) remain fully operational.
+- [x] Returning members can authenticate at `/login` using their newly created password.
+- [x] Attempting to log in with an unactivated account triggers the activation view rather than a confusing generic error.
+- [x] Completing activation on `/login` sets the password and establishes an active session.
+- [x] All existing login features (remember contact, password visibility toggle, admin login tab) remain fully operational.
 
 ## Blocked by
 
