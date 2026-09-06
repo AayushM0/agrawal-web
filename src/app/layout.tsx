@@ -34,31 +34,25 @@ export const metadata: Metadata = {
   description: "Connecting Agarwals worldwide in a verified, trusted, and free community platform under Maharaja Agrasen Foundation Limited Singapore.",
   openGraph: {
     title: "Maharaja Agrasen Foundation Limited Singapore",
-    description: "One Community • One Platform • One Global Family. Connecting Agarwals worldwide in a verified, trusted, and free community platform.",
+    description: "Connecting Agarwals worldwide in a verified, trusted, and free community platform under Maharaja Agrasen Foundation Limited Singapore.",
     url: "https://www.maharajaagrasenfoundation.com",
     siteName: "Maharaja Agrasen Foundation Singapore",
     images: [
       {
-        url: "/images/og-image.jpg",
-        width: 1200,
-        height: 630,
-        alt: "Maharaja Agrasen Foundation Limited Singapore",
-      },
-      {
         url: "/images/logo-square.png",
         width: 500,
         height: 500,
-        alt: "Maharaja Agrasen Foundation Limited Singapore Emblem",
+        alt: "Maharaja Agrasen Foundation Limited Singapore Official Logo",
       },
     ],
     locale: "en_SG",
     type: "website",
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
     title: "Maharaja Agrasen Foundation Limited Singapore",
-    description: "One Community • One Platform • One Global Family. Connecting Agarwals worldwide in a verified, trusted, and free community platform.",
-    images: ["/images/og-image.jpg"],
+    description: "Connecting Agarwals worldwide in a verified, trusted, and free community platform under Maharaja Agrasen Foundation Limited Singapore.",
+    images: ["/images/logo-square.png"],
   },
   icons: {
     icon: "/favicon.ico",
