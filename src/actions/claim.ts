@@ -138,28 +138,17 @@ export async function verifyMemberClaim(input: VerifyMemberClaimInput | string) 
   const isPhone = !contact.includes("@");
   const canonicalContact = isPhone ? normalizePhoneNumber(contact) : contact.trim().toLowerCase();
 
-  // 1. If member had registered phone, contact MUST match that phone
-  if (member.phone && member.phone.trim()) {
-    const memberNormPhone = member.phone.includes("@") ? member.phone.trim() : normalizePhoneNumber(member.phone);
-    if (canonicalContact !== memberNormPhone) {
-      return {
-        success: false,
-        error: `This profile can only be claimed using the registered phone number ending in ...${member.phone.slice(-4)}.`,
-      };
-    }
-  }
-
-  // 2. If member had registered email, contact MUST match that email
+  // 1. If member had registered email, contact MUST match that email
   if (member.email && member.email.trim()) {
     if (canonicalContact !== member.email.trim().toLowerCase()) {
       return {
         success: false,
-        error: `This profile can only be claimed using the registered email address.`,
+        error: `This profile can only be claimed using the registered email address (${member.email.trim().toLowerCase()}).`,
       };
     }
   }
 
-  // 3. Check duplicate across other households/members
+  // 2. Check duplicate across other households/members
   const checkDup = await db.checkContactExists(canonicalContact, memberId);
   if (checkDup.exists) {
     return {

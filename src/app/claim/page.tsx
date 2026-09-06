@@ -17,7 +17,7 @@ function ClaimContent() {
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [tokenError, setTokenError] = useState("");
 
-  const [contactType, setContactType] = useState<"phone" | "email">("phone");
+  const [contactType, setContactType] = useState<"phone" | "email">("email");
   const [contactValue, setContactValue] = useState("");
   const [contactConflict, setContactConflict] = useState<string | null>(null);
 
@@ -46,12 +46,12 @@ function ClaimContent() {
     setIsLoadingDetails(false);
     if (res.success && res.member) {
       setMemberDetails(res.member);
-      if (res.member.existingPhone) {
-        setContactType("phone");
-        setContactValue(res.member.existingPhone);
-      } else if (res.member.existingEmail) {
+      if (res.member.existingEmail) {
         setContactType("email");
         setContactValue(res.member.existingEmail);
+      } else {
+        setContactType("email");
+        setContactValue("");
       }
     } else {
       setTokenError(res.error || "Unable to find member associated with this claim token.");
@@ -72,37 +72,49 @@ function ClaimContent() {
     setOtpMessage("");
     setErrorMessage("");
 
-    if (val.trim().length >= 7) {
+    if (val.trim().length >= 5 && val.includes("@")) {
       const avail = await checkContactAvailability(val.trim(), memberDetails?.id);
       if (!avail.available && avail.conflict) {
         setContactConflict(
-          `This ${contactType === "phone" ? "number" : "email"} is already registered in the directory (${avail.conflict.name ? `associated with ${avail.conflict.name}` : `#${avail.conflict.householdCode}`}).`
+          `This email is already registered in the directory (${avail.conflict.name ? `associated with ${avail.conflict.name}` : `#${avail.conflict.householdCode}`}).`
         );
       }
     }
   };
 
   const handleSendOtp = async () => {
-    if (!contactValue.trim() || contactValue.trim().length < 5) {
-      setErrorMessage("Please enter a valid mobile number or email address.");
+    const cleanEmail = contactValue.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@") || cleanEmail.length < 5) {
+      setErrorMessage("Please enter a valid email address.");
       return;
     }
-    if (contactConflict) {
-      setErrorMessage("Please enter a contact number/email that is not already registered.");
-      return;
-    }
+
     setIsSendingOtp(true);
     setErrorMessage("");
     setOtpMessage("");
 
+    // Verify email is not duplicate in directory before sending OTP
+    try {
+      const avail = await checkContactAvailability(cleanEmail, memberDetails?.id);
+      if (!avail.available && avail.conflict) {
+        setIsSendingOtp(false);
+        const conflictMsg = `This email is already registered in the directory (${avail.conflict.name ? `associated with ${avail.conflict.name}` : `#${avail.conflict.householdCode}`}).`;
+        setContactConflict(conflictMsg);
+        setErrorMessage(conflictMsg);
+        return;
+      }
+    } catch {
+      // Proceed if network check fails
+    }
+
     const res = await sendOtp({
-      recipient: contactValue.trim(),
-      type: contactType === "phone" ? "sms" : "email",
+      recipient: cleanEmail,
+      type: "email",
     });
     setIsSendingOtp(false);
     if (res.success) {
       setOtpSent(true);
-      setOtpMessage(res.message || "Passcode sent successfully.");
+      setOtpMessage(res.message || `Verification passcode sent successfully to ${cleanEmail}.`);
     } else {
       setErrorMessage(res.error || "Failed to dispatch verification OTP.");
     }
@@ -246,64 +258,36 @@ function ClaimContent() {
           <form onSubmit={handleClaim} className="space-y-4 pt-2 border-t border-brand-accent/20">
             <div>
               <label className="block text-xs font-bold text-body-heading mb-1.5">
-                Verification Channel
+                Verification Email Address (ईमेल सत्यापन)
               </label>
-              <div className="flex gap-4 text-xs mb-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="claimContactType"
-                    checked={contactType === "phone"}
-                    onChange={() => {
-                      setContactType("phone");
-                      setContactValue("");
-                      setContactConflict(null);
-                      setOtpSent(false);
-                    }}
-                    className="text-brand-primary focus:ring-brand-primary"
-                  />
-                  <span>Mobile (WhatsApp)</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="claimContactType"
-                    checked={contactType === "email"}
-                    onChange={() => {
-                      setContactType("email");
-                      setContactValue("");
-                      setContactConflict(null);
-                      setOtpSent(false);
-                    }}
-                    className="text-brand-primary focus:ring-brand-primary"
-                  />
-                  <span>Email Address</span>
-                </label>
-              </div>
+              {memberDetails.existingEmail ? (
+                <p className="text-[11px] text-body-muted mb-2">
+                  This profile was registered by the Head of Household with email: <strong>{memberDetails.existingEmail}</strong>. A 6-digit passcode will be sent here to verify and claim your profile.
+                </p>
+              ) : (
+                <p className="text-[11px] text-body-muted mb-2">
+                  Enter your email address to receive your 6-digit verification passcode and claim this profile.
+                </p>
+              )}
 
               <div className="flex flex-col sm:flex-row gap-2">
-                {contactType === "phone" ? (
-                  <div className="w-full sm:flex-1">
-                    <PhoneInputWithCountry
-                      value={contactValue}
-                      onChange={(full) => handleContactChange(full)}
-                      placeholder="e.g. 98765 43210"
-                    />
-                  </div>
-                ) : (
-                  <input
-                    type="email"
-                    value={contactValue}
-                    onChange={(e) => handleContactChange(e.target.value)}
-                    placeholder="member@example.com"
-                    className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:ring-2 focus:ring-brand-primary"
-                  />
-                )}
+                <input
+                  type="email"
+                  value={contactValue}
+                  onChange={(e) => handleContactChange(e.target.value)}
+                  readOnly={!!memberDetails.existingEmail}
+                  placeholder="member@example.com"
+                  className={`w-full sm:flex-1 px-4 py-2.5 rounded-xl border text-xs text-body-heading focus:ring-2 focus:ring-brand-primary ${
+                    memberDetails.existingEmail
+                      ? "bg-canvas-warm/50 border-brand-accent/30 cursor-not-allowed text-body-muted font-medium"
+                      : "bg-canvas-warm/30 border-brand-accent/40"
+                  }`}
+                />
                 <button
                   type="button"
                   onClick={handleSendOtp}
                   disabled={isSendingOtp || !contactValue.trim() || !!contactConflict}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold bg-canvas-warm text-brand-primary border border-brand-accent hover:bg-white transition-all shrink-0"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold bg-canvas-warm text-brand-primary border border-brand-accent hover:bg-white transition-all shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSendingOtp ? "Sending..." : (otpSent ? "Resend OTP" : "Send OTP")}
                 </button>
