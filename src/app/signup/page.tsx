@@ -517,14 +517,21 @@ export default function SignupPage() {
   };
 
   const removeAdditionalMember = (id: string) => {
-    setAdditionalMembers(additionalMembers.filter((m) => m.id !== id));
+    setAdditionalMembers((prev) => prev.filter((m) => m.id !== id));
   };
 
-  const updateAdditionalMember = (id: string, field: keyof Member, value: any) => {
-    setAdditionalMembers(
-      additionalMembers.map((m) => {
+  const updateAdditionalMember = (
+    id: string,
+    fieldOrUpdates: keyof Member | Partial<Member>,
+    value?: any
+  ) => {
+    setAdditionalMembers((prev) =>
+      prev.map((m) => {
         if (m.id !== id) return m;
-        return { ...m, [field]: value };
+        if (typeof fieldOrUpdates === "string") {
+          return { ...m, [fieldOrUpdates]: value };
+        }
+        return { ...m, ...fieldOrUpdates };
       })
     );
   };
@@ -1492,13 +1499,17 @@ export default function SignupPage() {
                             <select
                               value={member.relationToHead}
                               onChange={(e) => {
-                                const rel = e.target.value;
-                                updateAdditionalMember(member.id, "relationToHead", rel);
+                                const rel = e.target.value as any;
+                                let newGender = member.gender;
                                 if (["father", "son", "brother", "son_in_law", "grandson"].includes(rel)) {
-                                  updateAdditionalMember(member.id, "gender", "Male");
+                                  newGender = "Male";
                                 } else if (["mother", "daughter", "sister", "daughter_in_law", "granddaughter"].includes(rel)) {
-                                  updateAdditionalMember(member.id, "gender", "Female");
+                                  newGender = "Female";
                                 }
+                                updateAdditionalMember(member.id, {
+                                  relationToHead: rel,
+                                  gender: newGender,
+                                });
                               }}
                               className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
                             >

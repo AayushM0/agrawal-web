@@ -271,6 +271,7 @@ export default function DashboardPage() {
     const res = await saveMemberProfile({
       memberId: editingMember.id,
       fullName: editingMember.fullName,
+      relationToHead: editingMember.relationToHead,
       fatherName: editingMember.fatherName,
       photoUrl: editingMember.photoUrl,
       dob: editingMember.dob,
@@ -826,6 +827,33 @@ export default function DashboardPage() {
                     required
                   />
                 </div>
+
+                {/* Relationship to Head (for family members) */}
+                {editingMember.relationToHead !== "self" && (
+                  <div>
+                    <label className="block text-xs font-bold text-body-heading mb-1">
+                      Relationship to Head (मुखिया से संबंध) *
+                    </label>
+                    <select
+                      value={editingMember.relationToHead || "spouse"}
+                      onChange={(e) => {
+                        const rel = e.target.value as any;
+                        setEditingMember({
+                          ...editingMember,
+                          relationToHead: rel,
+                          ...(rel === "son" ? { gender: "Male" } : rel === "daughter" ? { gender: "Female" } : {}),
+                        });
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                    >
+                      <option value="spouse">Spouse (पति / पत्नी)</option>
+                      <option value="son">Son (पुत्र)</option>
+                      <option value="daughter">Daughter (पुत्री)</option>
+                      <option value="parent">Parent (माता / पिता)</option>
+                      <option value="other">Other Dependent (अन्य)</option>
+                    </select>
+                  </div>
+                )}
 
                 {/* Father's / Husband's Name */}
                 <div>

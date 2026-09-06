@@ -20,6 +20,7 @@ export interface UpdateProfileInput {
   professionTitle?: string;
   professionDescription?: string;
   bio?: string;
+  relationToHead?: "self" | "spouse" | "son" | "daughter" | "parent" | "other";
   visibility?: {
     contactInfo: "members_only" | "hidden";
     dob: "members_only" | "hidden";
@@ -88,7 +89,7 @@ export async function saveMemberProfile(input: UpdateProfileInput) {
     professionDescription: input.professionDescription?.trim() || undefined,
     bio: input.bio?.trim() || undefined,
     visibility: input.visibility,
-    relationToHead: existing.relationToHead,
+    relationToHead: existing.relationToHead === "self" ? "self" : input.relationToHead || existing.relationToHead,
   });
 
   if (!success) {
