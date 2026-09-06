@@ -64,6 +64,7 @@ export const POPULAR_COUNTRY_DIAL_CODES: CountryDialCode[] = [
 interface PhoneInputWithCountryProps {
   value: string;
   onChange: (fullFormattedValue: string, dialCode?: string, nationalNumber?: string) => void;
+  onBlur?: () => void;
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
@@ -77,6 +78,7 @@ interface PhoneInputWithCountryProps {
 export default function PhoneInputWithCountry({
   value,
   onChange,
+  onBlur,
   placeholder = "e.g. 98765 43210",
   required = false,
   disabled = false,
@@ -169,6 +171,7 @@ export default function PhoneInputWithCountry({
         disabled={disabled}
         value={nationalNumber}
         onChange={handleNationalNumberChange}
+        onBlur={onBlur}
         placeholder={placeholder}
         className="w-full px-3 py-2.5 sm:py-3 text-xs font-medium text-body-heading bg-transparent focus:outline-none placeholder:text-body-muted/60 disabled:opacity-50 disabled:cursor-not-allowed"
       />

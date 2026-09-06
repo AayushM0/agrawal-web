@@ -130,9 +130,144 @@ export default function SignupPage() {
   // Step 3: Additional Family Members State (Optional)
   const [additionalMembers, setAdditionalMembers] = useState<Member[]>([]);
   const [step3Error, setStep3Error] = useState("");
+  const [memberContactErrors, setMemberContactErrors] = useState<Record<string, { phone?: string; email?: string }>>({});
 
   // Step 4: Consent State
   const [consentGiven, setConsentGiven] = useState(false);
+
+  const handleContactBlur = async (field: "email" | "phone") => {
+    if (field === "email") {
+      const cleanEmail = contactValue.trim().toLowerCase();
+      if (cleanEmail && cleanEmail.includes("@") && cleanEmail.length >= 5) {
+        try {
+          const emailRes = await checkContactRegistration(cleanEmail);
+          if (emailRes.isRegistered) {
+            setAlreadyRegisteredInfo(emailRes);
+            setOtpError(`This email is already registered in the directory (${emailRes.headName ? `associated with ${emailRes.headName}` : `#${emailRes.householdCode}`}).`);
+          } else if (alreadyRegisteredInfo && !otpError.includes("phone")) {
+            setAlreadyRegisteredInfo(null);
+            setOtpError("");
+          }
+        } catch {
+          // ignore
+        }
+      }
+    } else if (field === "phone") {
+      const cleanPhone = headPhone.trim();
+      if (cleanPhone && cleanPhone.replace(/[^0-9]/g, "").length >= 7) {
+        try {
+          const phoneRes = await checkContactRegistration(cleanPhone);
+          if (phoneRes.isRegistered) {
+            setAlreadyRegisteredInfo(phoneRes);
+            setOtpError(`This phone number is already registered in the directory (${phoneRes.headName ? `associated with ${phoneRes.headName}` : `#${phoneRes.householdCode}`}).`);
+          } else if (alreadyRegisteredInfo && !otpError.includes("email")) {
+            setAlreadyRegisteredInfo(null);
+            setOtpError("");
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+  };
+
+  const handleMemberContactBlur = async (memberId: string, field: "phone" | "email", value: string) => {
+    const cleanVal = value.trim();
+    if (!cleanVal) {
+      setMemberContactErrors((prev) => ({
+        ...prev,
+        [memberId]: { ...prev[memberId], [field]: undefined },
+      }));
+      return;
+    }
+
+    // 1. In-form collision against Head
+    if (field === "phone") {
+      const headDigits = headPhone.replace(/[^0-9]/g, "").slice(-10);
+      const memberDigits = cleanVal.replace(/[^0-9]/g, "").slice(-10);
+      if (headDigits && memberDigits && headDigits === memberDigits) {
+        setMemberContactErrors((prev) => ({
+          ...prev,
+          [memberId]: {
+            ...prev[memberId],
+            phone: "Cannot be identical to Head of Household's phone. Leave blank if shared.",
+          },
+        }));
+        return;
+      }
+    } else if (field === "email") {
+      if (cleanVal.toLowerCase() === headEmail.trim().toLowerCase()) {
+        setMemberContactErrors((prev) => ({
+          ...prev,
+          [memberId]: {
+            ...prev[memberId],
+            email: "Cannot be identical to Head of Household's email. Leave blank if shared.",
+          },
+        }));
+        return;
+      }
+    }
+
+    // 2. In-form collision against other members in additionalMembers
+    const otherMembers = additionalMembers.filter((m) => m.id !== memberId);
+    if (field === "phone") {
+      const memberDigits = cleanVal.replace(/[^0-9]/g, "").slice(-10);
+      const collision = otherMembers.find((m) => {
+        const otherDigits = (m.phone || "").replace(/[^0-9]/g, "").slice(-10);
+        return otherDigits && memberDigits && otherDigits === memberDigits;
+      });
+      if (collision) {
+        setMemberContactErrors((prev) => ({
+          ...prev,
+          [memberId]: {
+            ...prev[memberId],
+            phone: `Already entered for ${collision.fullName || "another member"} in this form.`,
+          },
+        }));
+        return;
+      }
+    } else if (field === "email") {
+      const collision = otherMembers.find(
+        (m) => (m.email || "").trim().toLowerCase() === cleanVal.toLowerCase()
+      );
+      if (collision) {
+        setMemberContactErrors((prev) => ({
+          ...prev,
+          [memberId]: {
+            ...prev[memberId],
+            email: `Already entered for ${collision.fullName || "another member"} in this form.`,
+          },
+        }));
+        return;
+      }
+    }
+
+    // 3. Database Check
+    try {
+      const res = await checkContactRegistration(cleanVal, memberId);
+      if (res.isRegistered) {
+        const conflictLabel = res.headName
+          ? `associated with ${res.headName}`
+          : res.householdCode
+          ? `#${res.householdCode}`
+          : "another profile";
+        setMemberContactErrors((prev) => ({
+          ...prev,
+          [memberId]: {
+            ...prev[memberId],
+            [field]: `This ${field} is already registered in the directory (${conflictLabel}).`,
+          },
+        }));
+      } else {
+        setMemberContactErrors((prev) => ({
+          ...prev,
+          [memberId]: { ...prev[memberId], [field]: undefined },
+        }));
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   // Step 1: Frictionless Contact Validation & Advance Handler
   const handleStep1Next = async () => {
@@ -247,7 +382,7 @@ export default function SignupPage() {
       return;
     }
 
-    if (contactType === "phone" && headEmail.trim()) {
+    if (headEmail.trim()) {
       const checkMail = await checkContactAvailability(headEmail.trim());
       if (!checkMail.available && checkMail.conflict) {
         const msg = `Email '${headEmail}' is already registered in the directory (${checkMail.conflict.name ? `associated with ${checkMail.conflict.name}` : `#${checkMail.conflict.householdCode}`}).`;
@@ -255,7 +390,8 @@ export default function SignupPage() {
         showToast(msg, "error");
         return;
       }
-    } else if (contactType === "email" && headPhone.trim()) {
+    }
+    if (headPhone.trim()) {
       const checkPh = await checkContactAvailability(headPhone.trim());
       if (!checkPh.available && checkPh.conflict) {
         const msg = `Mobile number '${headPhone}' is already registered in the directory (${checkPh.conflict.name ? `associated with ${checkPh.conflict.name}` : `#${checkPh.conflict.householdCode}`}).`;
@@ -457,8 +593,18 @@ export default function SignupPage() {
           return;
         }
       }
-      if (m.phone && m.phone.trim()) {
-        const checkPhone = await checkContactAvailability(m.phone.trim(), m.id);
+    const hasActiveContactErrors = Object.values(memberContactErrors).some(
+      (err) => Boolean(err?.phone || err?.email)
+    );
+    if (hasActiveContactErrors) {
+      const msg = "Please resolve the highlighted duplicate contact errors before proceeding.";
+      setStep3Error(msg);
+      showToast(msg, "error");
+      return;
+    }
+
+    if (m.phone && m.phone.trim()) {
+      const checkPhone = await checkContactAvailability(m.phone.trim(), m.id);
         if (!checkPhone.available && checkPhone.conflict) {
           const msg = `Phone '${m.phone}' for ${m.fullName} is already registered under #${checkPhone.conflict.householdCode}.`;
           setStep3Error(msg);
@@ -729,7 +875,11 @@ export default function SignupPage() {
                   <input
                     type="email"
                     value={contactValue}
-                    onChange={(e) => setContactValue(e.target.value)}
+                    onChange={(e) => {
+                      setContactValue(e.target.value);
+                      if (alreadyRegisteredInfo) setAlreadyRegisteredInfo(null);
+                    }}
+                    onBlur={() => handleContactBlur("email")}
                     placeholder="e.g. agarwal.family@example.com"
                     className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                   />
@@ -745,7 +895,11 @@ export default function SignupPage() {
                   </p>
                   <PhoneInputWithCountry
                     value={headPhone}
-                    onChange={(val) => setHeadPhone(val)}
+                    onChange={(val) => {
+                      setHeadPhone(val);
+                      if (alreadyRegisteredInfo) setAlreadyRegisteredInfo(null);
+                    }}
+                    onBlur={() => handleContactBlur("phone")}
                     countryCode={phoneDialCode}
                     onCountryChange={(dial) => setPhoneDialCode(dial)}
                     placeholder="e.g. 9876543210"
@@ -1512,9 +1666,23 @@ export default function SignupPage() {
                             </label>
                             <PhoneInputWithCountry
                               value={member.phone || ""}
-                              onChange={(full) => updateAdditionalMember(member.id, "phone", full)}
+                              onChange={(full) => {
+                                updateAdditionalMember(member.id, "phone", full);
+                                if (memberContactErrors[member.id]?.phone) {
+                                  setMemberContactErrors((prev) => ({
+                                    ...prev,
+                                    [member.id]: { ...prev[member.id], phone: undefined },
+                                  }));
+                                }
+                              }}
+                              onBlur={() => handleMemberContactBlur(member.id, "phone", member.phone || "")}
                               placeholder="e.g. 98765 43210"
                             />
+                            {memberContactErrors[member.id]?.phone && (
+                              <span className="text-[10px] text-red-600 font-semibold block mt-1">
+                                ⚠️ {memberContactErrors[member.id].phone}
+                              </span>
+                            )}
                             <span className="text-[9px] text-body-muted block mt-0.5">
                               Can be used for individual member login.
                             </span>
@@ -1528,10 +1696,28 @@ export default function SignupPage() {
                             <input
                               type="email"
                               value={member.email || ""}
-                              onChange={(e) => updateAdditionalMember(member.id, "email", e.target.value)}
+                              onChange={(e) => {
+                                updateAdditionalMember(member.id, "email", e.target.value);
+                                if (memberContactErrors[member.id]?.email) {
+                                  setMemberContactErrors((prev) => ({
+                                    ...prev,
+                                    [member.id]: { ...prev[member.id], email: undefined },
+                                  }));
+                                }
+                              }}
+                              onBlur={() => handleMemberContactBlur(member.id, "email", member.email || "")}
                               placeholder="member@example.com"
-                              className="w-full px-3 py-2.5 rounded-xl border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                              className={`w-full px-3 py-2.5 rounded-xl border text-xs bg-white focus:ring-1 focus:ring-brand-primary ${
+                                memberContactErrors[member.id]?.email
+                                  ? "border-red-400 bg-red-50/20 text-red-900"
+                                  : "border-brand-accent/40"
+                              }`}
                             />
+                            {memberContactErrors[member.id]?.email && (
+                              <span className="text-[10px] text-red-600 font-semibold block mt-1">
+                                ⚠️ {memberContactErrors[member.id].email}
+                              </span>
+                            )}
                           </div>
 
                           {/* 13. Aadhaar Number */}

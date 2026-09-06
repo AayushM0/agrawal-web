@@ -8,6 +8,7 @@ import { createClaimInvite } from "@/actions/claim";
 import { clearSession, activateAccountWithOtp } from "@/actions/auth";
 import { sendOtp } from "@/actions/otp";
 import { saveMemberProfile, saveHouseholdInfo, addHouseholdMember } from "@/actions/profile";
+import { checkContactRegistration } from "@/actions/register";
 import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
 import LocationSelector from "@/components/LocationSelector";
@@ -57,6 +58,8 @@ export default function DashboardPage() {
   const [isSavingNewMember, setIsSavingNewMember] = useState(false);
   const [addMemberError, setAddMemberError] = useState("");
   const [addMemberSuccess, setAddMemberSuccess] = useState("");
+  const [newMemberPhoneConflict, setNewMemberPhoneConflict] = useState("");
+  const [newMemberEmailConflict, setNewMemberEmailConflict] = useState("");
 
   const [isActivated, setIsActivated] = useState(true);
   const [showActivationModal, setShowActivationModal] = useState(false);
@@ -322,9 +325,60 @@ export default function DashboardPage() {
       currentCity: household?.city || household?.nativePlace || "",
       currentCountry: household?.country || "India",
     });
+    setNewMemberPhoneConflict("");
+    setNewMemberEmailConflict("");
     setAddMemberError("");
     setAddMemberSuccess("");
     setIsAddingMember(true);
+  };
+
+  const handleNewMemberContactCheck = async (field: "phone" | "email", val: string) => {
+    const clean = val.trim();
+    if (!clean) {
+      if (field === "phone") setNewMemberPhoneConflict("");
+      if (field === "email") setNewMemberEmailConflict("");
+      return;
+    }
+
+    // Check collision against current household members
+    const internalConflict = household?.members?.find((m) => {
+      if (field === "phone" && m.phone) {
+        const p1 = m.phone.replace(/\D/g, "");
+        const p2 = clean.replace(/\D/g, "");
+        return p1.slice(-10) === p2.slice(-10) && p2.length >= 7;
+      }
+      if (field === "email" && m.email) {
+        return m.email.toLowerCase() === clean.toLowerCase();
+      }
+      return false;
+    });
+
+    if (internalConflict) {
+      const msg = `This ${field} is already assigned to ${internalConflict.fullName} in your household.`;
+      if (field === "phone") setNewMemberPhoneConflict(msg);
+      if (field === "email") setNewMemberEmailConflict(msg);
+      return;
+    }
+
+    // Check collision against database
+    try {
+      const res = await checkContactRegistration(clean);
+      if (res && res.isRegistered) {
+        const conflictLabel = res.headName
+          ? `associated with ${res.headName}`
+          : res.householdCode
+          ? `#${res.householdCode}`
+          : "another profile";
+        const msg = `This ${field} is already registered in the directory (${conflictLabel}).`;
+        if (field === "phone") setNewMemberPhoneConflict(msg);
+        if (field === "email") setNewMemberEmailConflict(msg);
+      } else {
+        if (field === "phone") setNewMemberPhoneConflict("");
+        if (field === "email") setNewMemberEmailConflict("");
+      }
+    } catch {
+      // Allow fallback on check error
+    }
   };
 
   const handleNewMemberPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -355,6 +409,11 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!newMemberForm.fullName.trim() || newMemberForm.fullName.trim().length < 2) {
       setAddMemberError("Full Name must be at least 2 characters.");
+      return;
+    }
+
+    if (newMemberPhoneConflict || newMemberEmailConflict) {
+      setAddMemberError("Please resolve the duplicate phone or email conflicts before adding.");
       return;
     }
 
@@ -1357,10 +1416,22 @@ export default function DashboardPage() {
                     type="tel"
                     placeholder="e.g. +91 98765 43210"
                     value={newMemberForm.phone}
-                    onChange={(e) => setNewMemberForm((prev) => ({ ...prev, phone: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                    onChange={(e) => {
+                      setNewMemberForm((prev) => ({ ...prev, phone: e.target.value }));
+                      if (newMemberPhoneConflict) setNewMemberPhoneConflict("");
+                    }}
+                    onBlur={() => handleNewMemberContactCheck("phone", newMemberForm.phone)}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary ${
+                      newMemberPhoneConflict ? "border-red-500 focus:border-red-500" : "border-brand-accent/40"
+                    }`}
                   />
-                  <span className="text-[10px] text-body-muted block mt-0.5">Masked publicly in directory.</span>
+                  {newMemberPhoneConflict ? (
+                    <span className="text-[11px] text-red-600 font-semibold block mt-1">
+                      ⚠️ {newMemberPhoneConflict}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-body-muted block mt-0.5">Masked publicly in directory.</span>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-body-heading mb-1">
@@ -1370,10 +1441,22 @@ export default function DashboardPage() {
                     type="email"
                     placeholder="e.g. priya@example.com"
                     value={newMemberForm.email}
-                    onChange={(e) => setNewMemberForm((prev) => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
+                    onChange={(e) => {
+                      setNewMemberForm((prev) => ({ ...prev, email: e.target.value }));
+                      if (newMemberEmailConflict) setNewMemberEmailConflict("");
+                    }}
+                    onBlur={() => handleNewMemberContactCheck("email", newMemberForm.email)}
+                    className={`w-full px-3 py-2 rounded-xl border text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary ${
+                      newMemberEmailConflict ? "border-red-500 focus:border-red-500" : "border-brand-accent/40"
+                    }`}
                   />
-                  <span className="text-[10px] text-body-muted block mt-0.5">Can be used to claim profile later.</span>
+                  {newMemberEmailConflict ? (
+                    <span className="text-[11px] text-red-600 font-semibold block mt-1">
+                      ⚠️ {newMemberEmailConflict}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-body-muted block mt-0.5">Can be used to claim profile later.</span>
+                  )}
                 </div>
               </div>
 
@@ -1414,8 +1497,8 @@ export default function DashboardPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSavingNewMember}
-                  className="px-5 py-2 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta"
+                  disabled={isSavingNewMember || !!newMemberPhoneConflict || !!newMemberEmailConflict}
+                  className="px-5 py-2 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSavingNewMember ? "Adding Member..." : "Save & Add Member ✓"}
                 </button>

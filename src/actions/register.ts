@@ -377,14 +377,26 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
   };
 }
 
-export async function checkContactRegistration(contact: string) {
+export async function checkContactRegistration(contact: string, excludeMemberId?: string) {
   if (!contact || contact.trim().length < 5) {
     return { isRegistered: false };
   }
-  const isPhone = !contact.includes("@");
+  const clean = contact.trim();
+  const isPhone = !clean.includes("@");
   const canonicalContact = isPhone 
-    ? normalizePhoneNumber(contact) 
-    : contact.trim().toLowerCase();
+    ? normalizePhoneNumber(clean) 
+    : clean.toLowerCase();
+
+  const existsResult = await db.checkContactExists(canonicalContact, excludeMemberId);
+  if (existsResult.exists) {
+    return {
+      isRegistered: true,
+      householdCode: existsResult.householdCode || "",
+      headName: existsResult.name || "",
+      type: existsResult.type,
+      conflict: existsResult,
+    };
+  }
 
   const existing = await db.getHouseholdByContact(canonicalContact);
   if (existing) {
@@ -394,6 +406,8 @@ export async function checkContactRegistration(contact: string) {
       isRegistered: true,
       householdCode: primarySerial,
       headName: existing.headName,
+      type: "head" as const,
+      conflict: { exists: true, type: "head" as const, name: existing.headName, householdCode: primarySerial },
     };
   }
   return { isRegistered: false };
