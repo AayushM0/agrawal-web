@@ -90,7 +90,8 @@ export default function DashboardPage() {
   };
 
   const getEffectiveActivationContact = () => {
-    return sessionContact || household?.headEmail || household?.headPhone || "";
+    const headMember = household?.members?.find((m) => m.relationToHead === "self");
+    return sessionContact || household?.verifiedContact || headMember?.email || headMember?.phone || "";
   };
 
   const handleSendActivationOtp = async () => {

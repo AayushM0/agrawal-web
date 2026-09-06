@@ -63,12 +63,14 @@ export const POPULAR_COUNTRY_DIAL_CODES: CountryDialCode[] = [
 
 interface PhoneInputWithCountryProps {
   value: string;
-  onChange: (fullFormattedValue: string, dialCode: string, nationalNumber: string) => void;
+  onChange: (fullFormattedValue: string, dialCode?: string, nationalNumber?: string) => void;
   placeholder?: string;
   required?: boolean;
   disabled?: boolean;
   className?: string;
   defaultCountryCode?: string;
+  countryCode?: string;
+  onCountryChange?: (dialCode: string) => void;
   id?: string;
 }
 
@@ -80,10 +82,18 @@ export default function PhoneInputWithCountry({
   disabled = false,
   className = "",
   defaultCountryCode = "+91",
+  countryCode,
+  onCountryChange,
   id,
 }: PhoneInputWithCountryProps) {
-  const [selectedDialCode, setSelectedDialCode] = useState<string>(defaultCountryCode);
+  const [selectedDialCode, setSelectedDialCode] = useState<string>(countryCode || defaultCountryCode);
   const [nationalNumber, setNationalNumber] = useState<string>("");
+
+  useEffect(() => {
+    if (countryCode && countryCode !== selectedDialCode) {
+      setSelectedDialCode(countryCode);
+    }
+  }, [countryCode, selectedDialCode]);
 
   // Sync state when external value changes
   useEffect(() => {
@@ -109,6 +119,9 @@ export default function PhoneInputWithCountry({
 
   const handleDialCodeChange = (newDialCode: string) => {
     setSelectedDialCode(newDialCode);
+    if (onCountryChange) {
+      onCountryChange(newDialCode);
+    }
     const rawDigits = nationalNumber.replace(/[^0-9]/g, "").replace(/^0+/, "");
     const full = rawDigits ? `${newDialCode} ${rawDigits}` : "";
     onChange(full, newDialCode, rawDigits);
