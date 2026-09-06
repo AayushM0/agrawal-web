@@ -2,34 +2,42 @@ import { normalizePhoneNumber } from "@/lib/phone";
 import { Pool } from "pg";
 import type { Household, Member } from "../types/household";
 
-let pool: Pool | null = null;
+const globalForPg = globalThis as unknown as {
+  pgPool?: Pool;
+  schemaEnsured?: boolean;
+};
 
-if (process.env.DATABASE_URL) {
+let pool: Pool | null = globalForPg.pgPool || null;
+
+if (!pool && process.env.DATABASE_URL) {
   try {
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
-      max: 20,
+      max: 10,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 15000,
+      connectionTimeoutMillis: 10000,
       keepAlive: true,
     });
     pool.on("error", (err) => {
       console.warn("PostgreSQL idle client notice:", err.message);
     });
+    globalForPg.pgPool = pool;
 
-    // Proactively run schema migrations on pool initialization to ensure all tables exist
-    pool.connect().then(async (client) => {
-      try {
-        await ensureSchema(client);
-      } catch (err) {
-        console.error("Failed to run schema migrations on pool startup:", err);
-      } finally {
-        client.release();
-      }
-    }).catch(err => {
-      console.error("Failed to connect to database for startup migrations:", err);
-    });
+    if (!globalForPg.schemaEnsured && process.env.NODE_ENV !== "test") {
+      globalForPg.schemaEnsured = true;
+      pool.connect().then(async (client) => {
+        try {
+          await ensureSchema(client);
+        } catch (err) {
+          console.warn("Background schema migration notice:", err);
+        } finally {
+          client.release();
+        }
+      }).catch((err) => {
+        console.warn("Schema migration connect skipped/deferred:", err?.message || err);
+      });
+    }
   } catch (err) {
     console.error("Failed to initialize PG pool:", err);
     throw err;
@@ -79,7 +87,7 @@ function sanitizeRelation(rel?: string): "self" | "spouse" | "son" | "daughter" 
 
 let schemaEnsured = false;
 async function ensureSchema(client: any) {
-  if (schemaEnsured) return;
+  if (globalForPg.schemaEnsured || schemaEnsured) return;
   try {
     await client.query(`
       ALTER TABLE households ADD COLUMN IF NOT EXISTS serial_no VARCHAR(32) UNIQUE;

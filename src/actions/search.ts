@@ -2,7 +2,8 @@
 
 import { db } from "../lib/db";
 import { getSession } from "./auth";
-import { sanitizeMemberProfile, extractBirthYear } from "@/lib/privacy";
+import { sanitizeMemberProfile } from "@/lib/privacy";
+import { extractBirthYear } from "@/lib/privacy";
 import { sanitizeSearchString } from "@/lib/sanitizer";
 import { gotras } from "@/data/gotras";
 

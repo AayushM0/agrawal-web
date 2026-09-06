@@ -2,21 +2,13 @@
 
 import { cookies, headers } from "next/headers";
 import crypto from "crypto";
-import { signSessionToken, verifySessionToken } from "@/lib/auth-tokens";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { db } from "@/lib/db";
 import { verifyPassword, evaluateLockout, validatePassword, hashPassword } from "@/lib/auth-crypto";
 import { sendOtp, verifyOtp } from "@/actions/otp";
+import { getSession, createSession, clearSession, type SessionData } from "./session";
 
-export interface SessionData {
-  userId: string;
-  role: "head" | "member" | "admin";
-  contact: string;
-  householdStatus?: "pending_review" | "live" | "rejected";
-  isActivated?: boolean;
-  hasPassword?: boolean;
-  loggedInAt?: number;
-}
+export { getSession, createSession, clearSession, type SessionData };
 
 export async function verifyAdminPassword(password: string): Promise<{ success: boolean; error?: string }> {
   const reqHeaders = await headers();
@@ -48,20 +40,6 @@ export async function verifyAdminPassword(password: string): Promise<{ success: 
   return { success: true };
 }
 
-export async function createSession(data: SessionData) {
-  const cookieStore = await cookies();
-  const token = signSessionToken(data);
-
-  cookieStore.set("auth_session", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  });
-  return { success: true };
-}
-
 export async function loginWithVerifiedContact(contact: string): Promise<{ success: boolean; role: "head" | "member"; error?: string }> {
   if (!contact || contact.trim().length < 5) {
     return { success: false, role: "head", error: "Valid contact required." };
@@ -72,8 +50,10 @@ export async function loginWithVerifiedContact(contact: string): Promise<{ succe
   const canonicalContact = isPhone ? normalizePhoneNumber(clean) : clean.toLowerCase();
 
   try {
-    const member = await db.getMemberByContact(canonicalContact);
-    const household = await db.getHouseholdByContact(canonicalContact);
+    const [member, household] = await Promise.all([
+      db.getMemberByContact(canonicalContact),
+      db.getHouseholdByContact(canonicalContact),
+    ]);
 
     const effectiveUserId = member?.id || household?.id;
     if (!effectiveUserId) {
@@ -126,8 +106,13 @@ export async function loginWithPassword(params: {
   const isEmail = clean.includes("@");
   const canonicalContact = isEmail ? clean.toLowerCase() : normalizePhoneNumber(clean);
 
-  // 1. Rate limiting & Brute-force protection: check lockout
-  const lockout = await checkLoginLockout(canonicalContact, clientIp);
+  // 1. Concurrently check lockout and look up account to minimize cross-region latency
+  const [lockout, member, household] = await Promise.all([
+    checkLoginLockout(canonicalContact, clientIp),
+    db.getMemberByContact(canonicalContact),
+    db.getHouseholdByContact(canonicalContact),
+  ]);
+
   if (lockout.locked) {
     return {
       success: false,
@@ -136,9 +121,6 @@ export async function loginWithPassword(params: {
   }
 
   try {
-    // 2. Lookup account by contact in members or households
-    const member = await db.getMemberByContact(canonicalContact);
-    const household = await db.getHouseholdByContact(canonicalContact);
 
     const storedHash = member?.passwordHash || household?.passwordHash;
 
@@ -362,17 +344,4 @@ export async function activateAccountWithOtp(params: {
     success: true,
     message: "Your account has been successfully verified and password activated.",
   };
-}
-
-export async function getSession(): Promise<SessionData | null> {
-  const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get("auth_session")?.value;
-  if (!sessionCookie) return null;
-  return verifySessionToken(sessionCookie);
-}
-
-export async function clearSession() {
-  const cookieStore = await cookies();
-  cookieStore.delete("auth_session");
-  return { success: true };
 }

@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { getSession, createSession, verifyAdminPassword, loginWithPassword, activateAccountWithOtp } from "@/actions/auth";
+import { createSession } from "@/actions/session";
+import { verifyAdminPassword, loginWithPassword, activateAccountWithOtp } from "@/actions/auth";
 import { sendOtp } from "@/actions/otp";
 
 export default function LoginPage() {
@@ -49,20 +50,6 @@ export default function LoginPage() {
       }
     }
   }, []);
-
-  useEffect(() => {
-    async function checkAuth() {
-      const session = await getSession();
-      if (session) {
-        if (session.role === "admin") {
-          router.push("/admin/moderation");
-        } else {
-          router.push("/dashboard");
-        }
-      }
-    }
-    checkAuth();
-  }, [router]);
 
   const handleSendOtp = async () => {
     if (!contact.trim()) {

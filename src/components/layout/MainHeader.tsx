@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { getSession, clearSession, SessionData } from "@/actions/auth";
+import { getSession, clearSession, SessionData } from "@/actions/session";
 import { getConversations } from "@/actions/chat";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -325,22 +325,20 @@ export default function MainHeader() {
             </>
           ) : (
             /* DYNAMIC GUEST NAVIGATION */
-            !isLoading && (
-              <>
-                <Link
-                  href="/login"
-                  className="px-3.5 py-2 text-xs font-semibold text-body-heading hover:text-brand-primary rounded-full hover:bg-canvas-warm transition-colors"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  href="/signup"
-                  className="px-4 py-2 text-xs font-bold text-white va-btn-join rounded-full shadow-goldCta"
-                >
-                  Register Family Free
-                </Link>
-              </>
-            )
+            <>
+              <Link
+                href="/login"
+                className="px-3.5 py-2 text-xs font-semibold text-body-heading hover:text-brand-primary rounded-full hover:bg-canvas-warm transition-colors"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/signup"
+                className="px-4 py-2 text-xs font-bold text-white va-btn-join rounded-full shadow-goldCta"
+              >
+                Register Family Free
+              </Link>
+            </>
           )}
         </nav>
 
@@ -353,14 +351,14 @@ export default function MainHeader() {
             >
               Dashboard
             </Link>
-          ) : !isLoading ? (
+          ) : (
             <Link
               href="/signup"
               className="px-2.5 py-1.5 text-[11px] font-bold text-white va-btn-join rounded-full shadow-sm whitespace-nowrap"
             >
               Join Free
             </Link>
-          ) : null}
+          )}
 
           <button
             type="button"
