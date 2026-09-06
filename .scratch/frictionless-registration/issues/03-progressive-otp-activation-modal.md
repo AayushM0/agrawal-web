@@ -1,6 +1,6 @@
 # Issue 03: Progressive OTP Verification & Password Activation Modal
 
-Status: ready-for-agent
+Status: resolved
 
 ## Parent
 
@@ -22,12 +22,12 @@ An inline account activation workflow on the dashboard that converts unactivated
 
 ## Acceptance criteria
 
-- [ ] Activation modal opens cleanly upon clicking any gated action or the activation banner.
-- [ ] OTP dispatch succeeds with rate limiting and security checks intact.
-- [ ] Passwords must satisfy complexity requirements (8+ chars, upper, lower, number).
-- [ ] Verifying the correct OTP updates `password_hash` in the database with a 12-round bcrypt hash.
-- [ ] Session cookie is upgraded to `isActivated: true, hasPassword: true`.
-- [ ] The pending action that originally triggered the modal executes automatically upon activation.
+- [x] Activation modal opens cleanly upon clicking any gated action or the activation banner.
+- [x] OTP dispatch succeeds with rate limiting and security checks intact.
+- [x] Passwords must satisfy complexity requirements (8+ chars, upper, lower, number).
+- [x] Verifying the correct OTP updates `password_hash` in the database with a 12-round bcrypt hash.
+- [x] Session cookie is upgraded to `isActivated: true, hasPassword: true`.
+- [x] The pending action that originally triggered the modal executes automatically upon activation.
 
 ## Blocked by
 

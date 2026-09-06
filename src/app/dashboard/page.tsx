@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getCurrentHouseholdDashboard } from "@/actions/dashboard";
 import { createClaimInvite } from "@/actions/claim";
-import { clearSession } from "@/actions/auth";
+import { clearSession, activateAccountWithOtp } from "@/actions/auth";
+import { sendOtp } from "@/actions/otp";
 import { saveMemberProfile, saveHouseholdInfo, addHouseholdMember } from "@/actions/profile";
 import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
@@ -61,6 +62,24 @@ export default function DashboardPage() {
   const [showActivationModal, setShowActivationModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
+  // Activation modal inputs & status
+  const [activationOtp, setActivationOtp] = useState("");
+  const [activationPassword, setActivationPassword] = useState("");
+  const [activationConfirmPassword, setActivationConfirmPassword] = useState("");
+  const [activationError, setActivationError] = useState("");
+  const [activationSuccess, setActivationSuccess] = useState("");
+  const [activationInfo, setActivationInfo] = useState("");
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const passHasLength = activationPassword.length >= 8;
+  const passHasUpper = /[A-Z]/.test(activationPassword);
+  const passHasLower = /[a-z]/.test(activationPassword);
+  const passHasNumber = /[0-9]/.test(activationPassword);
+  const isPassValid = passHasLength && passHasUpper && passHasLower && passHasNumber;
+
   const requireActivation = (action: () => void) => {
     if (!isActivated) {
       setPendingAction(() => action);
@@ -68,6 +87,99 @@ export default function DashboardPage() {
       return;
     }
     action();
+  };
+
+  const getEffectiveActivationContact = () => {
+    return sessionContact || household?.headEmail || household?.headPhone || "";
+  };
+
+  const handleSendActivationOtp = async () => {
+    const contact = getEffectiveActivationContact();
+    if (!contact) {
+      setActivationError("No registered contact available for OTP verification.");
+      return;
+    }
+    setIsSendingOtp(true);
+    setActivationError("");
+    setActivationInfo("");
+    try {
+      const res = await sendOtp({ recipient: contact });
+      if (res.success) {
+        setOtpSent(true);
+        setActivationInfo(res.message || "A 6-digit verification code has been dispatched.");
+      } else {
+        setActivationError(res.error || "Failed to send verification code. Please try again.");
+      }
+    } catch (err: any) {
+      setActivationError(err.message || "An unexpected error occurred while sending OTP.");
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleCompleteActivation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActivationError("");
+    setActivationSuccess("");
+
+    if (!activationOtp || activationOtp.trim().length !== 6) {
+      setActivationError("Please enter the 6-digit verification code sent to your contact.");
+      return;
+    }
+
+    if (!activationPassword) {
+      setActivationError("Please enter a new password.");
+      return;
+    }
+
+    if (!isPassValid) {
+      setActivationError("Password must be at least 8 characters long with uppercase, lowercase, and numeric digits.");
+      return;
+    }
+
+    if (activationPassword !== activationConfirmPassword) {
+      setActivationError("Passwords do not match. Please re-enter your password.");
+      return;
+    }
+
+    setIsActivating(true);
+    try {
+      const contact = getEffectiveActivationContact();
+      const res = await activateAccountWithOtp({
+        contact: contact || undefined,
+        otp: activationOtp.trim(),
+        newPassword: activationPassword,
+      });
+
+      if (!res.success) {
+        setActivationError(res.error || "Activation failed. Please check your verification code.");
+        setIsActivating(false);
+        return;
+      }
+
+      setActivationSuccess("Account successfully activated! You now have full access.");
+      setIsActivated(true);
+
+      setTimeout(() => {
+        setShowActivationModal(false);
+        setActivationOtp("");
+        setActivationPassword("");
+        setActivationConfirmPassword("");
+        setActivationSuccess("");
+        setActivationError("");
+        setOtpSent(false);
+
+        if (pendingAction) {
+          const act = pendingAction;
+          setPendingAction(null);
+          act();
+        }
+      }, 750);
+    } catch (err: any) {
+      setActivationError(err.message || "An unexpected error occurred during activation.");
+    } finally {
+      setIsActivating(false);
+    }
   };
 
   useEffect(() => {
@@ -1305,6 +1417,173 @@ export default function DashboardPage() {
                   className="px-5 py-2 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta"
                 >
                   {isSavingNewMember ? "Adding Member..." : "Save & Add Member ✓"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ACTIVATION MODAL */}
+      {showActivationModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+          <div className="bg-white border-2 border-brand-accent rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-warmLg my-8">
+            <div className="flex items-center justify-between pb-3.5 border-b border-brand-accent/20 mb-4">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">🔐</span>
+                <div>
+                  <h2 className="text-base font-bold text-brand-primary">
+                    Verify &amp; Set Password • खाता सक्रिय करें
+                  </h2>
+                  <p className="text-[11px] text-body-muted">
+                    Unlock profile edits, family updates, and directory access.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowActivationModal(false);
+                  setPendingAction(null);
+                }}
+                className="w-7 h-7 rounded-full bg-canvas-warm text-body-muted hover:text-brand-primary font-bold flex items-center justify-center text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCompleteActivation} className="space-y-3.5">
+              {/* Target contact badge & Send OTP */}
+              <div className="p-3 rounded-2xl bg-canvas-warm/60 border border-brand-accent/30 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-[10px] uppercase font-bold text-body-muted block">Verification Contact</span>
+                  <span className="text-xs font-bold text-brand-primary truncate block">
+                    {getEffectiveActivationContact() || "Registered Email / Phone"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSendActivationOtp}
+                  disabled={isSendingOtp}
+                  className="px-3 py-1.5 rounded-xl text-xs font-bold text-white va-btn-join shadow-xs shrink-0 disabled:opacity-50"
+                >
+                  {isSendingOtp ? "Sending..." : otpSent ? "Resend OTP" : "Send OTP"}
+                </button>
+              </div>
+
+              {activationInfo && (
+                <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-800 font-medium">
+                  ℹ️ {activationInfo}
+                </div>
+              )}
+
+              {/* 6-digit OTP code */}
+              <div>
+                <label className="block text-xs font-bold text-body-heading mb-1">
+                  6-Digit Verification Code (ओ.टी.पी.) *
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  placeholder="e.g. 123456"
+                  value={activationOtp}
+                  onChange={(e) => setActivationOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="w-full px-3.5 py-2 rounded-xl border border-brand-accent/40 text-sm font-mono tracking-widest text-center text-body-heading bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"
+                  required
+                />
+              </div>
+
+              {/* Password Setup */}
+              <div className="space-y-2.5 pt-1 border-t border-brand-accent/15">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-body-heading">
+                      New Password (नया पासवर्ड) *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-[11px] font-medium text-brand-primary hover:underline"
+                    >
+                      {showPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Create a secure password"
+                    value={activationPassword}
+                    onChange={(e) => setActivationPassword(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"
+                    required
+                  />
+                </div>
+
+                {/* Password Strength Checklist */}
+                {activationPassword && (
+                  <div className="p-2.5 rounded-xl bg-canvas-warm/40 border border-brand-accent/20 grid grid-cols-2 gap-1 text-[11px]">
+                    <span className={`flex items-center gap-1.5 ${passHasLength ? "text-emerald-700 font-semibold" : "text-body-muted"}`}>
+                      <span>{passHasLength ? "✓" : "○"}</span> 8+ characters
+                    </span>
+                    <span className={`flex items-center gap-1.5 ${passHasUpper ? "text-emerald-700 font-semibold" : "text-body-muted"}`}>
+                      <span>{passHasUpper ? "✓" : "○"}</span> Uppercase (A-Z)
+                    </span>
+                    <span className={`flex items-center gap-1.5 ${passHasLower ? "text-emerald-700 font-semibold" : "text-body-muted"}`}>
+                      <span>{passHasLower ? "✓" : "○"}</span> Lowercase (a-z)
+                    </span>
+                    <span className={`flex items-center gap-1.5 ${passHasNumber ? "text-emerald-700 font-semibold" : "text-body-muted"}`}>
+                      <span>{passHasNumber ? "✓" : "○"}</span> Number (0-9)
+                    </span>
+                  </div>
+                )}
+
+                {/* Confirm Password */}
+                <div>
+                  <label className="block text-xs font-bold text-body-heading mb-1">
+                    Confirm Password (पासवर्ड की पुष्टि करें) *
+                  </label>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Re-enter password"
+                    value={activationConfirmPassword}
+                    onChange={(e) => setActivationConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-2 focus:ring-brand-primary/30 focus:border-brand-primary"
+                    required
+                  />
+                  {activationConfirmPassword && activationPassword !== activationConfirmPassword && (
+                    <span className="text-[10px] text-red-600 block mt-1">Passwords do not match.</span>
+                  )}
+                </div>
+              </div>
+
+              {activationError && (
+                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-medium">
+                  {activationError}
+                </div>
+              )}
+
+              {activationSuccess && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-xs text-emerald-800 font-bold">
+                  ✓ {activationSuccess}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2.5 border-t border-brand-accent/20">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowActivationModal(false);
+                    setPendingAction(null);
+                  }}
+                  className="px-4 py-2 rounded-full text-xs font-bold text-body-heading hover:bg-canvas-warm border border-brand-accent/30"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isActivating || !otpSent || !isPassValid}
+                  className="px-5 py-2 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta disabled:opacity-50"
+                >
+                  {isActivating ? "Activating..." : "Verify & Activate Account ✓"}
                 </button>
               </div>
             </form>

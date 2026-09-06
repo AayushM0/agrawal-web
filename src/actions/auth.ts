@@ -279,7 +279,76 @@ export async function resetPasswordWithOtp(params: {
   };
 }
 
+export async function activateAccountWithOtp(params: {
+  contact?: string;
+  otp: string;
+  newPassword: string;
+}): Promise<{ success: boolean; error?: string; message?: string }> {
+  const { otp, newPassword } = params;
+  const currentSession = await getSession();
+  const rawContact = params.contact || currentSession?.contact;
 
+  if (!rawContact || rawContact.trim().length < 5) {
+    return { success: false, error: "Valid email address or mobile number required for activation." };
+  }
+
+  const clean = rawContact.trim();
+  const isEmail = clean.includes("@");
+  const canonicalContact = isEmail ? clean.toLowerCase() : normalizePhoneNumber(clean);
+
+  // 1. Validate password complexity
+  const passCheck = validatePassword(newPassword);
+  if (!passCheck.valid) {
+    return { success: false, error: passCheck.error || "Password does not meet complexity requirements." };
+  }
+
+  // 2. Verify OTP challenge
+  const verifyRes = await verifyOtp({ recipient: canonicalContact, otp: otp?.trim() });
+  if (!verifyRes.success) {
+    return { success: false, error: verifyRes.error || "Invalid or expired verification code." };
+  }
+
+  // 3. Resolve user account
+  const member = await db.getMemberByContact(canonicalContact);
+  const household = await db.getHouseholdByContact(canonicalContact);
+
+  if (!member && !household) {
+    return { success: false, error: "No registered account found matching this contact." };
+  }
+
+  // 4. Hash new password (cost factor 12)
+  const newHash = await hashPassword(newPassword);
+
+  // 5. Update database records
+  if (household) {
+    await db.updatePasswordHash("household", household.id, newHash);
+  }
+  if (member) {
+    await db.updatePasswordHash("member", member.id, newHash);
+    if (member.householdId && member.relationToHead === "self") {
+      await db.updatePasswordHash("household", member.householdId, newHash);
+    }
+  }
+
+  // 6. Issue upgraded session with isActivated: true and hasPassword: true
+  const effectiveUserId = member?.id || household?.id;
+  const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
+  const effectiveStatus = household?.status || member?.householdStatus || "live";
+
+  await createSession({
+    userId: String(effectiveUserId),
+    role: effectiveRole,
+    contact: canonicalContact,
+    householdStatus: effectiveStatus,
+    isActivated: true,
+    hasPassword: true,
+  });
+
+  return {
+    success: true,
+    message: "Your account has been successfully verified and password activated.",
+  };
+}
 
 export async function getSession(): Promise<SessionData | null> {
   const cookieStore = await cookies();
