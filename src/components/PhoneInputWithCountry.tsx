@@ -144,13 +144,13 @@ export default function PhoneInputWithCountry({
   return (
     <div className={`flex items-center rounded-xl border border-brand-accent/40 bg-white focus-within:ring-2 focus-within:ring-brand-primary focus-within:border-transparent transition-all shadow-xs overflow-hidden ${className}`}>
       {/* Country Code Select Dropdown */}
-      <div className="relative border-r border-brand-accent/30 bg-canvas-warm/40 hover:bg-canvas-warm/70 transition-colors shrink-0">
+      <div className="relative border-r border-brand-accent/30 bg-canvas-warm/40 hover:bg-canvas-warm/70 transition-colors shrink-0 w-[78px] sm:w-[86px]">
         <select
           value={selectedDialCode}
           disabled={disabled}
           onChange={(e) => handleDialCodeChange(e.target.value)}
           aria-label="Select Country Dialing Code"
-          className="appearance-none bg-transparent pl-2.5 pr-6 py-2.5 sm:py-3 text-xs font-bold text-brand-primary cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed max-w-[140px] sm:max-w-[160px] truncate"
+          className="w-full appearance-none bg-transparent pl-2 pr-5 py-2.5 sm:py-3 text-xs font-bold text-brand-primary cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed truncate"
         >
           {POPULAR_COUNTRY_DIAL_CODES.map((c) => (
             <option key={`${c.code}-${c.dialCode}`} value={c.dialCode} className="text-body-heading bg-white py-1">
@@ -158,7 +158,7 @@ export default function PhoneInputWithCountry({
             </option>
           ))}
         </select>
-        <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-brand-primary/70">
+        <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-brand-primary/70">
           ▼
         </span>
       </div>
@@ -173,7 +173,7 @@ export default function PhoneInputWithCountry({
         onChange={handleNationalNumberChange}
         onBlur={onBlur}
         placeholder={placeholder}
-        className="w-full px-3 py-2.5 sm:py-3 text-xs font-medium text-body-heading bg-transparent focus:outline-none placeholder:text-body-muted/60 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex-1 min-w-0 w-full px-3 py-2.5 sm:py-3 text-xs font-medium text-body-heading bg-transparent focus:outline-none placeholder:text-body-muted/60 disabled:opacity-50 disabled:cursor-not-allowed"
       />
     </div>
   );
