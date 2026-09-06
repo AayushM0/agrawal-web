@@ -42,3 +42,13 @@ test("TDD: dashboard/page.tsx and profile.ts support updating member relation in
     "dashboard/page.tsx Edit Member modal must provide a select for relationToHead"
   );
 });
+
+test("TDD: db.ts updateMemberProfile writes relation_to_head to PostgreSQL", () => {
+  const dbCode = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+
+  assert.ok(
+    dbCode.includes("relation_to_head = COALESCE(") && dbCode.includes("updates.relationToHead"),
+    "db.ts updateMemberProfile must include relation_to_head in UPDATE query so relationship changes persist to PostgreSQL"
+  );
+});
+

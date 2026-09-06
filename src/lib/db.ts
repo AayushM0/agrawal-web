@@ -1131,7 +1131,8 @@ export const db = {
              bio = COALESCE($15, bio),
              visibility_contact = COALESCE($16, visibility_contact),
              visibility_dob = COALESCE($17, visibility_dob),
-             visibility_photo = COALESCE($18, visibility_photo)
+             visibility_photo = COALESCE($18, visibility_photo),
+             relation_to_head = COALESCE($19, relation_to_head)
          WHERE id::text = $1 OR id = $1
          RETURNING id, household_id;`,
         [
@@ -1153,6 +1154,7 @@ export const db = {
           updates.visibility?.contactInfo || null,
           updates.visibility?.dob || null,
           updates.visibility?.photo || null,
+          updates.relationToHead ? updates.relationToHead.toLowerCase() : null,
         ]
       );
       if (res.rows.length > 0 && updates.fullName && updates.relationToHead === "self") {
