@@ -20,17 +20,74 @@ export default function MainHeader() {
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
   const notificationDropdownRef = useRef<HTMLDivElement>(null);
 
+  // 1. Instant UI cleanup on route navigation (pure client state)
   useEffect(() => {
     setMobileMenuOpen(false);
     setShowNotificationPanel(false);
-    getSession().then((current) => {
-      setSession(current);
-      setIsLoading(false);
-    });
   }, [pathname]);
 
+  // Track previous pathname to detect auth transitions
+  const prevPathnameRef = useRef(pathname);
+
+  // 2. Fetch session on initial mount and when window regains focus
   useEffect(() => {
-    if (!session) return;
+    let isMounted = true;
+    const updateSession = () => {
+      getSession()
+        .then((current) => {
+          if (isMounted) {
+            setSession(current);
+            setIsLoading(false);
+          }
+        })
+        .catch(() => {
+          if (isMounted) setIsLoading(false);
+        });
+    };
+
+    updateSession();
+
+    const onFocus = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        updateSession();
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, []);
+
+  // 3. Re-verify session only when transitioning to/from auth routes
+  useEffect(() => {
+    const isAuthRoute = (p: string) =>
+      p === "/login" || p === "/signin" || p === "/signup" || p.startsWith("/claim");
+
+    const wasAuth = isAuthRoute(prevPathnameRef.current);
+    const isNowAuth = isAuthRoute(pathname);
+    prevPathnameRef.current = pathname;
+
+    if (wasAuth !== isNowAuth || isNowAuth) {
+      getSession()
+        .then((current) => {
+          setSession(current);
+          setIsLoading(false);
+        })
+        .catch(() => {});
+    }
+  }, [pathname]);
+
+  // 4. Notifications poll every 30s when logged in - decoupled from navigation
+  useEffect(() => {
+    if (!session) {
+      setUnreadRequests([]);
+      setRecentConversations([]);
+      return;
+    }
     let isMounted = true;
     async function loadNotifications() {
       if (typeof document !== "undefined" && document.hidden) return;
@@ -48,7 +105,7 @@ export default function MainHeader() {
       isMounted = false;
       clearInterval(timer);
     };
-  }, [session, pathname]);
+  }, [session?.userId]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
