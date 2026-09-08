@@ -76,6 +76,11 @@ export default function RoyalFooter() {
                 </Link>
               </li>
               <li>
+                <Link href="/guide" className="hover:text-brand-primary transition-colors">
+                  User Guide (उपयोग निर्देशिका & फ्लोचार्ट)
+                </Link>
+              </li>
+              <li>
                 <Link href="/support" className="hover:text-brand-primary transition-colors">
                   Support Desk (सहायता डेस्क)
                 </Link>

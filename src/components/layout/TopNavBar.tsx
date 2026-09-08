@@ -39,6 +39,12 @@ export default function TopNavBar() {
               </Link>
             </li>
             <li>
+              <Link href="/guide" className="hover:text-white hover:underline transition-colors flex items-center gap-1">
+                <span>📖</span>
+                <span>User Guide</span>
+              </Link>
+            </li>
+            <li>
               <Link href="/#appeal" className="hover:text-white hover:underline transition-colors">
                 Founder&apos;s Appeal
               </Link>

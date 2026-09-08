@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from "react";
+import Link from "next/link";
 
 interface FAQItem {
   question: string;
@@ -68,6 +69,30 @@ export default function HelpPage() {
           <p className="text-xs sm:text-sm text-body-muted mt-1">
             Find answers to common questions about directory access, family verification, and profile privacy.
           </p>
+        </div>
+
+        {/* User Guide Callout Banner */}
+        <div className="mb-8 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 border border-brand-accent/40 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-white border border-brand-accent/30 shadow-xs flex items-center justify-center text-xl shrink-0">
+              🧭
+            </div>
+            <div>
+              <h2 className="text-sm sm:text-base font-bold text-brand-primary">
+                Visual Flowcharts & How-To Guides (उपयोग निर्देशिका)
+              </h2>
+              <p className="text-xs text-body-text/80 mt-0.5">
+                Looking for step-by-step visual process maps for Registration, Login, Messaging, Family Member claiming & Helpline?
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/guide"
+            className="va-btn-join text-xs font-bold px-4 py-2 rounded-xl shrink-0 inline-flex items-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-transform"
+          >
+            <span>Explore Guide</span>
+            <span>→</span>
+          </Link>
         </div>
 
         {/* Category Filters */}
