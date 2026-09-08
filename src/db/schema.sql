@@ -207,7 +207,23 @@ CREATE TABLE IF NOT EXISTS admin_login_attempts (
 );
 CREATE INDEX IF NOT EXISTS idx_admin_login_ip_created ON admin_login_attempts(ip_address, created_at DESC);
 
--- 8. Row-Level Security (RLS) Configuration (Supabase Hardening)
+-- 8. Support Inquiries Table (Secretariat Desk)
+CREATE TABLE IF NOT EXISTS support_inquiries (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ticket_id VARCHAR(32) NOT NULL UNIQUE,
+    name VARCHAR(150) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    message TEXT NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'open', -- 'open', 'in_progress', 'resolved'
+    admin_notes TEXT,
+    ip_address VARCHAR(45),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_support_inquiries_created ON support_inquiries(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_support_inquiries_status ON support_inquiries(status);
+
+-- 9. Row-Level Security (RLS) Configuration (Supabase Hardening)
 -- Enable RLS on all tables to prevent public anonymous REST API data exfiltration
 ALTER TABLE households ENABLE ROW LEVEL SECURITY;
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
@@ -216,6 +232,7 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE message_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE otp_rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_login_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE support_inquiries ENABLE ROW LEVEL SECURITY;
 
 -- Households, Members, Message Reports, Rate Limits, and Admin Attempts have NO policies defined.
 -- In PostgreSQL, this default deny-all state blocks all public anon/authenticated REST/GraphQL operations.

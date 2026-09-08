@@ -1,6 +1,7 @@
 import { normalizePhoneNumber } from "@/lib/phone";
 import { Pool } from "pg";
 import type { Household, Member } from "../types/household";
+import type { SupportInquiry, CreateInquiryInput, InquiryStatus } from "../types/support";
 
 const globalForPg = globalThis as unknown as {
   pgPool?: Pool;
@@ -187,6 +188,21 @@ async function ensureSchema(client: any) {
       );
       CREATE INDEX IF NOT EXISTS idx_admin_login_ip_created ON admin_login_attempts(ip_address, created_at DESC);
 
+      CREATE TABLE IF NOT EXISTS support_inquiries (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          ticket_id VARCHAR(32) NOT NULL UNIQUE,
+          name VARCHAR(150) NOT NULL,
+          email VARCHAR(255) NOT NULL,
+          category VARCHAR(100) NOT NULL,
+          message TEXT NOT NULL,
+          status VARCHAR(30) NOT NULL DEFAULT 'open',
+          admin_notes TEXT,
+          ip_address VARCHAR(45),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_support_inquiries_created ON support_inquiries(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_support_inquiries_status ON support_inquiries(status);
+
       -- Enable RLS on all tables (Supabase advisor fix)
       ALTER TABLE households ENABLE ROW LEVEL SECURITY;
       ALTER TABLE members ENABLE ROW LEVEL SECURITY;
@@ -195,6 +211,7 @@ async function ensureSchema(client: any) {
       ALTER TABLE message_reports ENABLE ROW LEVEL SECURITY;
       ALTER TABLE otp_rate_limits ENABLE ROW LEVEL SECURITY;
       ALTER TABLE admin_login_attempts ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE support_inquiries ENABLE ROW LEVEL SECURITY;
 
       -- Allow SELECT to anon for Realtime web-socket updates (restricted to Realtime-only by blocking PostgREST queries)
       DROP POLICY IF EXISTS "Allow Realtime conversations select" ON conversations;
@@ -1658,6 +1675,113 @@ export const db = {
       `UPDATE ${table} SET password_hash = $1 WHERE id = $2;`,
       [newHash, id]
     );
+  },
+
+  // --- SUPPORT INQUIRIES & SECRETARIAT DESK ---
+  async createSupportInquiry(data: CreateInquiryInput): Promise<SupportInquiry> {
+    const ticketId = `INQ-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+    const now = new Date().toISOString();
+
+    if (!pool) {
+      const memoryInquiry: SupportInquiry = {
+        id: `inq-${Date.now()}`,
+        ticketId,
+        name: data.name,
+        email: data.email,
+        category: data.category,
+        message: data.message,
+        status: "open",
+        ipAddress: data.ipAddress,
+        createdAt: now,
+      };
+      (globalThis as any).__memoryInquiries = (globalThis as any).__memoryInquiries || [];
+      (globalThis as any).__memoryInquiries.unshift(memoryInquiry);
+      return memoryInquiry;
+    }
+
+    try {
+      const res = await pool.query(
+        `INSERT INTO support_inquiries (ticket_id, name, email, category, message, status, ip_address, created_at)
+         VALUES ($1, $2, $3, $4, $5, 'open', $6, NOW())
+         RETURNING id, ticket_id as "ticketId", name, email, category, message, status, admin_notes as "adminNotes", ip_address as "ipAddress", created_at as "createdAt";`,
+        [ticketId, data.name, data.email, data.category, data.message, data.ipAddress || null]
+      );
+      const row = res.rows[0];
+      return {
+        ...row,
+        createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+      };
+    } catch (err) {
+      console.error("[DB ERROR] createSupportInquiry:", err);
+      throw err;
+    }
+  },
+
+  async getSupportInquiries(): Promise<SupportInquiry[]> {
+    if (!pool) {
+      return (globalThis as any).__memoryInquiries || [];
+    }
+    try {
+      const res = await pool.query(
+        `SELECT id, ticket_id as "ticketId", name, email, category, message, status, admin_notes as "adminNotes", ip_address as "ipAddress", created_at as "createdAt"
+         FROM support_inquiries
+         ORDER BY created_at DESC;`
+      );
+      return res.rows.map((row: any) => ({
+        ...row,
+        createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
+      }));
+    } catch (err) {
+      console.error("[DB ERROR] getSupportInquiries:", err);
+      return [];
+    }
+  },
+
+  async updateSupportInquiryStatus(idOrTicketId: string, status: InquiryStatus, adminNotes?: string): Promise<boolean> {
+    if (!pool) {
+      const list: SupportInquiry[] = (globalThis as any).__memoryInquiries || [];
+      const item = list.find((i) => i.id === idOrTicketId || i.ticketId === idOrTicketId);
+      if (item) {
+        item.status = status;
+        if (adminNotes !== undefined) item.adminNotes = adminNotes;
+        return true;
+      }
+      return false;
+    }
+    try {
+      const res = await pool.query(
+        `UPDATE support_inquiries
+         SET status = $1, admin_notes = COALESCE($2, admin_notes)
+         WHERE id::text = $3 OR ticket_id = $3;`,
+        [status, adminNotes !== undefined ? adminNotes : null, idOrTicketId]
+      );
+      return (res.rowCount || 0) > 0;
+    } catch (err) {
+      console.error("[DB ERROR] updateSupportInquiryStatus:", err);
+      return false;
+    }
+  },
+
+  async checkSupportRateLimit(ipAddress: string): Promise<{ allowed: boolean; error?: string }> {
+    if (!pool) return { allowed: true };
+    try {
+      const res = await pool.query(
+        `SELECT COUNT(*)::int as count FROM support_inquiries
+         WHERE ip_address = $1
+           AND created_at > NOW() - INTERVAL '1 hour';`,
+        [ipAddress]
+      );
+      if ((res.rows[0]?.count || 0) >= 5) {
+        return {
+          allowed: false,
+          error: "You have reached the maximum inquiry limit (5 per hour). Please wait before submitting again, or contact us directly on WhatsApp (+65 9277 4444).",
+        };
+      }
+      return { allowed: true };
+    } catch (err) {
+      console.warn("DB support rate limit check non-fatal:", err);
+      return { allowed: true };
+    }
   },
 };
 

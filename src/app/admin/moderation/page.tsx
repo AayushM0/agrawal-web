@@ -2,13 +2,23 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { approveHousehold, approveAllHouseholds, rejectHousehold, getModerationHouseholds, getMessageReports, resolveMessageReport } from "@/actions/moderate";
+import {
+  approveHousehold,
+  approveAllHouseholds,
+  rejectHousehold,
+  getModerationHouseholds,
+  getMessageReports,
+  resolveMessageReport,
+  getAdminSupportInquiries,
+  updateAdminInquiryStatus,
+} from "@/actions/moderate";
 import { Household } from "@/types/household";
 
 export default function ModerationQueuePage() {
   const [households, setHouseholds] = useState<Household[]>([]);
   const [reports, setReports] = useState<any[]>([]);
-  const [filter, setFilter] = useState<"pending" | "all" | "rejected" | "reports">("pending");
+  const [inquiries, setInquiries] = useState<any[]>([]);
+  const [filter, setFilter] = useState<"pending" | "all" | "rejected" | "reports" | "inquiries">("pending");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -17,13 +27,17 @@ export default function ModerationQueuePage() {
 
   const loadQueue = async () => {
     setIsLoading(true);
-    const [data, repRes] = await Promise.all([
+    const [data, repRes, inqRes] = await Promise.all([
       getModerationHouseholds(),
       getMessageReports(),
+      getAdminSupportInquiries(),
     ]);
     setHouseholds(data);
     if (repRes.success) {
       setReports(repRes.reports || []);
+    }
+    if (inqRes.success) {
+      setInquiries(inqRes.inquiries || []);
     }
     setIsLoading(false);
   };
@@ -87,6 +101,20 @@ export default function ModerationQueuePage() {
     if (res.success) {
       setReports(reports.map((r) => (r.id === reportId ? { ...r, status: action === "dismiss" ? "dismissed" : "action_taken" } : r)));
       setStatusMessage(`Report action "${action}" applied successfully.`);
+      setTimeout(() => setStatusMessage(""), 3000);
+    }
+  };
+
+  const handleUpdateInquiryStatus = async (ticketId: string, status: "open" | "in_progress" | "resolved") => {
+    const res = await updateAdminInquiryStatus({ ticketId, status });
+    if (res.success) {
+      setInquiries((prev) =>
+        prev.map((inq) => (inq.ticketId === ticketId ? { ...inq, status } : inq))
+      );
+      setStatusMessage(res.message || `Inquiry status updated to ${status}.`);
+      setTimeout(() => setStatusMessage(""), 3000);
+    } else {
+      setStatusMessage(res.error || "Failed to update inquiry status.");
       setTimeout(() => setStatusMessage(""), 3000);
     }
   };
@@ -169,6 +197,16 @@ export default function ModerationQueuePage() {
                 }`}
               >
                 🚩 Message Reports ({reports.filter((r) => r.status === "pending").length})
+              </button>
+              <button
+                onClick={() => setFilter("inquiries")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  filter === "inquiries"
+                    ? "bg-brand-primary text-white"
+                    : "text-body-muted hover:text-brand-primary"
+                }`}
+              >
+                📩 Inquiries ({inquiries.filter((i) => i.status === "open").length})
               </button>
             </div>
           </div>
@@ -260,6 +298,95 @@ export default function ModerationQueuePage() {
                       </button>
                     </div>
                   )}
+                </div>
+              ))}
+            </div>
+          )
+        ) : filter === "inquiries" ? (
+          inquiries.length === 0 ? (
+            <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">
+              <div className="text-3xl mb-2">📩</div>
+              <p className="text-sm font-bold text-brand-primary mb-1">
+                Zero Inquiries Logged
+              </p>
+              <p className="text-xs text-body-muted max-w-md mx-auto">
+                Any questions, moderation status queries, or gotra correction requests submitted through the Support Desk will appear here for Secretariat review.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {inquiries.map((inq) => (
+                <div
+                  key={inq.id || inq.ticketId}
+                  className="bg-white border-2 border-brand-accent/30 rounded-3xl p-6 shadow-warm"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-brand-accent/15 mb-3">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-black text-brand-primary font-mono bg-amber-50 border border-brand-accent/40 px-2.5 py-0.5 rounded-full">
+                          #{inq.ticketId}
+                        </span>
+                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+                          {inq.category}
+                        </span>
+                        <span
+                          className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                            inq.status === "open"
+                              ? "bg-amber-100 text-amber-900 border border-amber-200"
+                              : inq.status === "in_progress"
+                              ? "bg-blue-100 text-blue-900 border border-blue-200"
+                              : "bg-emerald-100 text-emerald-900 border border-emerald-200"
+                          }`}
+                        >
+                          ● {inq.status === "open" ? "Open" : inq.status === "in_progress" ? "In Progress" : "Resolved"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-body-muted mt-1.5">
+                        From: <strong className="text-body-heading">{inq.name}</strong> (
+                        <a href={`mailto:${inq.email}`} className="text-brand-primary hover:underline">
+                          {inq.email}
+                        </a>
+                        ) • {inq.createdAt ? new Date(inq.createdAt).toLocaleString("en-SG") : "Recently"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                      {inq.status !== "in_progress" && (
+                        <button
+                          onClick={() => handleUpdateInquiryStatus(inq.ticketId, "in_progress")}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition"
+                        >
+                          Mark In Progress
+                        </button>
+                      )}
+                      {inq.status !== "resolved" && (
+                        <button
+                          onClick={() => handleUpdateInquiryStatus(inq.ticketId, "resolved")}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 transition"
+                        >
+                          ✓ Mark Resolved
+                        </button>
+                      )}
+                      {inq.status === "resolved" && (
+                        <button
+                          onClick={() => handleUpdateInquiryStatus(inq.ticketId, "open")}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold text-body-muted hover:bg-canvas-warm border border-brand-accent/30 transition"
+                        >
+                          Reopen Ticket
+                        </button>
+                      )}
+                      <a
+                        href={`mailto:${inq.email}?subject=Re:%20Inquiry%20%23${inq.ticketId}%20-%20Maharaja%20Agrasen%20Foundation`}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-brand-primary bg-amber-50 hover:bg-amber-100 border border-brand-accent/40 transition flex items-center gap-1"
+                      >
+                        ✉️ Reply via Email
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="bg-canvas-warm/40 border border-brand-accent/20 rounded-2xl p-4 text-xs text-body-heading leading-relaxed whitespace-pre-wrap">
+                    {inq.message}
+                  </div>
                 </div>
               ))}
             </div>

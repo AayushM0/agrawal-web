@@ -2,12 +2,14 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { submitSupportInquiry } from "@/actions/support";
 
 export default function SupportPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [category, setCategory] = useState("Registration Moderation");
   const [details, setDetails] = useState("");
+  const [ticketId, setTicketId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -23,14 +25,23 @@ export default function SupportPage() {
     setErrorMessage("");
 
     try {
-      // Simulate calling a server support endpoint or logging service
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      
-      setIsSubmitting(false);
-      setIsSuccess(true);
+      const res = await submitSupportInquiry({
+        name,
+        email,
+        category,
+        message: details,
+      });
+
+      if (res.success && res.ticketId) {
+        setTicketId(res.ticketId);
+        setIsSuccess(true);
+      } else {
+        setErrorMessage(res.error || "Failed to submit support request. Please try again.");
+      }
     } catch {
+      setErrorMessage("Failed to submit support request. Please check your connection or reach us directly on WhatsApp (+65 9277 4444).");
+    } finally {
       setIsSubmitting(false);
-      setErrorMessage("Failed to submit support request. Please try again later.");
     }
   };
 
@@ -51,10 +62,21 @@ export default function SupportPage() {
               <div>
                 <span className="text-[10px] text-body-muted block font-bold">Helpline (Direct Dial)</span>
                 <a
-                  href="tel:+919876543210"
+                  href="tel:+6592774444"
                   className="text-sm font-extrabold text-brand-primary hover:underline flex items-center gap-1.5 mt-1"
                 >
-                  📞 +91 98765 43210
+                  📞 +65 9277 4444
+                </a>
+              </div>
+              <div>
+                <span className="text-[10px] text-body-muted block font-bold">WhatsApp Direct</span>
+                <a
+                  href="https://wa.me/6592774444?text=Jai%20Shree%20Agrasen%20Ji%20%F0%9F%99%8F%0AI%20am%20reaching%20out%20from%20the%20Maharaja%20Agrasen%20Foundation%20portal%20with%20an%20inquiry."
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#075E54] hover:underline mt-1"
+                >
+                  <span>💬 Chat on WhatsApp (+65 9277 4444)</span>
                 </a>
               </div>
               <div>
@@ -82,16 +104,22 @@ export default function SupportPage() {
                 <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl font-bold mx-auto mb-4 border border-emerald-300">
                   ✓
                 </div>
-                <h2 className="text-lg font-black text-brand-primary mb-2">
+                <h2 className="text-lg font-black text-brand-primary mb-1">
                   Support Ticket Received!
                 </h2>
+                {ticketId && (
+                  <div className="inline-block bg-amber-50 border border-brand-accent/40 px-3.5 py-1 rounded-full text-xs font-bold text-brand-primary mb-3">
+                    Ticket Ref: #{ticketId}
+                  </div>
+                )}
                 <p className="text-xs text-body-muted max-w-sm mx-auto mb-6 leading-relaxed">
-                  Thank you for reaching out. A Foundation administrator has been assigned to your query. We will contact you via email at <strong>{email}</strong> within 1-2 business days.
+                  Thank you for reaching out. A Foundation administrator has been assigned to your query. A confirmation email has been dispatched to <strong>{email}</strong> and our team will follow up within 1-2 business days.
                 </p>
                 <button
                   type="button"
                   onClick={() => {
                     setIsSuccess(false);
+                    setTicketId("");
                     setDetails("");
                   }}
                   className="px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-join shadow-sm"

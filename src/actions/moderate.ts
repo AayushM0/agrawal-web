@@ -296,3 +296,42 @@ export async function resolveMessageReport(params: {
   }
 }
 
+export async function getAdminSupportInquiries() {
+  const session = await getSession();
+  if (session?.role !== "admin") {
+    return { success: false, error: "Unauthorized: Admin privileges required.", inquiries: [] };
+  }
+  try {
+    const inquiries = await db.getSupportInquiries();
+    return { success: true, inquiries };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to fetch inquiries.", inquiries: [] };
+  }
+}
+
+const VALID_INQUIRY_STATUSES = new Set(["open", "in_progress", "resolved"]);
+
+export async function updateAdminInquiryStatus(params: {
+  ticketId: string;
+  status: "open" | "in_progress" | "resolved";
+  notes?: string;
+}) {
+  const session = await getSession();
+  if (session?.role !== "admin") {
+    return { success: false, error: "Unauthorized: Admin privileges required." };
+  }
+  if (!VALID_INQUIRY_STATUSES.has(params.status)) {
+    return { success: false, error: "Invalid status: must be open, in_progress, or resolved." };
+  }
+  try {
+    const ok = await db.updateSupportInquiryStatus(params.ticketId, params.status, params.notes);
+    if (!ok) {
+      return { success: false, error: "Inquiry not found." };
+    }
+    return { success: true, message: `Inquiry status updated to ${params.status}.` };
+  } catch (err: any) {
+    return { success: false, error: err.message || "Failed to update inquiry status." };
+  }
+}
+
+
