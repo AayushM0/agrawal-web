@@ -502,13 +502,14 @@ const GUIDE_TOPICS: GuideTopic[] = [
 
 export default function UserGuidePage() {
   const [activeTopicId, setActiveTopicId] = useState("registration");
+  const [flowchartMode, setFlowchartMode] = useState<"visual" | "steps">("visual");
 
   const currentTopic =
     GUIDE_TOPICS.find((t) => t.id === activeTopicId) || GUIDE_TOPICS[0];
 
   return (
-    <main className="py-8 sm:py-12 bg-canvas-page min-h-screen">
-      <div className="max-w-6xl mx-auto px-4">
+    <main className="py-8 sm:py-12 bg-canvas-page min-h-screen overflow-x-hidden">
+      <div className="max-w-6xl mx-auto px-3.5 sm:px-6 w-full">
         
         {/* Page Header */}
         <div className="text-center mb-8 sm:mb-12">
@@ -516,7 +517,7 @@ export default function UserGuidePage() {
             <span>📖</span>
             <span>User Guide &amp; Flowcharts • उपयोग निर्देशिका</span>
           </div>
-          <h1 className="text-2xl sm:text-4xl font-black text-brand-primary leading-tight">
+          <h1 className="text-2xl sm:text-4xl font-black text-brand-primary leading-tight break-words">
             How to Use the Agarwal Global Directory
           </h1>
           <p className="text-sm sm:text-base text-brand-gold font-semibold mt-1 font-devanagari">
@@ -527,36 +528,61 @@ export default function UserGuidePage() {
           </p>
         </div>
 
-        {/* Topic Selector Tabs (Horizontal Scrollable on Mobile) */}
-        <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-3 mb-8 no-scrollbar">
-          {GUIDE_TOPICS.map((topic) => {
-            const isActive = topic.id === activeTopicId;
-            return (
-              <button
-                key={topic.id}
-                type="button"
-                onClick={() => setActiveTopicId(topic.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold shrink-0 transition-all border shadow-xs ${
-                  isActive
-                    ? "bg-brand-primary text-white border-brand-primary shadow-warm scale-[1.02]"
-                    : "bg-white text-body-heading border-brand-accent/30 hover:border-brand-primary/50 hover:bg-canvas-warm/40"
-                }`}
-              >
-                <span className="text-base">{topic.icon}</span>
-                <span className="truncate">{topic.nameEn}</span>
-              </button>
-            );
-          })}
+        {/* Topic Selector: Grid on Mobile (No cut-off items), Centered Wrap on Desktop */}
+        <div className="w-full mb-8">
+          {/* Mobile 2-Column Grid */}
+          <div className="grid grid-cols-2 sm:hidden gap-2">
+            {GUIDE_TOPICS.map((topic) => {
+              const isActive = topic.id === activeTopicId;
+              return (
+                <button
+                  key={topic.id}
+                  type="button"
+                  onClick={() => setActiveTopicId(topic.id)}
+                  className={`flex items-center gap-2 p-2.5 rounded-2xl text-xs font-bold transition-all border text-left shadow-xs ${
+                    isActive
+                      ? "bg-brand-primary text-white border-brand-primary shadow-warm scale-[1.01]"
+                      : "bg-white text-body-heading border-brand-accent/30 hover:border-brand-primary/50 hover:bg-canvas-warm/40"
+                  }`}
+                >
+                  <span className="text-lg shrink-0">{topic.icon}</span>
+                  <span className="truncate leading-tight">{topic.nameEn}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Desktop & Tablet Centered Flex Wrap */}
+          <div className="hidden sm:flex flex-wrap items-center justify-center gap-2.5">
+            {GUIDE_TOPICS.map((topic) => {
+              const isActive = topic.id === activeTopicId;
+              return (
+                <button
+                  key={topic.id}
+                  type="button"
+                  onClick={() => setActiveTopicId(topic.id)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border shadow-xs ${
+                    isActive
+                      ? "bg-brand-primary text-white border-brand-primary shadow-warm scale-[1.02]"
+                      : "bg-white text-body-heading border-brand-accent/30 hover:border-brand-primary/50 hover:bg-canvas-warm/40"
+                  }`}
+                >
+                  <span className="text-base">{topic.icon}</span>
+                  <span>{topic.nameEn}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Active Topic Header Card */}
-        <div className="bg-white border-2 border-brand-accent/40 rounded-3xl p-6 sm:p-8 shadow-warm mb-8">
+        <div className="bg-white border-2 border-brand-accent/40 rounded-3xl p-4 sm:p-6 md:p-8 shadow-warm mb-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-brand-accent/20">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <span className="text-3xl">{currentTopic.icon}</span>
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-black text-brand-primary">
+            <div className="min-w-0">
+              <div className="flex items-start sm:items-center gap-2.5">
+                <span className="text-3xl shrink-0">{currentTopic.icon}</span>
+                <div className="min-w-0">
+                  <h2 className="text-xl sm:text-2xl font-black text-brand-primary break-words">
                     {currentTopic.nameEn}
                   </h2>
                   <p className="text-xs sm:text-sm font-bold text-brand-gold font-devanagari">
@@ -564,16 +590,16 @@ export default function UserGuidePage() {
                   </p>
                 </div>
               </div>
-              <p className="text-xs text-body-muted mt-2">
+              <p className="text-xs text-body-muted mt-2 leading-relaxed break-words">
                 {currentTopic.taglineEn} • <span className="font-devanagari">{currentTopic.taglineHi}</span>
               </p>
             </div>
 
             {/* Quick Action Button in Header */}
-            <div className="shrink-0 flex items-center gap-2.5">
+            <div className="shrink-0 flex items-center w-full md:w-auto">
               <Link
                 href={currentTopic.primaryCta.href}
-                className="px-5 py-2.5 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta transition-all inline-flex items-center gap-1.5"
+                className="w-full md:w-auto text-center px-5 py-2.5 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta transition-all inline-flex items-center justify-center gap-1.5 break-words"
               >
                 <span>{currentTopic.primaryCta.label}</span>
               </Link>
@@ -582,100 +608,198 @@ export default function UserGuidePage() {
 
           {/* Flowchart Section */}
           <div className="pt-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <span className="text-xs font-bold uppercase tracking-wider text-brand-primary flex items-center gap-1.5">
                 <span>🔄</span>
                 <span>Process Flowchart • प्रक्रिया प्रवाह आरेख</span>
               </span>
-              <span className="text-[11px] text-body-muted hidden sm:inline">
-                Sequential workflow from start to completion
-              </span>
-            </div>
-
-            {/* Responsive Flowchart Nodes */}
-            <div className="bg-canvas-warm/40 border border-brand-accent/30 rounded-2xl p-4 sm:p-6 overflow-x-auto">
-              <div className="flex items-center justify-between gap-2 min-w-[620px]">
-                {currentTopic.flowchartNodes.map((node, idx) => {
-                  const isLast = idx === currentTopic.flowchartNodes.length - 1;
-                  const nodeBg =
-                    node.type === "start"
-                      ? "bg-amber-100 text-amber-900 border-amber-300"
-                      : node.type === "success"
-                      ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-xs"
-                      : node.type === "decision"
-                      ? "bg-purple-100 text-purple-900 border-purple-300"
-                      : "bg-white text-brand-primary border-brand-accent/40 shadow-xs";
-
-                  return (
-                    <React.Fragment key={node.id}>
-                      <div
-                        className={`flex-1 min-w-[110px] max-w-[140px] px-3 py-2.5 rounded-xl border text-center transition-transform hover:scale-105 ${nodeBg}`}
-                      >
-                        <p className="text-xs font-black leading-tight">
-                          {node.labelEn}
-                        </p>
-                        <p className="text-[10px] font-semibold text-body-muted mt-1 font-devanagari leading-tight">
-                          {node.labelHi}
-                        </p>
-                      </div>
-                      {!isLast && (
-                        <div className="text-brand-accent shrink-0 text-lg font-black select-none">
-                          ➔
-                        </div>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+              
+              {/* Dual Mode View Switcher */}
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <span className="text-[11px] text-body-muted hidden md:inline">
+                  View mode:
+                </span>
+                <div className="inline-flex rounded-xl bg-canvas-warm p-0.5 border border-brand-accent/30 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setFlowchartMode("visual")}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                      flowchartMode === "visual"
+                        ? "bg-brand-primary text-white shadow-xs"
+                        : "text-body-text hover:text-brand-primary"
+                    }`}
+                  >
+                    ↔ Wide Chart
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFlowchartMode("steps")}
+                    className={`px-3 py-1 rounded-lg font-bold transition-all ${
+                      flowchartMode === "steps"
+                        ? "bg-brand-primary text-white shadow-xs"
+                        : "text-body-text hover:text-brand-primary"
+                    }`}
+                  >
+                    ↕ Step Map
+                  </button>
+                </div>
               </div>
             </div>
+
+            {/* Mode 1: Wide Responsive Flowchart with Scroll Cue */}
+            {flowchartMode === "visual" && (
+              <div className="relative">
+                <p className="text-[11px] text-brand-gold font-semibold mb-2 flex items-center gap-1.5 sm:hidden">
+                  <span>👉</span>
+                  <span>Swipe horizontally to view all workflow nodes</span>
+                </p>
+
+                <div className="bg-canvas-warm/40 border border-brand-accent/30 rounded-2xl p-4 sm:p-6 overflow-x-auto">
+                  <div className="flex items-center justify-between gap-2.5 min-w-[660px] pr-6 py-1">
+                    {currentTopic.flowchartNodes.map((node, idx) => {
+                      const isLast = idx === currentTopic.flowchartNodes.length - 1;
+                      const nodeBg =
+                        node.type === "start"
+                          ? "bg-amber-100 text-amber-900 border-amber-300"
+                          : node.type === "success"
+                          ? "bg-emerald-100 text-emerald-900 border-emerald-300 shadow-xs"
+                          : node.type === "decision"
+                          ? "bg-purple-100 text-purple-900 border-purple-300"
+                          : "bg-white text-brand-primary border-brand-accent/40 shadow-xs";
+
+                      return (
+                        <React.Fragment key={node.id}>
+                          <div
+                            className={`flex-1 min-w-[125px] max-w-[155px] px-3.5 py-3 rounded-2xl border text-center transition-transform hover:scale-[1.02] ${nodeBg}`}
+                          >
+                            <div className="text-[9px] font-extrabold uppercase tracking-wider mb-1 opacity-75">
+                              {node.type === "start" && "● START"}
+                              {node.type === "process" && `STEP ${idx + 1}`}
+                              {node.type === "decision" && "◆ DECISION"}
+                              {node.type === "success" && "✓ COMPLETE"}
+                            </div>
+                            <p className="text-xs font-black leading-tight break-words">
+                              {node.labelEn}
+                            </p>
+                            <p className="text-[10px] font-semibold text-body-muted mt-1 font-devanagari leading-tight break-words">
+                              {node.labelHi}
+                            </p>
+                          </div>
+                          {!isLast && (
+                            <div className="text-brand-accent shrink-0 text-base font-black select-none px-1">
+                              ➔
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Mode 2: Vertical Connected Step Map (Optimal for Mobile Viewports) */}
+            {flowchartMode === "steps" && (
+              <div className="bg-canvas-warm/40 border border-brand-accent/30 rounded-2xl p-4 sm:p-6">
+                <div className="space-y-2.5 max-w-xl mx-auto">
+                  {currentTopic.flowchartNodes.map((node, idx) => {
+                    const isLast = idx === currentTopic.flowchartNodes.length - 1;
+                    const nodeBadgeColor =
+                      node.type === "start"
+                        ? "bg-amber-500 text-white"
+                        : node.type === "success"
+                        ? "bg-emerald-600 text-white"
+                        : node.type === "decision"
+                        ? "bg-purple-600 text-white"
+                        : "bg-brand-primary text-white";
+
+                    return (
+                      <div key={node.id} className="relative">
+                        <div className="flex items-center gap-3.5 bg-white border border-brand-accent/30 rounded-2xl p-3.5 shadow-xs">
+                          <div className={`w-8 h-8 rounded-xl ${nodeBadgeColor} font-black text-xs flex items-center justify-center shrink-0 shadow-xs`}>
+                            {node.type === "start" ? "1" : node.type === "success" ? "✓" : node.type === "decision" ? "◆" : idx + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs sm:text-sm font-black text-brand-primary break-words">
+                                {node.labelEn}
+                              </p>
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-canvas-warm text-body-muted border border-brand-accent/20 shrink-0">
+                                {node.type}
+                              </span>
+                            </div>
+                            <p className="text-[11px] font-semibold text-body-muted font-devanagari mt-0.5 break-words">
+                              {node.labelHi}
+                            </p>
+                          </div>
+                        </div>
+
+                        {!isLast && (
+                          <div className="flex justify-center my-1">
+                            <div className="w-0.5 h-4 bg-brand-accent/40 relative">
+                              <div className="absolute -bottom-1 -left-[3px] text-brand-accent text-[9px]">▼</div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Step-by-Step Illustrated Cards */}
         <div className="space-y-6 mb-10">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <h3 className="text-base sm:text-lg font-black text-body-heading flex items-center gap-2">
               <span>📋</span>
-              <span>Detailed Step-by-Step Instructions • विस्तृत चरण-दर-चरण निर्देश</span>
+              <span>
+                Detailed Step-by-Step Instructions{" "}
+                <span className="text-xs sm:text-sm font-normal text-brand-gold font-devanagari block sm:inline">
+                  • विस्तृत चरण-दर-चरण निर्देश
+                </span>
+              </span>
             </h3>
-            <span className="text-xs font-bold text-brand-primary">
+            <span className="text-xs font-bold text-brand-primary self-start sm:self-auto">
               {currentTopic.steps.length} Steps
             </span>
           </div>
 
-          <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6">
             {currentTopic.steps.map((step) => (
               <div
                 key={step.stepNumber}
-                className="bg-white border-2 border-brand-accent/30 rounded-3xl p-6 sm:p-7 shadow-warm hover:border-brand-primary/40 transition-all"
+                className="bg-white border-2 border-brand-accent/30 rounded-3xl p-4 sm:p-6 md:p-7 shadow-warm hover:border-brand-primary/40 transition-all"
               >
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3.5 sm:gap-4">
                   {/* Step Number Badge */}
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-brand-primary to-brand-accent text-white font-black text-base flex items-center justify-center shrink-0 shadow-sm">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-brand-primary to-brand-accent text-white font-black text-sm sm:text-base flex items-center justify-center shrink-0 shadow-sm">
                     {step.stepNumber}
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                      <div>
-                        <h4 className="text-sm sm:text-base font-black text-brand-primary leading-tight">
+                      <div className="min-w-0">
+                        <h4 className="text-sm sm:text-base font-black text-brand-primary leading-tight break-words">
                           {step.titleEn}
                         </h4>
-                        <p className="text-xs font-bold text-brand-gold font-devanagari mt-0.5">
+                        <p className="text-xs font-bold text-brand-gold font-devanagari mt-0.5 break-words">
                           {step.titleHi}
                         </p>
                       </div>
                       {step.badge && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full va-badge-gold">
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full va-badge-gold shrink-0">
                           {step.badge}
                         </span>
                       )}
                     </div>
 
-                    <p className="text-xs text-body-text leading-relaxed mb-3">
+                    <p className="text-xs text-body-text leading-relaxed mb-3 break-words">
                       {step.descriptionEn}
                     </p>
-                    <p className="text-xs text-body-muted leading-relaxed mb-4 font-devanagari bg-canvas-warm/30 p-2.5 rounded-xl border border-brand-accent/20">
+                    <p className="text-xs text-body-muted leading-relaxed mb-4 font-devanagari bg-canvas-warm/30 p-2.5 rounded-xl border border-brand-accent/20 break-words">
                       {step.descriptionHi}
                     </p>
 
@@ -687,9 +811,9 @@ export default function UserGuidePage() {
                         </p>
                         <ul className="space-y-1.5">
                           {step.keyPoints.map((point, pIdx) => (
-                            <li key={pIdx} className="text-xs text-body-text flex items-start gap-2">
+                            <li key={pIdx} className="text-xs text-body-text flex items-start gap-2 break-words">
                               <span className="text-emerald-600 font-bold shrink-0">✓</span>
-                              <span>{point}</span>
+                              <span className="break-words">{point}</span>
                             </li>
                           ))}
                         </ul>
@@ -700,10 +824,10 @@ export default function UserGuidePage() {
                     {step.proTipEn && (
                       <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
                         <span className="text-base shrink-0">💡</span>
-                        <div>
+                        <div className="min-w-0 break-words">
                           <strong>Pro Tip:</strong> {step.proTipEn}
                           {step.proTipHi && (
-                            <span className="block text-[11px] text-amber-900/90 mt-1 font-devanagari">
+                            <span className="block text-[11px] text-amber-900/90 mt-1 font-devanagari break-words">
                               <strong>सुझाव:</strong> {step.proTipHi}
                             </span>
                           )}
@@ -719,7 +843,7 @@ export default function UserGuidePage() {
 
         {/* Topic Specific FAQs */}
         {currentTopic.faqs.length > 0 && (
-          <div className="bg-white border border-brand-accent/30 rounded-3xl p-6 sm:p-8 shadow-warm mb-10">
+          <div className="bg-white border border-brand-accent/30 rounded-3xl p-4 sm:p-6 md:p-8 shadow-warm mb-10">
             <h3 className="text-sm font-black text-brand-primary uppercase tracking-wider mb-4 flex items-center gap-2 border-b border-brand-accent/20 pb-2">
               <span>❓</span>
               <span>Frequently Asked Regarding this Process • संबंधित प्रश्न</span>
@@ -728,16 +852,16 @@ export default function UserGuidePage() {
             <div className="space-y-4 divide-y divide-brand-accent/15">
               {currentTopic.faqs.map((faq, idx) => (
                 <div key={idx} className={idx > 0 ? "pt-4" : ""}>
-                  <p className="text-xs font-bold text-body-heading mb-0.5">
+                  <p className="text-xs font-bold text-body-heading mb-0.5 break-words">
                     Q: {faq.qEn}
                   </p>
-                  <p className="text-[11px] font-semibold text-brand-gold font-devanagari mb-1.5">
+                  <p className="text-[11px] font-semibold text-brand-gold font-devanagari mb-1.5 break-words">
                     प्र: {faq.qHi}
                   </p>
-                  <p className="text-xs text-body-muted leading-relaxed">
+                  <p className="text-xs text-body-muted leading-relaxed break-words">
                     {faq.aEn}
                   </p>
-                  <p className="text-xs text-body-muted/90 leading-relaxed font-devanagari mt-1">
+                  <p className="text-xs text-body-muted/90 leading-relaxed font-devanagari mt-1 break-words">
                     {faq.aHi}
                   </p>
                 </div>
@@ -747,20 +871,20 @@ export default function UserGuidePage() {
         )}
 
         {/* Bottom CTA & Support Bar */}
-        <div className="bg-gradient-to-r from-[#7a1818] via-[#a12820] to-[#b8381e] text-white rounded-3xl p-6 sm:p-8 shadow-warm text-center flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="text-center sm:text-left">
+        <div className="bg-gradient-to-r from-[#7a1818] via-[#a12820] to-[#b8381e] text-white rounded-3xl p-5 sm:p-8 shadow-warm flex flex-col sm:flex-row items-center justify-between gap-5 sm:gap-6">
+          <div className="text-center sm:text-left min-w-0">
             <h3 className="text-lg font-black leading-tight">
               Ready to take action?
             </h3>
-            <p className="text-xs text-amber-100 mt-1">
+            <p className="text-xs text-amber-100 mt-1 break-words">
               Follow this flow to join the global family or explore verified Agarwal households worldwide.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto shrink-0">
             <Link
               href={currentTopic.primaryCta.href}
-              className="px-6 py-2.5 rounded-full text-xs font-bold bg-white text-brand-primary hover:bg-amber-50 shadow-md transition-all"
+              className="w-full sm:w-auto text-center px-6 py-2.5 rounded-full text-xs font-bold bg-white text-brand-primary hover:bg-amber-50 shadow-md transition-all break-words"
             >
               {currentTopic.primaryCta.label}
             </Link>
@@ -771,14 +895,14 @@ export default function UserGuidePage() {
                   href={currentTopic.secondaryCta.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-4 py-2.5 rounded-full text-xs font-bold bg-white/15 hover:bg-white/25 text-white border border-white/30 transition-all inline-flex items-center gap-1.5"
+                  className="w-full sm:w-auto text-center px-4 py-2.5 rounded-full text-xs font-bold bg-white/15 hover:bg-white/25 text-white border border-white/30 transition-all inline-flex items-center justify-center gap-1.5 break-words"
                 >
                   {currentTopic.secondaryCta.label}
                 </a>
               ) : (
                 <Link
                   href={currentTopic.secondaryCta.href}
-                  className="px-4 py-2.5 rounded-full text-xs font-bold bg-white/15 hover:bg-white/25 text-white border border-white/30 transition-all"
+                  className="w-full sm:w-auto text-center px-4 py-2.5 rounded-full text-xs font-bold bg-white/15 hover:bg-white/25 text-white border border-white/30 transition-all break-words"
                 >
                   {currentTopic.secondaryCta.label}
                 </Link>
@@ -789,7 +913,7 @@ export default function UserGuidePage() {
 
         {/* Still Need Assistance Banner */}
         <div className="mt-8 text-center text-xs text-body-muted">
-          <p>
+          <p className="break-words">
             Still have questions or need assistance? Reach our Secretariat on WhatsApp:{" "}
             <a
               href="https://wa.me/6592774444"

@@ -22,7 +22,7 @@ export default function TopNavBar() {
                 Home
               </Link>
             </li>
-            <li>
+            <li className="hidden xl:inline">
               <Link href="/#pillars" className="hover:text-white hover:underline transition-colors">
                 7 Strategic Pillars
               </Link>
@@ -32,7 +32,7 @@ export default function TopNavBar() {
                 18 Gotras Directory
               </Link>
             </li>
-            <li>
+            <li className="hidden lg:inline">
               <Link href="/dashboard/messages" className="hover:text-white hover:underline transition-colors flex items-center gap-1">
                 <span>💬</span>
                 <span>Messages</span>
@@ -44,7 +44,7 @@ export default function TopNavBar() {
                 <span>User Guide</span>
               </Link>
             </li>
-            <li>
+            <li className="hidden xl:inline">
               <Link href="/#appeal" className="hover:text-white hover:underline transition-colors">
                 Founder&apos;s Appeal
               </Link>
