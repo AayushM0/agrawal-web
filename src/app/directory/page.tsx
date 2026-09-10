@@ -126,7 +126,7 @@ function DirectoryContent() {
           <p className="text-xs text-body-muted mt-2.5 sm:mt-3 pl-1 flex items-center gap-1.5">
             <span className="text-brand-accent font-bold">💡</span>
             <span>
-              If want to search by gotra, use{" "}
+              To search by Gotra, please use the{" "}
               <button
                 type="button"
                 onClick={() => {
@@ -138,6 +138,7 @@ function DirectoryContent() {
               >
                 filter
               </button>
+              .
             </span>
           </p>
         </div>
