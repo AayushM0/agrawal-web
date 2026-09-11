@@ -193,6 +193,10 @@ export default function DashboardPage() {
   async function loadData() {
     setIsLoading(true);
     const res = await getCurrentHouseholdDashboard();
+    if (res.isPendingApproval) {
+      router.push("/pending-approval");
+      return;
+    }
     if (res.success && res.household) {
       setHousehold(res.household);
       setSessionContact(res.sessionContact);

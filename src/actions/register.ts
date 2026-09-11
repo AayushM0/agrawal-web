@@ -4,7 +4,6 @@ import { db } from "../lib/db";
 import type { Household, Member } from "../types/household";
 import { gotras } from "../data/gotras";
 import { normalizePhoneNumber } from "@/lib/phone";
-import { createSession } from "./auth";
 import { validateProfileImage } from "@/lib/image-validator";
 import { validatePassword, hashPassword } from "@/lib/auth-crypto";
 
@@ -354,19 +353,8 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
 
   const created = await db.createHousehold(newHousehold);
 
-  // Automatically establish logged-in session for the newly registered Head of Household
+  // Find assigned serial number from created record
   const headMember = await db.getMemberByContact(canonicalContact);
-  const effectiveUserId = headMember?.id || created.id;
-
-  await createSession({
-    userId: String(effectiveUserId),
-    role: "head",
-    contact: canonicalContact,
-    householdStatus: "pending_review",
-    isActivated: false,
-    hasPassword: Boolean(passwordHash),
-  });
-
   const primarySerial = headMember?.serialNo || created.members?.[0]?.serialNo || created.serialNo || householdCode;
 
   return {
@@ -411,4 +399,54 @@ export async function checkContactRegistration(contact: string, excludeMemberId?
     };
   }
   return { isRegistered: false };
+}
+
+export async function getApplicationStatus(reference: string): Promise<{
+  found: boolean;
+  status?: "pending_review" | "live" | "rejected";
+  serialNo?: string;
+  headName?: string;
+  gotra?: string;
+  nativePlace?: string;
+  city?: string;
+  country?: string;
+  createdAt?: string;
+  rejectionReason?: string;
+  error?: string;
+}> {
+  if (!reference || reference.trim().length < 2) {
+    return { found: false, error: "Please enter a valid Serial Number, Application Code, or contact." };
+  }
+
+  const clean = reference.trim();
+  const isEmail = clean.includes("@");
+  const isPhone = !isEmail && /^[+0-9\s\-()]+$/.test(clean) && clean.replace(/[^0-9]/g, "").length >= 7;
+
+  let household: any = null;
+
+  if (isEmail || isPhone) {
+    const canonical = isPhone ? normalizePhoneNumber(clean) : clean.toLowerCase();
+    household = await db.getHouseholdByContact(canonical);
+  }
+
+  if (!household) {
+    household = (await db.getHouseholdById(clean)) || (await db.getHouseholdById(clean.toUpperCase()));
+  }
+
+  if (!household) {
+    return { found: false, error: "No registration record found matching this reference." };
+  }
+
+  return {
+    found: true,
+    status: household.status,
+    serialNo: household.serialNo || household.householdCode,
+    headName: household.headName,
+    gotra: household.gotra,
+    nativePlace: household.nativePlace,
+    city: household.city,
+    country: household.country,
+    createdAt: household.createdAt ? String(household.createdAt) : undefined,
+    rejectionReason: household.status === "rejected" ? household.rejectionReason : undefined,
+  };
 }

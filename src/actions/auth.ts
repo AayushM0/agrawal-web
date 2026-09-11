@@ -60,8 +60,26 @@ export async function loginWithVerifiedContact(contact: string): Promise<{ succe
       return { success: false, role: "head", error: "No registered member found for this contact." };
     }
 
+    const effectiveHousehold = household || (member?.householdId ? await db.getHouseholdById(member.householdId) : null);
+    const effectiveStatus = effectiveHousehold?.status || "live";
+
+    if (effectiveStatus === "pending_review") {
+      return {
+        success: false,
+        role: "head",
+        error: "Activation Pending: Your family registration is awaiting administrative verification before login can be enabled.",
+      };
+    }
+
+    if (effectiveStatus === "rejected") {
+      return {
+        success: false,
+        role: "head",
+        error: "This registration application was not approved by the administrator.",
+      };
+    }
+
     const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
-    const effectiveStatus = household?.status || "live";
 
     await createSession({
       userId: String(effectiveUserId),
@@ -90,6 +108,8 @@ export async function loginWithPassword(params: {
   role?: "head" | "member";
   householdStatus?: string;
   needsActivation?: boolean;
+  isPendingApproval?: boolean;
+  householdCode?: string;
   contact?: string;
   error?: string;
 }> {
@@ -107,7 +127,7 @@ export async function loginWithPassword(params: {
   const canonicalContact = isEmail ? clean.toLowerCase() : normalizePhoneNumber(clean);
 
   // 1. Concurrently check lockout and look up account to minimize cross-region latency
-  const [lockout, member, household] = await Promise.all([
+  const [lockout, member, householdDirect] = await Promise.all([
     checkLoginLockout(canonicalContact, clientIp),
     db.getMemberByContact(canonicalContact),
     db.getHouseholdByContact(canonicalContact),
@@ -121,8 +141,28 @@ export async function loginWithPassword(params: {
   }
 
   try {
+    const storedHash = member?.passwordHash || householdDirect?.passwordHash;
+    const household = householdDirect || (member?.householdId ? await db.getHouseholdById(member.householdId) : null);
+    const effectiveStatus = household?.status || member?.householdStatus || "live";
+    const householdCode = household?.serialNo || household?.householdCode || "";
 
-    const storedHash = member?.passwordHash || household?.passwordHash;
+    // 2. Strict approval gating: unapproved households cannot log in or activate
+    if (effectiveStatus === "pending_review") {
+      return {
+        success: false,
+        isPendingApproval: true,
+        householdCode,
+        contact: canonicalContact,
+        error: "Activation Pending: Your family registration is currently awaiting administrative approval and identity verification. Once verified, your login will be activated.",
+      };
+    }
+
+    if (effectiveStatus === "rejected") {
+      return {
+        success: false,
+        error: `Your registration application was not approved. ${household?.rejectionReason ? "Reason: " + household.rejectionReason : "Please contact community support."}`,
+      };
+    }
 
     // Detect unactivated accounts registered without upfront password
     if (!storedHash && (member || household)) {
@@ -153,7 +193,6 @@ export async function loginWithPassword(params: {
 
     const effectiveUserId = member?.id || household?.id;
     const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
-    const effectiveStatus = household?.status || member?.householdStatus || "live";
 
     await createSession({
       userId: String(effectiveUserId),
@@ -236,10 +275,27 @@ export async function resetPasswordWithOtp(params: {
 
   // 3. Resolve user account
   const member = await db.getMemberByContact(cleanEmail);
-  const household = await db.getHouseholdByContact(cleanEmail);
+  const householdDirect = await db.getHouseholdByContact(cleanEmail);
 
-  if (!member && !household) {
+  if (!member && !householdDirect) {
     return { success: false, error: "No registered account found matching this email." };
+  }
+
+  const household = householdDirect || (member?.householdId ? await db.getHouseholdById(member.householdId) : null);
+  const effectiveStatus = household?.status || member?.householdStatus || "live";
+
+  if (effectiveStatus === "pending_review") {
+    return {
+      success: false,
+      error: "Activation Pending: Your family registration is awaiting administrative verification before account credentials can be updated.",
+    };
+  }
+
+  if (effectiveStatus === "rejected") {
+    return {
+      success: false,
+      error: "This registration application was not approved by the administrator.",
+    };
   }
 
   // 4. Hash new password (cost factor 12)
@@ -260,7 +316,6 @@ export async function resetPasswordWithOtp(params: {
   // 6. Establish fresh session automatically
   const effectiveUserId = member?.id || household?.id;
   const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
-  const effectiveStatus = household?.status || member?.householdStatus || "live";
 
   await createSession({
     userId: String(effectiveUserId),
@@ -306,10 +361,27 @@ export async function activateAccountWithOtp(params: {
 
   // 3. Resolve user account
   const member = await db.getMemberByContact(canonicalContact);
-  const household = await db.getHouseholdByContact(canonicalContact);
+  const householdDirect = await db.getHouseholdByContact(canonicalContact);
 
-  if (!member && !household) {
+  if (!member && !householdDirect) {
     return { success: false, error: "No registered account found matching this contact." };
+  }
+
+  const household = householdDirect || (member?.householdId ? await db.getHouseholdById(member.householdId) : null);
+  const effectiveStatus = household?.status || member?.householdStatus || "live";
+
+  if (effectiveStatus === "pending_review") {
+    return {
+      success: false,
+      error: "Activation Pending: Your family registration is currently awaiting administrative verification and approval. Account activation is locked until your application is approved.",
+    };
+  }
+
+  if (effectiveStatus === "rejected") {
+    return {
+      success: false,
+      error: "This registration application was not approved by the administrator.",
+    };
   }
 
   // 4. Hash new password (cost factor 12)
@@ -329,7 +401,6 @@ export async function activateAccountWithOtp(params: {
   // 6. Issue upgraded session with isActivated: true and hasPassword: true
   const effectiveUserId = member?.id || household?.id;
   const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
-  const effectiveStatus = household?.status || member?.householdStatus || "live";
 
   await createSession({
     userId: String(effectiveUserId),

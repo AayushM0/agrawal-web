@@ -173,6 +173,12 @@ export default function LoginPage() {
     });
     setIsSubmitting(false);
 
+    if (loginRes.isPendingApproval) {
+      const refParam = encodeURIComponent(loginRes.householdCode || contact.trim());
+      router.push(`/pending-approval?ref=${refParam}`);
+      return;
+    }
+
     if (loginRes.needsActivation) {
       setIsActivationMode(true);
       if (loginRes.contact) {

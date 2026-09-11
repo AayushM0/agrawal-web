@@ -787,22 +787,22 @@ export default function SignupPage() {
                 #{successCode}
               </div>
               <span className="text-[10px] text-body-muted mt-1 block">
-                Save this official serial number for logging in and referencing your family card.
+                Save this official serial number for tracking your verification and logging in once approved.
               </span>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link
-                href="/dashboard"
-                className="w-full sm:w-auto px-6 py-3 rounded-full text-xs font-bold text-white va-btn-maroon shadow-md"
+                href={`/pending-approval?ref=${encodeURIComponent(successCode)}`}
+                className="w-full sm:w-auto px-6 py-3 rounded-full text-xs font-bold text-white va-btn-maroon shadow-md flex items-center justify-center gap-1.5"
               >
-                Go to Household Dashboard →
+                Check Application Status →
               </Link>
               <Link
-                href="/directory"
-                className="w-full sm:w-auto px-6 py-3 rounded-full text-xs font-bold text-brand-primary bg-canvas-warm border border-brand-accent hover:bg-white"
+                href="/"
+                className="w-full sm:w-auto px-6 py-3 rounded-full text-xs font-bold text-brand-primary bg-canvas-warm border border-brand-accent/40 hover:bg-white flex items-center justify-center"
               >
-                Browse Directory
+                Return to Home
               </Link>
             </div>
           </div>

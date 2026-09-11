@@ -64,6 +64,9 @@ export async function middleware(req: NextRequest) {
     if (session.role === "admin") {
       return NextResponse.redirect(new URL("/admin/moderation", req.url));
     }
+    if (session.householdStatus === "pending_review") {
+      return NextResponse.redirect(new URL("/pending-approval", req.url));
+    }
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
@@ -76,7 +79,19 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // 3. Enforce Strict Auth in Production or when ENFORCE_STRICT_AUTH === "true"
+  // 3. Approval Gating: If session is present but registration is unapproved, block dashboard & directory
+  if ((isProtectedDirectoryRoute || isProtectedDashboardRoute) && session && session.role !== "admin") {
+    if (session.householdStatus === "pending_review") {
+      return NextResponse.redirect(new URL("/pending-approval", req.url));
+    }
+    if (session.householdStatus === "rejected") {
+      const loginUrl = new URL("/login", req.url);
+      loginUrl.searchParams.set("error", "rejected");
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  // 4. Enforce Strict Auth in Production or when ENFORCE_STRICT_AUTH === "true"
   const isStrictAuth = process.env.NODE_ENV === "production" || process.env.ENFORCE_STRICT_AUTH === "true";
   if ((isProtectedDirectoryRoute || isProtectedDashboardRoute) && !session && isStrictAuth) {
     const loginUrl = new URL("/login", req.url);
@@ -84,7 +99,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 4. Directory route requires an activated account (protect community member contacts)
+  // 5. Directory route requires an activated account (protect community member contacts)
   if (isProtectedDirectoryRoute && session && session.isActivated === false) {
     const dashboardUrl = new URL("/dashboard", req.url);
     dashboardUrl.searchParams.set("activate", "required");
