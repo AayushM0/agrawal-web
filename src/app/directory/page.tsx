@@ -449,7 +449,7 @@ function DirectoryContent() {
                   >
                     <div>
                       <div className="flex items-start justify-between gap-2 mb-3">
-                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
                           <div className="w-10 h-10 rounded-full overflow-hidden bg-brand-accent/20 border border-brand-accent/40 flex items-center justify-center text-brand-primary font-black text-sm shrink-0">
                             {m.photoUrl ? (
                               <img
@@ -461,28 +461,40 @@ function DirectoryContent() {
                               m.fullName?.charAt(0) || "A"
                             )}
                           </div>
-                          <div className="min-w-0">
-                            <h4 className="text-sm font-bold text-brand-primary leading-tight truncate">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-sm font-bold text-brand-primary leading-tight truncate" title={m.fullName}>
                               {m.fullName}
                             </h4>
-                            <div className="flex items-center gap-1.5 text-[11px] text-brand-gold font-semibold font-devanagari">
-                              <span className="truncate">Gotra: {m.gotra}</span>
-                              {m.age !== null && m.age !== undefined ? (
-                                <span className="text-[10px] font-sans font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded">
-                                  Age {m.age} yrs
-                                </span>
-                              ) : m.birthYear ? (
-                                <span className="text-[10px] font-sans font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded">
-                                  Born {m.birthYear}
-                                </span>
-                              ) : null}
-                            </div>
+                            <p className="text-[11px] text-brand-gold font-semibold font-devanagari truncate mt-0.5">
+                              Gotra: {m.gotra}
+                            </p>
                           </div>
                         </div>
 
-                        <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full va-badge-gold shrink-0">
-                          #{m.serialNo || m.householdCode}
-                        </span>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          {(() => {
+                            const rawCode = String(m.serialNo || m.householdCode || "");
+                            const shortCode = rawCode.length > 4 ? rawCode.slice(-4) : rawCode;
+                            return (
+                              <span
+                                title={rawCode ? `ID: #${rawCode}` : undefined}
+                                className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md va-badge-gold shrink-0 cursor-help"
+                              >
+                                #{shortCode}
+                              </span>
+                            );
+                          })()}
+
+                          {m.age !== null && m.age !== undefined ? (
+                            <span className="text-[10px] font-sans font-bold bg-amber-100/90 text-amber-900 px-1.5 py-0.5 rounded shrink-0">
+                              Age {m.age} yrs
+                            </span>
+                          ) : m.birthYear ? (
+                            <span className="text-[10px] font-sans font-bold bg-amber-100/90 text-amber-900 px-1.5 py-0.5 rounded shrink-0">
+                              Born {m.birthYear}
+                            </span>
+                          ) : null}
+                        </div>
                       </div>
 
                       <div className="space-y-1 text-xs text-body-text mb-4">
