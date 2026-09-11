@@ -8,6 +8,10 @@ export type CountryDialCode = CountryItem;
 export const POPULAR_COUNTRY_DIAL_CODES = POPULAR_COUNTRIES;
 export const ALL_COUNTRY_DIAL_CODES = ALL_COUNTRIES;
 
+const SORTED_COUNTRIES_BY_DIAL_LEN = [...ALL_COUNTRIES]
+  .filter((c) => c.dialCode !== "+")
+  .sort((a, b) => b.dialCode.length - a.dialCode.length);
+
 
 interface PhoneInputWithCountryProps {
   value: string;
@@ -53,10 +57,7 @@ export default function PhoneInputWithCountry({
     }
     const clean = value.trim();
     if (clean.startsWith("+")) {
-      const sorted = [...ALL_COUNTRIES]
-        .filter((c) => c.dialCode !== "+")
-        .sort((a, b) => b.dialCode.length - a.dialCode.length);
-      const matched = sorted.find((c) => clean.startsWith(c.dialCode));
+      const matched = SORTED_COUNTRIES_BY_DIAL_LEN.find((c) => clean.startsWith(c.dialCode));
       if (matched) {
         setSelectedDialCode(matched.dialCode);
         const remainder = clean.slice(matched.dialCode.length).trim();
@@ -72,19 +73,18 @@ export default function PhoneInputWithCountry({
     if (onCountryChange) {
       onCountryChange(newDialCode);
     }
-    const rawDigits = nationalNumber.replace(/[^0-9]/g, "").replace(/^0+/, "");
+    const rawDigits = nationalNumber.replace(/\D/g, "").replace(/^0+/, "");
     const full = rawDigits ? `${newDialCode} ${rawDigits}` : "";
     onChange(full, newDialCode, rawDigits);
   };
 
   const handleNationalNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawVal = e.target.value;
-    // Allow digits, spaces, hyphens
     const cleaned = rawVal.replace(/[^0-9\s-]/g, "");
     setNationalNumber(cleaned);
     
-    // Strip leading national trunk prefix (e.g. 09876543210 -> 9876543210)
-    const rawDigits = cleaned.replace(/[^0-9]/g, "").replace(/^0+/, "");
+    // Strip non-digits and leading zeros in one pass
+    const rawDigits = cleaned.replace(/\D/g, "").replace(/^0+/, "");
     const full = rawDigits ? `${selectedDialCode} ${rawDigits}` : "";
     onChange(full, selectedDialCode, rawDigits);
   };

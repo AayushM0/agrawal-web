@@ -46,13 +46,8 @@ function ClaimContent() {
     setIsLoadingDetails(false);
     if (res.success && res.member) {
       setMemberDetails(res.member);
-      if (res.member.existingEmail) {
-        setContactType("email");
-        setContactValue(res.member.existingEmail);
-      } else {
-        setContactType("email");
-        setContactValue("");
-      }
+      setContactType("email");
+      setContactValue("");
     } else {
       setTokenError(res.error || "Unable to find member associated with this claim token.");
       setMemberDetails(null);
@@ -260,9 +255,9 @@ function ClaimContent() {
               <label className="block text-xs font-bold text-body-heading mb-1.5">
                 Verification Email Address (ईमेल सत्यापन)
               </label>
-              {memberDetails.existingEmail ? (
+              {memberDetails.maskedEmail ? (
                 <p className="text-[11px] text-body-muted mb-2">
-                  This profile was registered by the Head of Household with email: <strong>{memberDetails.existingEmail}</strong>. A 6-digit passcode will be sent here to verify and claim your profile.
+                  This profile was registered with email: <strong className="font-mono text-brand-primary">{memberDetails.maskedEmail}</strong>. Please enter your full registered email below to receive the 6-digit verification passcode.
                 </p>
               ) : (
                 <p className="text-[11px] text-body-muted mb-2">
@@ -275,13 +270,8 @@ function ClaimContent() {
                   type="email"
                   value={contactValue}
                   onChange={(e) => handleContactChange(e.target.value)}
-                  readOnly={!!memberDetails.existingEmail}
-                  placeholder="member@example.com"
-                  className={`w-full sm:flex-1 px-4 py-2.5 rounded-xl border text-xs text-body-heading focus:ring-2 focus:ring-brand-primary ${
-                    memberDetails.existingEmail
-                      ? "bg-canvas-warm/50 border-brand-accent/30 cursor-not-allowed text-body-muted font-medium"
-                      : "bg-canvas-warm/30 border-brand-accent/40"
-                  }`}
+                  placeholder="Enter your registered email (e.g. name@example.com)"
+                  className="w-full sm:flex-1 px-4 py-2.5 rounded-xl border text-xs text-body-heading bg-canvas-warm/30 border-brand-accent/40 focus:ring-2 focus:ring-brand-primary"
                 />
                 <button
                   type="button"

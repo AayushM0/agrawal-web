@@ -4,6 +4,7 @@ import { db } from "../lib/db";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { verifyOtp } from "./otp";
 import { createSession } from "./auth";
+import { maskPhone, maskEmail } from "@/lib/privacy";
 
 function parseMemberIdFromToken(token: string): string | null {
   if (!token || !token.trim()) return null;
@@ -80,8 +81,10 @@ export async function getClaimMemberDetails(token: string) {
       gotra: member.gotra,
       currentCity: member.currentCity,
       alreadyClaimed: !!member.ownerLocked,
-      existingPhone: member.phone || null,
-      existingEmail: member.email || null,
+      maskedPhone: member.phone ? maskPhone(member.phone) : null,
+      maskedEmail: member.email ? maskEmail(member.email) : null,
+      hasRegisteredEmail: Boolean(member.email && member.email.trim()),
+      hasRegisteredPhone: Boolean(member.phone && member.phone.trim()),
     },
   };
 }
@@ -143,7 +146,7 @@ export async function verifyMemberClaim(input: VerifyMemberClaimInput | string) 
     if (canonicalContact !== member.email.trim().toLowerCase()) {
       return {
         success: false,
-        error: `This profile can only be claimed using the registered email address (${member.email.trim().toLowerCase()}).`,
+        error: "This profile can only be claimed using the registered email address associated with it.",
       };
     }
   }

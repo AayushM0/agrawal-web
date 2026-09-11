@@ -77,10 +77,7 @@ export async function searchDirectory(filters: SearchFilters = {}) {
     let cleanMinAge = sanitizeAgeBound(filters.minAge);
     let cleanMaxAge = sanitizeAgeBound(filters.maxAge);
     if (cleanMinAge !== null && cleanMaxAge !== null && cleanMinAge > cleanMaxAge) {
-      // Swap if user inverted bounds
-      const temp = cleanMinAge;
-      cleanMinAge = cleanMaxAge;
-      cleanMaxAge = temp;
+      [cleanMinAge, cleanMaxAge] = [cleanMaxAge, cleanMinAge];
     }
 
     const validMaritalStatus = sanitizeMaritalStatus(filters.maritalStatus);
@@ -107,15 +104,7 @@ export async function searchDirectory(filters: SearchFilters = {}) {
 
     // Filter by Surname
     if (cleanSurname) {
-      results = results.filter((m) => {
-        const full = (m.fullName || "").toLowerCase().trim();
-        const parts = full.split(/\s+/);
-        // Matches last token or trailing word
-        if (parts.length > 1 && parts[parts.length - 1].includes(cleanSurname)) {
-          return true;
-        }
-        return full.includes(cleanSurname);
-      });
+      results = results.filter((m) => (m.fullName || "").toLowerCase().includes(cleanSurname));
     }
 
     // Filter by Gotra (Strict Whitelist Check)
@@ -199,6 +188,7 @@ export async function searchDirectory(filters: SearchFilters = {}) {
       photoUrl: m.visibility?.photo === "hidden" || m.visibility_photo === "hidden" ? undefined : m.photoUrl,
       gotra: m.gotra,
       birthYear: extractBirthYear(m.dob),
+      age: calculateAge(m.dob),
       nativePlace: m.nativePlace,
       householdCode: m.householdCode,
       serialNo: m.serialNo,
