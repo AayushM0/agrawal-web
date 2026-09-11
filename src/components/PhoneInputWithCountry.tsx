@@ -2,64 +2,12 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 
-export interface CountryDialCode {
-  name: string;
-  code: string;
-  dialCode: string;
-  flag: string;
-}
+import { ALL_COUNTRIES, POPULAR_COUNTRIES, CountryItem } from "@/data/countries";
 
-export const POPULAR_COUNTRY_DIAL_CODES: CountryDialCode[] = [
-  { name: "India", code: "IN", dialCode: "+91", flag: "🇮🇳" },
-  { name: "Singapore", code: "SG", dialCode: "+65", flag: "🇸🇬" },
-  { name: "United Arab Emirates", code: "AE", dialCode: "+971", flag: "🇦🇪" },
-  { name: "United States", code: "US", dialCode: "+1", flag: "🇺🇸" },
-  { name: "United Kingdom", code: "GB", dialCode: "+44", flag: "🇬🇧" },
-  { name: "Australia", code: "AU", dialCode: "+61", flag: "🇦🇺" },
-  { name: "Canada", code: "CA", dialCode: "+1", flag: "🇨🇦" },
-  { name: "Nepal", code: "NP", dialCode: "+977", flag: "🇳🇵" },
-  { name: "Malaysia", code: "MY", dialCode: "+60", flag: "🇲🇾" },
-  { name: "Thailand", code: "TH", dialCode: "+66", flag: "🇹🇭" },
-  { name: "Saudi Arabia", code: "SA", dialCode: "+966", flag: "🇸🇦" },
-  { name: "Qatar", code: "QA", dialCode: "+974", flag: "🇶🇦" },
-  { name: "Oman", code: "OM", dialCode: "+968", flag: "🇴🇲" },
-  { name: "Kuwait", code: "KW", dialCode: "+965", flag: "🇰🇼" },
-  { name: "Bahrain", code: "BH", dialCode: "+973", flag: "🇧🇭" },
-  { name: "Germany", code: "DE", dialCode: "+49", flag: "🇩🇪" },
-  { name: "France", code: "FR", dialCode: "+33", flag: "🇫🇷" },
-  { name: "Netherlands", code: "NL", dialCode: "+31", flag: "🇳🇱" },
-  { name: "Switzerland", code: "CH", dialCode: "+41", flag: "🇨🇭" },
-  { name: "Hong Kong", code: "HK", dialCode: "+852", flag: "🇭🇰" },
-  { name: "Japan", code: "JP", dialCode: "+81", flag: "🇯🇵" },
-  { name: "Indonesia", code: "ID", dialCode: "+62", flag: "🇮🇩" },
-  { name: "New Zealand", code: "NZ", dialCode: "+64", flag: "🇳🇿" },
-  { name: "Mauritius", code: "MU", dialCode: "+230", flag: "🇲🇺" },
-  { name: "Kenya", code: "KE", dialCode: "+254", flag: "🇰🇪" },
-  { name: "South Africa", code: "ZA", dialCode: "+27", flag: "🇿🇦" },
-  { name: "Nigeria", code: "NG", dialCode: "+234", flag: "🇳🇬" },
-  { name: "Bangladesh", code: "BD", dialCode: "+880", flag: "🇧🇩" },
-  { name: "Sri Lanka", code: "LK", dialCode: "+94", flag: "🇱🇰" },
-  { name: "Philippines", code: "PH", dialCode: "+63", flag: "🇵🇭" },
-  { name: "Vietnam", code: "VN", dialCode: "+84", flag: "🇻🇳" },
-  { name: "Ireland", code: "IE", dialCode: "+353", flag: "🇮🇪" },
-  { name: "Italy", code: "IT", dialCode: "+39", flag: "🇮🇹" },
-  { name: "Spain", code: "ES", dialCode: "+34", flag: "🇪🇸" },
-  { name: "Sweden", code: "SE", dialCode: "+46", flag: "🇸🇪" },
-  { name: "Belgium", code: "BE", dialCode: "+32", flag: "🇧🇪" },
-  { name: "Austria", code: "AT", dialCode: "+43", flag: "🇦🇹" },
-  { name: "Poland", code: "PL", dialCode: "+48", flag: "🇵🇱" },
-  { name: "Portugal", code: "PT", dialCode: "+351", flag: "🇵🇹" },
-  { name: "Norway", code: "NO", dialCode: "+47", flag: "🇳🇴" },
-  { name: "Denmark", code: "DK", dialCode: "+45", flag: "🇩🇰" },
-  { name: "Finland", code: "FI", dialCode: "+358", flag: "🇫🇮" },
-  { name: "Brazil", code: "BR", dialCode: "+55", flag: "🇧🇷" },
-  { name: "Mexico", code: "MX", dialCode: "+52", flag: "🇲🇽" },
-  { name: "Argentina", code: "AR", dialCode: "+54", flag: "🇦🇷" },
-  { name: "Israel", code: "IL", dialCode: "+972", flag: "🇮🇱" },
-  { name: "Turkey", code: "TR", dialCode: "+90", flag: "🇹🇷" },
-  { name: "Egypt", code: "EG", dialCode: "+20", flag: "🇪🇬" },
-  { name: "Other / International", code: "INT", dialCode: "+", flag: "🌐" },
-];
+export type CountryDialCode = CountryItem;
+export const POPULAR_COUNTRY_DIAL_CODES = POPULAR_COUNTRIES;
+export const ALL_COUNTRY_DIAL_CODES = ALL_COUNTRIES;
+
 
 interface PhoneInputWithCountryProps {
   value: string;
@@ -105,7 +53,7 @@ export default function PhoneInputWithCountry({
     }
     const clean = value.trim();
     if (clean.startsWith("+")) {
-      const sorted = [...POPULAR_COUNTRY_DIAL_CODES]
+      const sorted = [...ALL_COUNTRIES]
         .filter((c) => c.dialCode !== "+")
         .sort((a, b) => b.dialCode.length - a.dialCode.length);
       const matched = sorted.find((c) => clean.startsWith(c.dialCode));
@@ -152,11 +100,20 @@ export default function PhoneInputWithCountry({
           aria-label="Select Country Dialing Code"
           className="w-full appearance-none bg-transparent pl-2 pr-5 py-2.5 sm:py-3 text-xs font-bold text-brand-primary cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed truncate"
         >
-          {POPULAR_COUNTRY_DIAL_CODES.map((c) => (
-            <option key={`${c.code}-${c.dialCode}`} value={c.dialCode} className="text-body-heading bg-white py-1">
-              {c.flag} {c.dialCode} ({c.name})
-            </option>
-          ))}
+          <optgroup label="Popular Countries">
+            {POPULAR_COUNTRIES.map((c) => (
+              <option key={`pop-${c.code}-${c.dialCode}`} value={c.dialCode} className="text-body-heading bg-white py-1">
+                {c.flag} {c.dialCode} ({c.name})
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="All Countries">
+            {ALL_COUNTRIES.map((c) => (
+              <option key={`all-${c.code}-${c.dialCode}`} value={c.dialCode} className="text-body-heading bg-white py-1">
+                {c.flag} {c.dialCode} ({c.name})
+              </option>
+            ))}
+          </optgroup>
         </select>
         <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-brand-primary/70">
           ▼

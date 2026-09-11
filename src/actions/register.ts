@@ -144,15 +144,15 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     if (!cleanAadhaar || cleanAadhaar.length !== 12) {
       return { success: false, error: "A valid 12-digit Aadhaar Number is required for Indian residents." };
     }
-    if (!cleanPan || !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
-      return { success: false, error: "A valid 10-character PAN Number (e.g. ABCDE1234F) is required." };
+    if (cleanPan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
+      return { success: false, error: "A valid 10-character PAN Number (e.g. ABCDE1234F) is required if provided." };
     }
   } else {
     if (!cleanPassport || cleanPassport.length < 5) {
       return { success: false, error: "A valid Passport Number is required for international members." };
     }
-    if (!cleanGovtId || cleanGovtId.length < 3) {
-      return { success: false, error: "A valid Government Issued ID / Tax ID is required." };
+    if (cleanGovtId && cleanGovtId.length < 3) {
+      return { success: false, error: "A valid Government Issued ID / Tax ID is required if provided." };
     }
   }
 

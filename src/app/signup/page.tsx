@@ -14,6 +14,7 @@ import LocationSelector from "@/components/LocationSelector";
 import PhoneInputWithCountry from "@/components/PhoneInputWithCountry";
 import { calculateAge, maskPhone, maskEmail, maskGovtId } from "@/lib/privacy";
 import { optimizeImageForUpload } from "@/lib/image-optimizer";
+import { ALL_COUNTRIES, POPULAR_COUNTRIES } from "@/data/countries";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -453,7 +454,7 @@ export default function SignupPage() {
         return;
       }
       const cleanPan = panNumber.trim().toUpperCase();
-      if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
+      if (cleanPan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
         const msg = "Please enter a valid 10-character PAN Number (e.g. ABCDE1234F).";
         setStep2Error(msg);
         showToast(msg, "error");
@@ -466,7 +467,7 @@ export default function SignupPage() {
         showToast(msg, "error");
         return;
       }
-      if (!govtIdNumber.trim() || govtIdNumber.trim().length < 3) {
+      if (govtIdNumber.trim() && govtIdNumber.trim().length < 3) {
         const msg = "Please enter a valid Government-Issued ID or Tax ID.";
         setStep2Error(msg);
         showToast(msg, "error");
@@ -1288,7 +1289,7 @@ export default function SignupPage() {
                     </span>
                   </div>
 
-                  {isIndia ? (
+                    {isIndia ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] font-bold text-body-heading mb-1">
@@ -1305,7 +1306,7 @@ export default function SignupPage() {
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-body-heading mb-1">
-                          PAN Card Number (10-Digit Alphanumeric) *
+                          PAN Card Number (10-Digit Alphanumeric)
                         </label>
                         <input
                           type="text"
@@ -1333,7 +1334,7 @@ export default function SignupPage() {
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-body-heading mb-1">
-                          Government ID / Tax ID *
+                          Government ID / Tax ID
                         </label>
                         <input
                           type="text"
@@ -1784,15 +1785,20 @@ export default function SignupPage() {
                                     onChange={(e) => updateAdditionalMember(member.id, "currentCountry", e.target.value)}
                                     className="w-full px-2.5 py-1.5 rounded-lg border border-brand-accent/30 text-xs bg-canvas-warm/20"
                                   >
-                                    <option value="India">India (भारत)</option>
-                                    <option value="Singapore">Singapore</option>
-                                    <option value="United Arab Emirates">UAE (संयुक्त अरब अमीरात)</option>
-                                    <option value="United States">United States</option>
-                                    <option value="United Kingdom">United Kingdom</option>
-                                    <option value="Australia">Australia</option>
-                                    <option value="Canada">Canada</option>
-                                    <option value="Nepal">Nepal</option>
-                                    <option value="Other">Other Country</option>
+                                    <optgroup label="Popular Countries">
+                                      {POPULAR_COUNTRIES.map((c) => (
+                                        <option key={`custom-pop-${c.code}`} value={c.name}>
+                                          {c.flag} {c.name}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                    <optgroup label="All Countries (A-Z)">
+                                      {ALL_COUNTRIES.map((c) => (
+                                        <option key={`custom-all-${c.code}`} value={c.name}>
+                                          {c.flag} {c.name}
+                                        </option>
+                                      ))}
+                                    </optgroup>
                                   </select>
                                 </div>
                                 <div>
@@ -1922,7 +1928,9 @@ export default function SignupPage() {
                         Address: <strong>{fullAddress}, {city}, {state} ({country}) - {postalCode}</strong>
                       </p>
                       <p className="text-brand-primary font-mono text-[11px] font-bold pt-1">
-                        {isIndia ? `Aadhaar: ${maskGovtId(aadhaarNumber)} • PAN: ${maskGovtId(panNumber)}` : `Passport: ${maskGovtId(passportNumber)} • Govt ID: ${maskGovtId(govtIdNumber)}`}
+                        {isIndia
+                          ? `Aadhaar: ${maskGovtId(aadhaarNumber)}${panNumber.trim() ? ` • PAN: ${maskGovtId(panNumber)}` : ""}`
+                          : `Passport: ${maskGovtId(passportNumber)}${govtIdNumber.trim() ? ` • Govt ID: ${maskGovtId(govtIdNumber)}` : ""}`}
                       </p>
                     </div>
                   </div>
