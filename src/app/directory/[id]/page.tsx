@@ -175,28 +175,19 @@ export default function MemberProfilePage() {
               </p>
             </div>
 
-            {member.isGovtIdVerified && !member.aadhaarNumber && !member.panNumber && (
-              <div>
-                <span className="text-[11px] font-bold text-body-muted block mb-0.5">Government ID Verification</span>
-                <p className="font-semibold text-emerald-700 flex items-center gap-1 text-xs">
-                  <span>✓</span> Verified Government ID
+            <div>
+              <span className="text-[11px] font-bold text-body-muted block mb-0.5">Identity Verification</span>
+              {member.isGovtIdVerified ? (
+                <p className="font-semibold text-emerald-700 flex items-center gap-1.5 text-xs bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg w-fit">
+                  <span>🛡️</span>
+                  <span>Verified Identity (Govt ID Verified)</span>
                 </p>
-              </div>
-            )}
-
-            {member.aadhaarNumber && (
-              <div>
-                <span className="text-[11px] font-bold text-body-muted block mb-0.5">Aadhaar Card (आधार)</span>
-                <p className="font-mono font-semibold text-body-heading">{member.aadhaarNumber}</p>
-              </div>
-            )}
-
-            {member.panNumber && (
-              <div>
-                <span className="text-[11px] font-bold text-body-muted block mb-0.5">PAN Card (पैन)</span>
-                <p className="font-mono font-semibold text-body-heading">{member.panNumber}</p>
-              </div>
-            )}
+              ) : (
+                <p className="font-medium text-body-muted text-xs bg-canvas-warm/50 border border-brand-accent/20 px-2.5 py-1 rounded-lg w-fit">
+                  Community Member
+                </p>
+              )}
+            </div>
           </div>
 
           {member.bio && (

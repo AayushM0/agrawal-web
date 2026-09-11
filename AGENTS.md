@@ -24,3 +24,8 @@ Single-context repository layout (`CONTEXT.md` at root, system architectural dec
 - **Styling**: Tailwind CSS v3.4 with custom heritage theme tokens (`brand-primary`, `brand-gold`, `canvas-warm`)
 - **Testing**: Node.js built-in test runner (`node --test tests/*.test.mjs`)
 - **Database**: PostgreSQL with PostGIS / resilient dual memory fallback
+
+---
+
+## Agent Turn Protocol
+- **Turn-Start Intent & Permission Requirement**: At the start of every turn, the agent must outline what it is preparing to do in the whole turn and ask for the user's explicit permission. Work/modifications must begin only after the user agrees.

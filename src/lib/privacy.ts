@@ -69,44 +69,29 @@ export function sanitizeMemberProfile(member: any, session: SessionData | null):
   const birthYear = extractBirthYear(member.dob);
 
   const isGovtIdVerified = Boolean(
-    member.aadhaarNumber || member.panNumber || member.passportNumber || member.govtIdNumber
+    member.aadhaarNumber || member.panNumber || member.passportNumber || member.govtIdNumber || member.isGovtIdVerified
   );
 
-  // If Admin, full unmasked data is permitted
-  if (session?.role === "admin") {
-    return {
-      ...member,
-      birthYear,
-      isGovtIdVerified,
-    };
-  }
-
   const isSelf =
-    session &&
-    (member.id === session.userId ||
+    Boolean(session &&
+    (String(member.id) === String(session.userId) ||
       (member.phone && member.phone === session.contact) ||
-      (member.email && member.email.toLowerCase() === session.contact.toLowerCase()));
+      (member.email && member.email.toLowerCase() === session.contact.toLowerCase())));
 
-  if (isSelf) {
-    return {
-      ...member,
-      birthYear,
-      isGovtIdVerified,
-    };
-  }
-
-  // Public / non-owner view: strip sensitive identity attributes, exact DOB, and full addresses
+  // In the community directory, sensitive identity proofs (Aadhaar, PAN, Passport, Govt ID)
+  // and full residential street addresses are NEVER exposed, even to admins or self.
+  // (Admins audit KYC proofs inside /admin/moderation; members manage details in /dashboard).
   return {
     ...member,
-    phone: maskPhone(member.phone),
-    email: maskEmail(member.email),
-    dob: undefined, // Protect exact birth day and month from public view
+    phone: isSelf ? member.phone : maskPhone(member.phone),
+    email: isSelf ? member.email : maskEmail(member.email),
+    dob: undefined, // Protect exact birth day and month from public directory view
     birthYear,
     isGovtIdVerified,
-    aadhaarNumber: undefined, // Never leak sensitive ID fragments to non-owners
+    aadhaarNumber: undefined, // Never expose government IDs in directory
     panNumber: undefined,
     passportNumber: undefined,
     govtIdNumber: undefined,
-    fullAddress: undefined, // Hidden in public directory view
+    fullAddress: undefined, // Protect full street address from directory
   };
 }

@@ -203,6 +203,7 @@ export async function searchDirectory(filters: SearchFilters = {}) {
       householdCode: m.householdCode,
       serialNo: m.serialNo,
       verifiedBySelf: m.verifiedBySelf,
+      isGovtIdVerified: Boolean(m.aadhaarNumber || m.panNumber || m.passportNumber || m.govtIdNumber || m.isGovtIdVerified),
     }));
 
     // Enforce anti-scraping cap (max 60 results returned in single batch)

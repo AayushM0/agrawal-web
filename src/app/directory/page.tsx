@@ -504,9 +504,15 @@ function DirectoryContent() {
                     </div>
 
                     <div className="pt-3 border-t border-brand-accent/20 flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 truncate">
-                        ✓ Verified Member
-                      </span>
+                      {m.isGovtIdVerified ? (
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 truncate">
+                          ✓ Verified Member
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-medium text-body-muted bg-canvas-warm/50 px-2 py-0.5 rounded-full border border-brand-accent/20 truncate">
+                          Community Member
+                        </span>
+                      )}
 
                       <Link
                         href={`/directory/${m.id}`}
