@@ -11,19 +11,76 @@ function DirectoryContent() {
   const searchParams = useSearchParams();
   const initialGotra = searchParams.get("gotra") || "All";
 
-  const [searchQuery, setSearchQuery] = useState("");
+  // Primary Search Fields
+  const [nameQuery, setNameQuery] = useState(searchParams.get("name") || "");
+  const [surnameQuery, setSurnameQuery] = useState(searchParams.get("surname") || "");
   const [selectedGotra, setSelectedGotra] = useState(initialGotra);
-  const [selectedLocation, setSelectedLocation] = useState("All");
+  const [locationQuery, setLocationQuery] = useState(searchParams.get("location") || "");
+
+  // Advanced Search Fields
+  const [professionQuery, setProfessionQuery] = useState(searchParams.get("profession") || "");
+  const [nativePlaceQuery, setNativePlaceQuery] = useState(searchParams.get("nativePlace") || "");
+  const [minAge, setMinAge] = useState(searchParams.get("minAge") || "");
+  const [maxAge, setMaxAge] = useState(searchParams.get("maxAge") || "");
+  const [maritalStatus, setMaritalStatus] = useState(searchParams.get("maritalStatus") || "all");
   const [nearMeActive, setNearMeActive] = useState(false);
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  // UI state
+  const [showAdvanced, setShowAdvanced] = useState(
+    Boolean(
+      searchParams.get("profession") ||
+      searchParams.get("nativePlace") ||
+      searchParams.get("minAge") ||
+      searchParams.get("maxAge") ||
+      searchParams.get("maritalStatus")
+    )
+  );
   const [members, setMembers] = useState<any[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Update selectedGotra if URL param changes
+  // Update state if URL params change externally
   useEffect(() => {
     const urlGotra = searchParams.get("gotra");
-    if (urlGotra) {
-      setSelectedGotra(urlGotra);
+    if (urlGotra) setSelectedGotra(urlGotra);
+
+    const urlName = searchParams.get("name");
+    if (urlName !== null && urlName !== undefined) setNameQuery(urlName);
+
+    const urlSurname = searchParams.get("surname");
+    if (urlSurname !== null && urlSurname !== undefined) setSurnameQuery(urlSurname);
+
+    const urlLocation = searchParams.get("location");
+    if (urlLocation !== null && urlLocation !== undefined) setLocationQuery(urlLocation);
+
+    const urlProfession = searchParams.get("profession");
+    if (urlProfession) {
+      setProfessionQuery(urlProfession);
+      setShowAdvanced(true);
+    }
+
+    const urlNative = searchParams.get("nativePlace");
+    if (urlNative) {
+      setNativePlaceQuery(urlNative);
+      setShowAdvanced(true);
+    }
+
+    const urlMinAge = searchParams.get("minAge");
+    if (urlMinAge) {
+      setMinAge(urlMinAge);
+      setShowAdvanced(true);
+    }
+
+    const urlMaxAge = searchParams.get("maxAge");
+    if (urlMaxAge) {
+      setMaxAge(urlMaxAge);
+      setShowAdvanced(true);
+    }
+
+    const urlMarital = searchParams.get("maritalStatus");
+    if (urlMarital) {
+      setMaritalStatus(urlMarital);
+      setShowAdvanced(true);
     }
   }, [searchParams]);
 
@@ -31,159 +88,160 @@ function DirectoryContent() {
     setIsLoading(true);
     try {
       const res = await searchDirectory({
-        query: searchQuery,
+        name: nameQuery.trim(),
+        surname: surnameQuery.trim(),
         gotra: selectedGotra,
-        location: selectedLocation,
+        location: locationQuery.trim(),
+        profession: professionQuery.trim(),
+        nativePlace: nativePlaceQuery.trim(),
+        minAge: minAge.trim() ? parseInt(minAge.trim(), 10) : undefined,
+        maxAge: maxAge.trim() ? parseInt(maxAge.trim(), 10) : undefined,
+        maritalStatus: maritalStatus !== "all" ? maritalStatus : undefined,
         nearMe: nearMeActive,
       });
       if (res.success && res.data) {
         setMembers(res.data);
+        setTotalCount(res.count ?? res.data.length);
       }
     } catch (err) {
       console.error("Search error:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, selectedGotra, selectedLocation, nearMeActive]);
+  }, [
+    nameQuery,
+    surnameQuery,
+    selectedGotra,
+    locationQuery,
+    professionQuery,
+    nativePlaceQuery,
+    minAge,
+    maxAge,
+    maritalStatus,
+    nearMeActive,
+  ]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchResults();
-    }, 150);
+    }, 280);
     return () => clearTimeout(timer);
   }, [fetchResults]);
 
-  const activeFiltersCount = (selectedGotra !== "All" ? 1 : 0) + (selectedLocation !== "All" ? 1 : 0) + (nearMeActive ? 1 : 0);
+  const advancedFiltersActiveCount =
+    (professionQuery.trim() ? 1 : 0) +
+    (nativePlaceQuery.trim() ? 1 : 0) +
+    (minAge.trim() ? 1 : 0) +
+    (maxAge.trim() ? 1 : 0) +
+    (maritalStatus !== "all" ? 1 : 0) +
+    (nearMeActive ? 1 : 0);
+
+  const totalActiveFiltersCount =
+    (nameQuery.trim() ? 1 : 0) +
+    (surnameQuery.trim() ? 1 : 0) +
+    (selectedGotra !== "All" ? 1 : 0) +
+    (locationQuery.trim() ? 1 : 0) +
+    advancedFiltersActiveCount;
+
+  const handleResetAll = () => {
+    setNameQuery("");
+    setSurnameQuery("");
+    setSelectedGotra("All");
+    setLocationQuery("");
+    setProfessionQuery("");
+    setNativePlaceQuery("");
+    setMinAge("");
+    setMaxAge("");
+    setMaritalStatus("all");
+    setNearMeActive(false);
+  };
 
   return (
     <main className="py-6 sm:py-10 bg-canvas-page">
       <div className="max-w-7xl mx-auto px-4">
-        {/* Search Hero Banner */}
-        <div className="bg-white border border-brand-accent/30 rounded-3xl p-4 sm:p-8 shadow-warm mb-6 sm:mb-8">
-          <div className="max-w-2xl mb-4 sm:mb-6">
-            <span className="text-xs font-bold uppercase va-badge-gold px-3 py-1 rounded-full mb-2 inline-block">
-              Verified Global Directory • सत्यापित निर्देशिका
-            </span>
-            <h1 className="text-xl sm:text-3xl font-black text-brand-primary">
-              Search Agarwal Individuals & Families
-            </h1>
-            <p className="text-xs sm:text-sm text-body-muted mt-1">
-              Search by name or surname across the worldwide community.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name or surname..."
-                className="w-full pl-10 pr-4 py-2.5 sm:py-3 rounded-full border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
-              />
-              <svg className="w-4 h-4 text-brand-primary absolute left-4 top-3 sm:top-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
+        {/* Multi-Field Search Console Card */}
+        <div className="bg-white border border-brand-accent/30 rounded-3xl p-5 sm:p-7 shadow-warm mb-6 sm:mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5 sm:mb-6">
+            <div>
+              <span className="text-xs font-bold uppercase va-badge-gold px-3 py-1 rounded-full mb-2 inline-block">
+                Verified Global Directory • सत्यापित निर्देशिका
+              </span>
+              <h1 className="text-xl sm:text-3xl font-black text-brand-primary">
+                Search Agarwal Individuals & Families
+              </h1>
+              <p className="text-xs sm:text-sm text-body-muted mt-0.5">
+                Search by name, surname, gotra, city, or expand for profession and age filters.
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2">
+            {totalActiveFiltersCount > 0 && (
               <button
                 type="button"
-                onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
-                className={`lg:hidden flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-3 rounded-full text-xs font-bold transition-all ${
-                  mobileFiltersOpen || activeFiltersCount > 0
-                    ? "bg-brand-primary text-white shadow-sm"
-                    : "bg-canvas-warm text-brand-primary border border-brand-accent/40 hover:bg-white"
-                }`}
+                onClick={handleResetAll}
+                className="self-start md:self-auto text-xs font-bold text-red-700 hover:text-red-900 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1.5"
               >
-                <span>🔍 Filters</span>
-                {activeFiltersCount > 0 && (
-                  <span className="w-4 h-4 rounded-full bg-brand-gold text-brand-primary text-[10px] flex items-center justify-center font-extrabold">
-                    {activeFiltersCount}
-                  </span>
-                )}
+                <span>✕</span>
+                <span>Reset Filters ({totalActiveFiltersCount})</span>
               </button>
+            )}
+          </div>
 
-              <button
-                type="button"
-                onClick={() => setNearMeActive(!nearMeActive)}
-                className={`flex items-center justify-center gap-1.5 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full text-xs font-bold transition-all ${
-                  nearMeActive
-                    ? "bg-brand-primary text-white shadow-md"
-                    : "bg-canvas-warm text-brand-primary border border-brand-accent/40 hover:bg-white"
-                }`}
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                  <circle cx="12" cy="10" r="3"></circle>
+          {/* Primary Search Row: Name, Surname, Gotra Selector, Location */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+            {/* First / Given Name */}
+            <div className="lg:col-span-3">
+              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+                First / Given Name
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={nameQuery}
+                  onChange={(e) => setNameQuery(e.target.value)}
+                  placeholder="e.g. Ramesh, Sunita"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                />
+                <svg className="w-3.5 h-3.5 text-brand-primary absolute left-3 top-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
                 </svg>
-                <span className="truncate">{nearMeActive ? "Near Me: Active" : "Near Me"}</span>
-              </button>
-            </div>
-          </div>
-
-          <p className="text-xs text-body-muted mt-2.5 sm:mt-3 pl-1 flex items-center gap-1.5">
-            <span className="text-brand-accent font-bold">💡</span>
-            <span>
-              To search by Gotra, please use the{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileFiltersOpen(true);
-                  const el = document.getElementById("gotra-filter-select");
-                  if (el) el.focus();
-                }}
-                className="underline text-brand-primary font-semibold hover:text-brand-primary/80 transition-colors"
-              >
-                filter
-              </button>
-              .
-            </span>
-          </p>
-        </div>
-
-        {/* Split View: Filters Sidebar + Results */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
-          {/* Sidebar (Always visible on desktop lg, collapsible on mobile) */}
-          <aside className={`lg:col-span-1 ${mobileFiltersOpen ? "block" : "hidden lg:block"}`}>
-            <div className="bg-white border border-brand-accent/30 rounded-2xl p-4 sm:p-5 shadow-warm sticky top-20 space-y-4 animate-in fade-in">
-              <div className="flex items-center justify-between pb-3 border-b border-brand-accent/20">
-                <h3 className="text-sm font-extrabold text-brand-primary flex items-center gap-2">
-                  <span>Filter Directory</span>
-                  {activeFiltersCount > 0 && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full va-badge-gold">
-                      {activeFiltersCount} active
-                    </span>
-                  )}
-                </h3>
-                {(selectedGotra !== "All" || selectedLocation !== "All" || searchQuery) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedGotra("All");
-                      setSelectedLocation("All");
-                      setSearchQuery("");
-                    }}
-                    className="text-[11px] font-bold text-red-700 hover:underline"
-                  >
-                    Reset All
-                  </button>
-                )}
               </div>
+            </div>
 
-              {/* Gotra Filter */}
-              <div>
-                <label className="block text-xs font-bold text-body-heading mb-1.5">
-                  Gotra (गोत्र)
-                </label>
+            {/* Surname */}
+            <div className="lg:col-span-3">
+              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+                Surname
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={surnameQuery}
+                  onChange={(e) => setSurnameQuery(e.target.value)}
+                  placeholder="e.g. Agarwal, Bansal, Goel"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                />
+                <svg className="w-3.5 h-3.5 text-brand-primary absolute left-3 top-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+              </div>
+            </div>
+
+            {/* Gotra (Selector) */}
+            <div className="lg:col-span-3">
+              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+                Gotra (गोत्र)
+              </label>
+              <div className="relative">
                 <select
-                  id="gotra-filter-select"
                   value={selectedGotra}
                   onChange={(e) => setSelectedGotra(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-brand-accent/40 text-xs font-semibold text-body-heading bg-canvas-warm/30 focus:ring-1 focus:ring-brand-primary"
+                  className="w-full px-3 py-2.5 rounded-xl border border-brand-accent/40 text-xs font-semibold text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer"
                 >
-                  <option value="All">All 18 Established Gotras</option>
+                  <option value="All">All 18 Canonical Gotras</option>
                   {gotras.map((g) => (
                     <option key={g.id} value={g.name}>
                       {g.name} ({g.devanagari})
@@ -191,86 +249,199 @@ function DirectoryContent() {
                   ))}
                 </select>
               </div>
+            </div>
 
-              {/* Location Filter */}
-              <div>
-                <label className="block text-xs font-bold text-body-heading mb-1.5">
-                  Country / City
-                </label>
-                <select
-                  value={selectedLocation}
-                  onChange={(e) => setSelectedLocation(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-brand-accent/40 text-xs font-semibold text-body-heading bg-canvas-warm/30 focus:ring-1 focus:ring-brand-primary"
-                >
-                  <option value="All">All Global Locations</option>
-                  <option value="New Delhi">New Delhi, India</option>
-                  <option value="Bengaluru">Bengaluru, India</option>
-                  <option value="Jaipur">Jaipur, India</option>
-                  <option value="Agroha">Agroha, Haryana</option>
-                  <option value="Singapore">Singapore</option>
-                  <option value="Dubai">Dubai, UAE</option>
-                </select>
+            {/* City / Country */}
+            <div className="lg:col-span-3">
+              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+                City / Country
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={locationQuery}
+                  onChange={(e) => setLocationQuery(e.target.value)}
+                  placeholder="e.g. Jaipur, New Delhi, Singapore"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                />
+                <svg className="w-3.5 h-3.5 text-brand-primary absolute left-3 top-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
               </div>
+            </div>
+          </div>
 
-              <div className="p-3 rounded-xl bg-canvas-warm/60 border border-brand-accent/30 text-[11px] text-body-muted leading-relaxed">
-                🔒 <strong>Privacy Guard:</strong> Direct contact details are protected behind verified member access.
-              </div>
+          {/* Action Row: More Filters Toggle, Near Me Button, Automatic Search indicator */}
+          <div className="mt-4 pt-3 border-t border-brand-accent/20 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  showAdvanced || advancedFiltersActiveCount > 0
+                    ? "bg-brand-primary text-white shadow-sm"
+                    : "bg-canvas-warm text-brand-primary border border-brand-accent/40 hover:bg-white"
+                }`}
+              >
+                <span>{showAdvanced ? "▲ Less Filters" : "▼ More Filters (Profession, Age, Village...)"}</span>
+                {advancedFiltersActiveCount > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-brand-gold text-brand-primary text-[10px] flex items-center justify-center font-extrabold">
+                    {advancedFiltersActiveCount}
+                  </span>
+                )}
+              </button>
 
               <button
                 type="button"
-                onClick={() => setMobileFiltersOpen(false)}
-                className="lg:hidden w-full py-2.5 rounded-xl text-xs font-bold text-brand-primary bg-canvas-warm hover:bg-canvas-warm/80 transition-colors"
+                onClick={() => setNearMeActive(!nearMeActive)}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  nearMeActive
+                    ? "bg-brand-primary text-white shadow-sm"
+                    : "bg-canvas-warm text-brand-primary border border-brand-accent/40 hover:bg-white"
+                }`}
               >
-                Apply & View Results ({members.length})
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <span>{nearMeActive ? "Near Me: Active" : "Near Me"}</span>
               </button>
             </div>
-          </aside>
 
-          {/* Results Grid */}
-          <div className="lg:col-span-3">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-bold text-body-heading">
-                Showing <strong>{members.length}</strong> verified community member{members.length === 1 ? "" : "s"}
-              </span>
+            <div className="text-xs text-body-muted flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Searches automatically as you type</span>
             </div>
+          </div>
 
-            {isLoading ? (
-              <div className="bg-white border border-brand-accent/30 rounded-2xl p-12 text-center shadow-warm">
-                <div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                <p className="text-xs font-bold text-body-muted">Searching verified database records...</p>
+          {/* Expandable Advanced Filters Row */}
+          {showAdvanced && (
+            <div className="mt-4 pt-4 border-t border-dashed border-brand-accent/30 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 animate-in fade-in slide-in-from-top-1">
+              {/* Profession */}
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+                  Profession / Occupation
+                </label>
+                <input
+                  type="text"
+                  value={professionQuery}
+                  onChange={(e) => setProfessionQuery(e.target.value)}
+                  placeholder="e.g. Chartered Accountant, Doctor, Business"
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                />
               </div>
-            ) : members.length === 0 ? (
-              <div className="bg-white border border-brand-accent/30 rounded-2xl p-6 sm:p-12 text-center shadow-warm">
-                <p className="text-base font-bold text-brand-primary mb-1.5">No matching profiles found</p>
-                <p className="text-xs text-body-muted mb-4 max-w-md mx-auto">
-                  {selectedGotra !== "All" || selectedLocation !== "All" || searchQuery
-                    ? "Try adjusting your search keywords or resetting your Gotra and location filters."
-                    : "No verified households are registered yet. Be the first to register your family!"}
-                </p>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
-                  {(selectedGotra !== "All" || selectedLocation !== "All" || searchQuery) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedGotra("All");
-                        setSelectedLocation("All");
-                        setSearchQuery("");
-                      }}
-                      className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold text-brand-primary bg-canvas-warm border border-brand-accent"
-                    >
-                      Clear Filters
-                    </button>
-                  )}
-                  <Link
-                    href="/signup"
-                    className="w-full sm:w-auto px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta"
-                  >
-                    Register Your Family Free →
-                  </Link>
+
+              {/* Native Place */}
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+                  Native Place (पैतृक स्थान)
+                </label>
+                <input
+                  type="text"
+                  value={nativePlaceQuery}
+                  onChange={(e) => setNativePlaceQuery(e.target.value)}
+                  placeholder="e.g. Agroha, Hisar, Jhunjhunu, Sikar"
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                />
+              </div>
+
+              {/* Age Range: Min & Max */}
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+                  Age Range (Years)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max="120"
+                    value={minAge}
+                    onChange={(e) => setMinAge(e.target.value)}
+                    placeholder="Min (e.g. 21)"
+                    className="w-full px-2.5 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary text-center"
+                  />
+                  <span className="text-body-muted text-xs font-bold">to</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="120"
+                    value={maxAge}
+                    onChange={(e) => setMaxAge(e.target.value)}
+                    placeholder="Max (e.g. 40)"
+                    className="w-full px-2.5 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary text-center"
+                  />
                 </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+
+              {/* Marital Status */}
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+                  Marital Status
+                </label>
+                <select
+                  value={maritalStatus}
+                  onChange={(e) => setMaritalStatus(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs font-semibold text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary cursor-pointer"
+                >
+                  <option value="all">All Marital Statuses</option>
+                  <option value="unmarried">Unmarried / Single</option>
+                  <option value="married">Married</option>
+                  <option value="widowed">Widowed</option>
+                  <option value="divorced">Divorced</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Results Section (Full-Width) */}
+        <div className="w-full">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-bold text-body-heading">
+              Showing <strong>{members.length}</strong> {totalCount > members.length ? `of ${totalCount}` : ""} verified community member{members.length === 1 ? "" : "s"}
+            </span>
+
+            {totalActiveFiltersCount > 0 && (
+              <span className="text-[11px] text-body-muted font-medium">
+                {totalActiveFiltersCount} filter{totalActiveFiltersCount === 1 ? "" : "s"} applied
+              </span>
+            )}
+          </div>
+
+          {isLoading ? (
+            <div className="bg-white border border-brand-accent/30 rounded-2xl p-12 text-center shadow-warm">
+              <div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+              <p className="text-xs font-bold text-body-muted">Searching verified database records...</p>
+            </div>
+          ) : members.length === 0 ? (
+            <div className="bg-white border border-brand-accent/30 rounded-2xl p-6 sm:p-12 text-center shadow-warm">
+              <p className="text-base font-bold text-brand-primary mb-1.5">No matching profiles found</p>
+              <p className="text-xs text-body-muted mb-4 max-w-md mx-auto">
+                {totalActiveFiltersCount > 0
+                  ? "Try adjusting your search criteria or clearing some filters to expand your search."
+                  : "No verified households are registered yet. Be the first to register your family!"}
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+                {totalActiveFiltersCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleResetAll}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold text-brand-primary bg-canvas-warm border border-brand-accent"
+                  >
+                    Clear All Filters
+                  </button>
+                )}
+                <Link
+                  href="/signup"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta"
+                >
+                  Register Your Family Free →
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                 {members.map((m) => (
                   <div
                     key={m.id}
@@ -351,10 +522,9 @@ function DirectoryContent() {
             )}
           </div>
         </div>
-      </div>
-    </main>
-  );
-}
+      </main>
+    );
+  }
 
 export default function DirectoryPage() {
   return (

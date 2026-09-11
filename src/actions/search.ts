@@ -2,9 +2,13 @@
 
 import { db } from "../lib/db";
 import { getSession } from "./auth";
-import { sanitizeMemberProfile } from "@/lib/privacy";
-import { extractBirthYear } from "@/lib/privacy";
-import { sanitizeSearchString } from "@/lib/sanitizer";
+import { sanitizeMemberProfile, extractBirthYear, calculateAge } from "@/lib/privacy";
+import {
+  sanitizeSearchString,
+  sanitizeNameString,
+  sanitizeAgeBound,
+  sanitizeMaritalStatus,
+} from "@/lib/sanitizer";
 import { gotras } from "@/data/gotras";
 
 // Valid canonical Gotras set for strict validation & SQLi prevention
@@ -26,8 +30,15 @@ function checkSearchRateLimit(ip: string): boolean {
 
 export interface SearchFilters {
   query?: string;
+  name?: string;
+  surname?: string;
   gotra?: string;
+  profession?: string;
   location?: string;
+  nativePlace?: string;
+  minAge?: number | string;
+  maxAge?: number | string;
+  maritalStatus?: string;
   nearMe?: boolean;
 }
 
@@ -50,13 +61,29 @@ export async function searchDirectory(filters: SearchFilters = {}) {
       };
     }
 
-    // 1. Strict Input Sanitization & Gotra Whitelist Validation
+    // 1. Strict Input Sanitization & Whitelist Validation for All Fields
+    const cleanName = sanitizeNameString(filters.name, 40).toLowerCase();
+    const cleanSurname = sanitizeNameString(filters.surname, 40).toLowerCase();
+
     const rawGotra = sanitizeSearchString(filters.gotra, 30).toLowerCase();
     const validGotra = rawGotra && rawGotra !== "all" && VALID_GOTRAS.has(rawGotra) ? rawGotra : null;
 
+    const cleanProfession = sanitizeSearchString(filters.profession, 60).toLowerCase();
     const cleanLocation = sanitizeSearchString(filters.location, 60).toLowerCase();
     const validLocation = cleanLocation && cleanLocation !== "all" ? cleanLocation : null;
 
+    const cleanNativePlace = sanitizeSearchString(filters.nativePlace, 60).toLowerCase();
+
+    let cleanMinAge = sanitizeAgeBound(filters.minAge);
+    let cleanMaxAge = sanitizeAgeBound(filters.maxAge);
+    if (cleanMinAge !== null && cleanMaxAge !== null && cleanMinAge > cleanMaxAge) {
+      // Swap if user inverted bounds
+      const temp = cleanMinAge;
+      cleanMinAge = cleanMaxAge;
+      cleanMaxAge = temp;
+    }
+
+    const validMaritalStatus = sanitizeMaritalStatus(filters.maritalStatus);
     const cleanQuery = sanitizeSearchString(filters.query, 80).toLowerCase();
 
     const session = await getSession();
@@ -70,21 +97,80 @@ export async function searchDirectory(filters: SearchFilters = {}) {
       results = results.filter((m) => String(m.id) !== String(session.userId));
     }
 
+    // Filter by Given Name
+    if (cleanName) {
+      results = results.filter((m) => {
+        const full = (m.fullName || "").toLowerCase();
+        return full.includes(cleanName);
+      });
+    }
+
+    // Filter by Surname
+    if (cleanSurname) {
+      results = results.filter((m) => {
+        const full = (m.fullName || "").toLowerCase().trim();
+        const parts = full.split(/\s+/);
+        // Matches last token or trailing word
+        if (parts.length > 1 && parts[parts.length - 1].includes(cleanSurname)) {
+          return true;
+        }
+        return full.includes(cleanSurname);
+      });
+    }
+
     // Filter by Gotra (Strict Whitelist Check)
     if (validGotra) {
       results = results.filter((m) => (m.gotra || "").toLowerCase() === validGotra);
     }
 
-    // Filter by Location
+    // Filter by Profession / Specialization / Company
+    if (cleanProfession) {
+      results = results.filter(
+        (m) =>
+          (m.profession || "").toLowerCase().includes(cleanProfession) ||
+          (m.professionTitle || "").toLowerCase().includes(cleanProfession) ||
+          (m.professionDescription || "").toLowerCase().includes(cleanProfession) ||
+          (m.companyName || "").toLowerCase().includes(cleanProfession)
+      );
+    }
+
+    // Filter by Location (City, State, Country, Postal Code)
     if (validLocation) {
       results = results.filter(
         (m) =>
           (m.currentCity || "").toLowerCase().includes(validLocation) ||
-          (m.currentCountry || "").toLowerCase().includes(validLocation)
+          (m.state || "").toLowerCase().includes(validLocation) ||
+          (m.currentCountry || "").toLowerCase().includes(validLocation) ||
+          (m.postalCode || "").toLowerCase().includes(validLocation)
       );
     }
 
-    // Filter by Free-Text Query (matching name, profession, company, native place, city)
+    // Filter by Native Place (Ancestral Village/City)
+    if (cleanNativePlace) {
+      results = results.filter((m) =>
+        (m.nativePlace || "").toLowerCase().includes(cleanNativePlace)
+      );
+    }
+
+    // Filter by Age Range (Biological calculation)
+    if (cleanMinAge !== null || cleanMaxAge !== null) {
+      results = results.filter((m) => {
+        const age = calculateAge(m.dob);
+        if (age === null) return false;
+        if (cleanMinAge !== null && age < cleanMinAge) return false;
+        if (cleanMaxAge !== null && age > cleanMaxAge) return false;
+        return true;
+      });
+    }
+
+    // Filter by Marital Status
+    if (validMaritalStatus) {
+      results = results.filter(
+        (m) => (m.maritalStatus || "").toLowerCase() === validMaritalStatus
+      );
+    }
+
+    // Filter by Legacy Free-Text Query (if supplied)
     if (cleanQuery) {
       results = results.filter(
         (m) =>
@@ -119,10 +205,13 @@ export async function searchDirectory(filters: SearchFilters = {}) {
       verifiedBySelf: m.verifiedBySelf,
     }));
 
+    // Enforce anti-scraping cap (max 60 results returned in single batch)
+    const cappedResults = safeListResults.slice(0, 60);
+
     return {
       success: true,
       count: safeListResults.length,
-      data: safeListResults,
+      data: cappedResults,
     };
   } catch (err) {
     console.error("[DIRECTORY SEARCH ERROR]", err);
