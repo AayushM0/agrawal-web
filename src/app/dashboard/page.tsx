@@ -14,6 +14,8 @@ import { Household, Member } from "@/types/household";
 import LocationSelector from "@/components/LocationSelector";
 import { calculateAge, maskContact } from "@/lib/privacy";
 import { optimizeImageForUpload } from "@/lib/image-optimizer";
+import { getMyHouseholdMatrimonialProfiles } from "@/actions/matrimony";
+import type { MatrimonialProfile } from "@/types/matrimony";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -21,6 +23,7 @@ export default function DashboardPage() {
   const [sessionContact, setSessionContact] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [matrimonialProfiles, setMatrimonialProfiles] = useState<MatrimonialProfile[]>([]);
 
   // Edit Member Modal State
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -203,6 +206,14 @@ export default function DashboardPage() {
       setIsActivated(res.isActivated !== false);
       setHouseholdGotra(res.household.gotra || gotras[0].name);
       setHouseholdNativePlace(res.household.nativePlace || "");
+      try {
+        const matRes = await getMyHouseholdMatrimonialProfiles();
+        if (matRes.success && matRes.profiles) {
+          setMatrimonialProfiles(matRes.profiles);
+        }
+      } catch (err) {
+        console.error("Failed to load matrimonial profiles:", err);
+      }
     } else {
       setHousehold(null);
       setSessionContact(res.sessionContact);
@@ -644,6 +655,97 @@ export default function DashboardPage() {
                 {isLive ? "Active (Live)" : "Gated (Review)"}
               </strong>
             </div>
+          </div>
+        </div>
+
+        {/* Matrimonial Profiles Management Card */}
+        <div className="bg-white border border-brand-accent/30 rounded-3xl p-5 sm:p-8 shadow-warm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-brand-accent/20">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl">💍</span>
+                <h2 className="text-base sm:text-lg font-extrabold text-brand-primary">
+                  Matrimonial Profiles / वैवाहिक प्रोफाइल
+                </h2>
+              </div>
+              <p className="text-xs text-body-muted mt-0.5">
+                Manage matrimonial biodata for eligible unmarried members of your household.
+              </p>
+            </div>
+            <Link
+              href="/matrimony/create"
+              className="self-start sm:self-center px-4 py-2 rounded-full text-xs font-bold text-white va-btn-join transition-all shadow-goldCta flex items-center gap-1.5 shrink-0"
+            >
+              <span>+</span>
+              <span>Create Matrimony Profile</span>
+            </Link>
+          </div>
+
+          <div className="space-y-3">
+            {matrimonialProfiles.length === 0 ? (
+              <div className="text-center py-6 px-4 rounded-2xl border border-dashed border-brand-accent/40 bg-canvas-warm/10">
+                <p className="text-sm font-semibold text-brand-primary mb-1">No matrimonial profiles registered yet.</p>
+                <p className="text-xs text-body-muted max-w-md mx-auto mb-4">
+                  Registered household heads and unmarried members can create verified candidate profiles with photos, education, career, and linked family details.
+                </p>
+                <Link
+                  href="/matrimony/create"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold text-brand-primary border border-brand-accent/50 bg-white hover:bg-canvas-warm transition-all"
+                >
+                  <span>💍</span>
+                  <span>Register a Candidate</span>
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {matrimonialProfiles.map((p) => {
+                  const candidateAge = calculateAge(p.dob);
+                  const isProfileActive = p.status === "active";
+                  return (
+                    <div
+                      key={p.id}
+                      className="p-4 rounded-2xl border border-brand-accent/30 bg-canvas-warm/20 flex items-start gap-3.5"
+                    >
+                      <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border border-brand-accent flex items-center justify-center text-lg font-bold text-brand-primary shrink-0 shadow-sm">
+                        {p.photos && p.photos[0] ? (
+                          <img src={p.photos[0]} alt={p.fullName} className="w-full h-full object-cover" />
+                        ) : (
+                          p.fullName.charAt(0)
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <h3 className="text-sm font-bold text-brand-primary truncate">{p.fullName}</h3>
+                          <span
+                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${
+                              isProfileActive
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-amber-50 text-amber-700 border border-amber-200"
+                            }`}
+                          >
+                            {p.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-body-muted">
+                          {p.gender === "male" ? "Groom" : "Bride"} • {candidateAge ? `${candidateAge} yrs` : ""} • Gotra: {p.gotra}
+                        </p>
+                        <p className="text-xs text-body-muted truncate mt-0.5">
+                          {p.occupationTitle || p.highestEducation} {p.workCity ? `• ${p.workCity}` : ""}
+                        </p>
+                        <div className="mt-3 flex items-center gap-2">
+                          <Link
+                            href={`/matrimony/${p.id}`}
+                            className="text-xs font-bold text-brand-primary hover:underline inline-flex items-center gap-1"
+                          >
+                            View Matrimony Profile →
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 

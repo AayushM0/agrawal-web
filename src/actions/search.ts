@@ -230,7 +230,13 @@ export async function getMemberProfile(memberId: string) {
       return { success: false, error: "Member profile not found." };
     }
     const session = await getSession();
-    const safeProfile = sanitizeMemberProfile(member, session);
+    const safeProfile: any = sanitizeMemberProfile(member, session);
+    try {
+      const matProfile = await db.getMatrimonialProfileByMemberId(member.id);
+      if (matProfile && matProfile.status === "active") {
+        safeProfile.matrimonialProfileId = matProfile.id;
+      }
+    } catch {}
     return {
       success: true,
       data: safeProfile,

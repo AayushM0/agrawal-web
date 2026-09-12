@@ -136,6 +136,15 @@ export default function MemberProfilePage() {
                 >
                   <span>💬 Message Member</span>
                 </Link>
+
+                {member.matrimonialProfileId && (
+                  <Link
+                    href={`/matrimony/${member.matrimonialProfileId}`}
+                    className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full text-xs font-bold text-amber-950 bg-amber-100 border border-brand-accent/50 hover:bg-amber-200 transition shadow-sm"
+                  >
+                    <span>💍 View Matrimonial Biodata →</span>
+                  </Link>
+                )}
               </div>
             </div>
           </div>

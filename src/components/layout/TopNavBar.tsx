@@ -32,6 +32,12 @@ export default function TopNavBar() {
                 18 Gotras Directory
               </Link>
             </li>
+            <li>
+              <Link href="/matrimony" className="hover:text-white hover:underline transition-colors flex items-center gap-1">
+                <span>💍</span>
+                <span>Matrimony (वैवाहिक मंच)</span>
+              </Link>
+            </li>
             <li className="hidden lg:inline">
               <Link href="/dashboard/messages" className="hover:text-white hover:underline transition-colors flex items-center gap-1">
                 <span>💬</span>

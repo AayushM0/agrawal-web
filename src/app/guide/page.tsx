@@ -498,6 +498,102 @@ const GUIDE_TOPICS: GuideTopic[] = [
       },
     ],
   },
+
+  // 7. Matrimonial Portal
+  {
+    id: "matrimony",
+    icon: "💍",
+    nameEn: "Matrimonial Portal",
+    nameHi: "अग्रवाल वैवाहिक संबंध मंच",
+    taglineEn: "How approved members discover Agarwal life partners and register candidate biodatas safely",
+    taglineHi: "सत्यापित अग्रवाल परिवारों में वर-वधू की खोज एवं सुरक्षित बायोडाटा पंजीकरण की प्रक्रिया",
+    flowchartNodes: [
+      { id: "1", labelEn: "1. Admin Approval", labelHi: "प्रशासनिक स्वीकृति", type: "start" },
+      { id: "2", labelEn: "2. Select Member", labelHi: "सदस्य चयन (Auto-fill)", type: "process" },
+      { id: "3", labelEn: "3. Career & Photos", labelHi: "शिक्षा, व्यवसाय व फोटो", type: "process" },
+      { id: "4", labelEn: "4. Link Family Members", labelHi: "माता-पिता प्रोफाइल लिंक", type: "process" },
+      { id: "5", labelEn: "5. Automated Security Alert", labelHi: "स्वचालित सुरक्षा सूचना", type: "decision" },
+      { id: "6", labelEn: "6. Published in Matrimony", labelHi: "बायोडाटा प्रकाशित", type: "success" },
+    ],
+    steps: [
+      {
+        stepNumber: 1,
+        titleEn: "Step 1: Admin Approval & Member Requirement",
+        titleHi: "चरण 1: प्रशासनिक सत्यापन एवं सदस्य अनिवार्यता",
+        descriptionEn: "To protect community families from fraudulent listings and commercial brokers, only households approved by administrators (status = 'live') can access the matrimonial directory or create candidate profiles. Both creator and candidate must be registered members.",
+        descriptionHi: "फर्जी प्रोफाइल और दलालों से सुरक्षा हेतु, केवल प्रशासनिक रूप से स्वीकृत (Live) परिवार ही वैवाहिक मंच देख सकते हैं या प्रोफाइल बना सकते हैं। प्रोफाइल बनाने वाले और प्रत्याशी दोनों का सदस्य होना अनिवार्य है।",
+        keyPoints: [
+          "100% verified Gotra lineage and household authentication",
+          "Unauthenticated visitors and pending accounts are strictly barred from viewing candidates",
+          "Ensures authentic matrimonial alliances within the cultured Agarwal community",
+        ],
+      },
+      {
+        stepNumber: 2,
+        titleEn: "Step 2: Candidate Selection & Instant Auto-Fill",
+        titleHi: "चरण 2: प्रत्याशी सदस्य चयन एवं स्वतः विवरण पूर्ति",
+        descriptionEn: "Go to /matrimony/create and select an eligible unmarried adult member from your household. Their verified Name, DOB, Gotra, Native Place (मूल निवास), and contact info auto-populate instantly.",
+        descriptionHi: "/matrimony/create पर जाकर अपने परिवार के अविवाहित वयस्क सदस्य को चुनें। उनका नाम, जन्मतिथि, गोत्र, मूल निवास और संपर्क विवरण स्वतः भर जाता है।",
+        keyPoints: [
+          "Eliminates duplicate manual typing and human error",
+          "Prevents unauthorized users from registering someone outside their own family",
+          "Fill remaining details: Height, Diet, Qualification, Occupation, and 2-3 Photographs",
+        ],
+      },
+      {
+        stepNumber: 3,
+        titleEn: "Step 3: Interactive Family Linking & Directory Verification",
+        titleHi: "चरण 3: माता-पिता प्रोफाइल लिंक एवं निर्देशिका सत्यापन",
+        descriptionEn: "When adding Father, Mother, or Siblings, select their existing member profile from your household. On the public biodata, visitors can click their name to open their complete directory profile (/directory/[id]) to verify family background.",
+        descriptionHi: "माताजी, पिताजी या भाई-बहन का विवरण भरते समय उनका सदस्य प्रोफाइल लिंक करें। बायोडाटा में उनके नाम पर क्लिक कर स्वजन सीधे निर्देशिका में उनकी पूरी पारिवारिक पृष्ठभूमि देख सकते हैं।",
+        keyPoints: [
+          "Unique community feature providing complete transparent family verification",
+          "Add dynamic custom fields (e.g. Visa status, property ownership, cultural talents)",
+          "Uploaded photos are optimized and compressed automatically for quick browsing",
+        ],
+      },
+      {
+        stepNumber: 4,
+        titleEn: "Step 4: Dual Ownership, Anti-Spoofing & Self-Governance",
+        titleHi: "चरण 4: दोहरा स्वामित्व एवं प्रत्याशी का स्व-नियंत्रण",
+        descriptionEn: "Upon creation, automated email alerts are sent to the candidate and linked parents. The candidate retains full authority on their dashboard to edit details, pause profile visibility (hide), or delete the profile once an alliance is settled.",
+        descriptionHi: "प्रोफाइल बनते ही प्रत्याशी और माता-पिता को ईमेल द्वारा सूचित किया जाता है। प्रत्याशी को अपने डैशबोर्ड पर प्रोफाइल संपादित करने, अस्थाई रूप से छिपाने या रिश्ता तय होने पर हटाने का पूरा अधिकार रहता है।",
+        keyPoints: [
+          "Only one active profile permitted per member (no duplicates)",
+          "Outside users cannot edit, tamper with, or delete someone else's profile",
+          "Single-click 'Pause Visibility' hides profile when discussions are underway",
+        ],
+      },
+    ],
+    primaryCta: {
+      label: "Open Matrimonial Directory (वैवाहिक मंच) →",
+      href: "/matrimony",
+    },
+    secondaryCta: {
+      label: "+ Register Candidate Profile (बायोडाटा बनाएं)",
+      href: "/matrimony/create",
+    },
+    faqs: [
+      {
+        qEn: "Can someone outside our household create a matrimonial profile for my son or daughter?",
+        qHi: "क्या हमारे परिवार के बाहर का कोई व्यक्ति मेरे बेटे या बेटी का प्रोफाइल बना सकता है?",
+        aEn: "Strictly impossible. The system verifies household ownership before creation. A user can only register profiles for members listed under their own verified household.",
+        aHi: "कदापि नहीं। सिस्टम केवल उसी परिवार के सदस्यों के लिए प्रोफाइल बनाने की अनुमति देता है। कोई बाहरी व्यक्ति किसी अन्य का प्रोफाइल नहीं बना सकता।",
+      },
+      {
+        qEn: "What happens if both parent and candidate create a profile from different emails?",
+        qHi: "यदि माता-पिता और स्वयं प्रत्याशी अलग-अलग ईमेल से प्रोफाइल बनाएं तो क्या होगा?",
+        aEn: "Each member has exactly one unique matrimonial record. If a parent creates it first, the candidate is emailed and gets full co-ownership on their dashboard. Duplicate profiles are automatically prevented.",
+        aHi: "प्रत्येक सदस्य का केवल एक ही बायोडाटा हो सकता है। यदि माता-पिता पहले बनाते हैं, तो प्रत्याशी को ईमेल मिल जाता है और वे अपने डैशबोर्ड से उसे नियंत्रित कर सकते हैं।",
+      },
+      {
+        qEn: "How do we pause or remove a profile once marriage is fixed?",
+        qHi: "विवाह तय होने पर हम प्रोफाइल को कैसे हटाएं या छिपाएं?",
+        aEn: "Both the candidate and household head can click 'Pause Profile' or 'Delete' directly from the candidate detail view or household dashboard.",
+        aHi: "प्रत्याशी या परिवार के मुखिया सीधे बायोडाटा पृष्ठ या डैशबोर्ड से 'Pause Profile' या 'Delete' बटन दबाकर प्रोफाइल को छिपा या हटा सकते हैं।",
+      },
+    ],
+  },
 ];
 
 export default function UserGuidePage() {

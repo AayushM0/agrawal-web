@@ -2,6 +2,7 @@ import { normalizePhoneNumber } from "@/lib/phone";
 import { Pool } from "pg";
 import type { Household, Member } from "../types/household";
 import type { SupportInquiry, CreateInquiryInput, InquiryStatus } from "../types/support";
+import type { MatrimonialProfile, MatrimonyFilter } from "../types/matrimony";
 
 const globalForPg = globalThis as unknown as {
   pgPool?: Pool;
@@ -219,6 +220,72 @@ async function ensureSchema(client: any) {
 
       DROP POLICY IF EXISTS "Allow Realtime messages select" ON messages;
       CREATE POLICY "Allow Realtime messages select" ON messages FOR SELECT TO anon USING (current_setting('request.path', true) IS NULL);
+
+      -- Matrimonial Profiles Table
+      CREATE TABLE IF NOT EXISTS matrimonial_profiles (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+          member_id UUID NOT NULL UNIQUE REFERENCES members(id) ON DELETE CASCADE,
+          created_by_user_id TEXT NOT NULL,
+          status VARCHAR(20) NOT NULL DEFAULT 'active',
+          gender VARCHAR(10) NOT NULL CHECK (gender IN ('male', 'female')),
+          full_name VARCHAR(150) NOT NULL,
+          created_for VARCHAR(50) NOT NULL DEFAULT 'Self',
+          marital_status VARCHAR(50) NOT NULL DEFAULT 'Never Married',
+          dob DATE NOT NULL,
+          place_of_birth VARCHAR(150),
+          height_cm INT,
+          height_display VARCHAR(30),
+          weight_build VARCHAR(50),
+          complexion VARCHAR(50),
+          blood_group VARCHAR(10),
+          mother_tongue VARCHAR(50) DEFAULT 'Hindi',
+          languages_spoken TEXT[],
+          diet VARCHAR(50) DEFAULT 'Vegetarian',
+          smoke_drink VARCHAR(50) DEFAULT 'Non-Smoker / Non-Drinker',
+          physical_status VARCHAR(100) DEFAULT 'Normal',
+          about_me TEXT,
+          gotra VARCHAR(50) NOT NULL,
+          highest_education VARCHAR(100) NOT NULL,
+          degree_name VARCHAR(150),
+          college_name VARCHAR(150),
+          schooling_honors TEXT,
+          employment_sector VARCHAR(80) NOT NULL,
+          occupation_title VARCHAR(150) NOT NULL,
+          company_name VARCHAR(150),
+          annual_income VARCHAR(50),
+          work_city VARCHAR(100),
+          work_country VARCHAR(80) DEFAULT 'India',
+          willing_to_relocate VARCHAR(50) DEFAULT 'Yes',
+          father_name VARCHAR(150) NOT NULL,
+          father_member_id UUID REFERENCES members(id) ON DELETE SET NULL,
+          father_occupation VARCHAR(100),
+          mother_name VARCHAR(150) NOT NULL,
+          mother_member_id UUID REFERENCES members(id) ON DELETE SET NULL,
+          mother_occupation VARCHAR(100),
+          linked_siblings JSONB DEFAULT '[]',
+          native_place VARCHAR(150) NOT NULL,
+          family_location VARCHAR(150) NOT NULL,
+          family_type VARCHAR(30) DEFAULT 'Nuclear',
+          family_values VARCHAR(30) DEFAULT 'Traditional',
+          family_financial_status VARCHAR(50) DEFAULT 'Upper Middle Class',
+          about_family TEXT,
+          custom_fields JSONB DEFAULT '[]',
+          photos JSONB DEFAULT '[]',
+          partner_preferences JSONB DEFAULT '{}',
+          contact_person VARCHAR(150) NOT NULL,
+          contact_relation VARCHAR(50) NOT NULL,
+          contact_phone VARCHAR(50) NOT NULL,
+          secondary_phone VARCHAR(50),
+          contact_email VARCHAR(100),
+          residential_address TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_matrimonial_profiles_member ON matrimonial_profiles(member_id);
+      CREATE INDEX IF NOT EXISTS idx_matrimonial_profiles_gender_status ON matrimonial_profiles(gender, status);
+      CREATE INDEX IF NOT EXISTS idx_matrimonial_profiles_household ON matrimonial_profiles(household_id);
+      ALTER TABLE matrimonial_profiles ENABLE ROW LEVEL SECURITY;
     `);
     schemaEnsured = true;
   } catch (err) {
@@ -1783,5 +1850,472 @@ export const db = {
       return { allowed: true };
     }
   },
+
+  // ==========================================
+  // MATRIMONIAL PROFILES METHODS
+  // ==========================================
+
+  async createMatrimonialProfile(p: any): Promise<MatrimonialProfile> {
+    if (!pool) {
+      const list: MatrimonialProfile[] = ((globalThis as any).__memoryMatrimonialProfiles =
+        (globalThis as any).__memoryMatrimonialProfiles || []);
+      const existing = list.find((item) => item.memberId === p.memberId);
+      if (existing) throw new Error("A matrimonial profile already exists for this member.");
+      const newProfile = mapMatrimonialRow({
+        id: crypto.randomUUID(),
+        ...p,
+        created_at: new Date(),
+        updated_at: new Date(),
+      });
+      list.unshift(newProfile);
+      return newProfile;
+    }
+
+    const query = `
+      INSERT INTO matrimonial_profiles (
+        household_id, member_id, created_by_user_id, status, gender, full_name, created_for,
+        marital_status, dob, place_of_birth, height_cm, height_display, weight_build,
+        complexion, blood_group, mother_tongue, languages_spoken, diet, smoke_drink,
+        physical_status, about_me, gotra, highest_education, degree_name, college_name,
+        schooling_honors, employment_sector, occupation_title, company_name, annual_income,
+        work_city, work_country, willing_to_relocate, father_name, father_member_id,
+        father_occupation, mother_name, mother_member_id, mother_occupation, linked_siblings,
+        native_place, family_location, family_type, family_values, family_financial_status,
+        about_family, custom_fields, photos, partner_preferences, contact_person,
+        contact_relation, contact_phone, secondary_phone, contact_email, residential_address
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7,
+        $8, $9, $10, $11, $12, $13,
+        $14, $15, $16, $17, $18, $19,
+        $20, $21, $22, $23, $24, $25,
+        $26, $27, $28, $29, $30,
+        $31, $32, $33, $34, $35,
+        $36, $37, $38, $39, $40,
+        $41, $42, $43, $44, $45,
+        $46, $47, $48, $49, $50,
+        $51, $52, $53, $54, $55
+      ) RETURNING *;
+    `;
+
+    const values = [
+      p.householdId,
+      p.memberId,
+      p.createdByUserId,
+      p.status || "active",
+      p.gender,
+      p.fullName,
+      p.createdFor || "Self",
+      p.maritalStatus || "Never Married",
+      p.dob,
+      p.placeOfBirth || null,
+      p.heightCm ? parseInt(p.heightCm, 10) : null,
+      p.heightDisplay || null,
+      p.weightBuild || null,
+      p.complexion || null,
+      p.bloodGroup || null,
+      p.motherTongue || "Hindi",
+      p.languagesSpoken || [],
+      p.diet || "Vegetarian",
+      p.smokeDrink || "Non-Smoker / Non-Drinker",
+      p.physicalStatus || "Normal",
+      p.aboutMe || null,
+      p.gotra,
+      p.highestEducation,
+      p.degreeName || null,
+      p.collegeName || null,
+      p.schoolingHonors || null,
+      p.employmentSector,
+      p.occupationTitle,
+      p.companyName || null,
+      p.annualIncome || null,
+      p.workCity || null,
+      p.workCountry || "India",
+      p.willingToRelocate || "Yes",
+      p.fatherName,
+      p.fatherMemberId || null,
+      p.fatherOccupation || null,
+      p.motherName,
+      p.motherMemberId || null,
+      p.motherOccupation || null,
+      JSON.stringify(p.linkedSiblings || []),
+      p.nativePlace,
+      p.familyLocation,
+      p.familyType || "Nuclear",
+      p.familyValues || "Traditional",
+      p.familyFinancialStatus || "Upper Middle Class",
+      p.aboutFamily || null,
+      JSON.stringify(p.customFields || []),
+      JSON.stringify(p.photos || []),
+      JSON.stringify(p.partnerPreferences || {}),
+      p.contactPerson,
+      p.contactRelation,
+      p.contactPhone,
+      p.secondaryPhone || null,
+      p.contactEmail || null,
+      p.residentialAddress || null,
+    ];
+
+    const res = await pool.query(query, values);
+    return mapMatrimonialRow(res.rows[0]);
+  },
+
+  async getMatrimonialProfiles(filters: MatrimonyFilter = {}): Promise<{ profiles: MatrimonialProfile[]; totalCount: number }> {
+    if (!pool) {
+      let list: MatrimonialProfile[] = ((globalThis as any).__memoryMatrimonialProfiles =
+        (globalThis as any).__memoryMatrimonialProfiles || []);
+      list = list.filter((p) => p.status === "active");
+      if (filters.gender && filters.gender !== "all") {
+        list = list.filter((p) => p.gender === filters.gender);
+      }
+      if (filters.gotra && filters.gotra !== "All") {
+        list = list.filter((p) => p.gotra.toLowerCase() === filters.gotra?.toLowerCase());
+      }
+      if (filters.name) {
+        const q = filters.name.toLowerCase();
+        list = list.filter((p) => p.fullName.toLowerCase().includes(q));
+      }
+      return { profiles: list, totalCount: list.length };
+    }
+
+    try {
+      const conditions: string[] = ["mp.status = 'active'"];
+      const values: any[] = [];
+      let paramIndex = 1;
+
+      if (filters.gender && filters.gender !== "all") {
+        conditions.push(`mp.gender = $${paramIndex++}`);
+        values.push(filters.gender);
+      }
+
+      if (filters.gotra && filters.gotra !== "All") {
+        conditions.push(`LOWER(mp.gotra) = LOWER($${paramIndex++})`);
+        values.push(filters.gotra);
+      }
+
+      if (filters.name && filters.name.trim()) {
+        conditions.push(`mp.full_name ILIKE $${paramIndex++}`);
+        values.push(`%${filters.name.trim()}%`);
+      }
+
+      if (filters.location && filters.location.trim()) {
+        const loc = `%${filters.location.trim()}%`;
+        conditions.push(`(mp.work_city ILIKE $${paramIndex} OR mp.family_location ILIKE $${paramIndex} OR mp.native_place ILIKE $${paramIndex})`);
+        values.push(loc);
+        paramIndex++;
+      }
+
+      if (filters.minAge && !isNaN(filters.minAge)) {
+        conditions.push(`mp.dob <= CURRENT_DATE - make_interval(years => $${paramIndex++}::int)`);
+        values.push(Number(filters.minAge));
+      }
+
+      if (filters.maxAge && !isNaN(filters.maxAge)) {
+        conditions.push(`mp.dob >= CURRENT_DATE - make_interval(years => $${paramIndex++}::int) - interval '1 year'`);
+        values.push(Number(filters.maxAge));
+      }
+
+      if (filters.minHeightCm && !isNaN(filters.minHeightCm)) {
+        conditions.push(`mp.height_cm >= $${paramIndex++}`);
+        values.push(filters.minHeightCm);
+      }
+
+      if (filters.maxHeightCm && !isNaN(filters.maxHeightCm)) {
+        conditions.push(`mp.height_cm <= $${paramIndex++}`);
+        values.push(filters.maxHeightCm);
+      }
+
+      if (filters.highestEducation && filters.highestEducation !== "All") {
+        conditions.push(`mp.highest_education = $${paramIndex++}`);
+        values.push(filters.highestEducation);
+      }
+
+      if (filters.employmentSector && filters.employmentSector !== "All") {
+        conditions.push(`mp.employment_sector = $${paramIndex++}`);
+        values.push(filters.employmentSector);
+      }
+
+      if (filters.maritalStatus && filters.maritalStatus !== "All") {
+        conditions.push(`mp.marital_status = $${paramIndex++}`);
+        values.push(filters.maritalStatus);
+      }
+
+      if (filters.nativePlace && filters.nativePlace.trim()) {
+        conditions.push(`mp.native_place ILIKE $${paramIndex++}`);
+        values.push(`%${filters.nativePlace.trim()}%`);
+      }
+
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+      const countRes = await pool.query(
+        `SELECT COUNT(*)::int as total FROM matrimonial_profiles mp ${whereClause};`,
+        values
+      );
+      const totalCount = countRes.rows[0]?.total || 0;
+
+      const limit = filters.limit || 50;
+      const offset = ((filters.page || 1) - 1) * limit;
+
+      const query = `
+        SELECT mp.*,
+               fm.serial_no as father_serial,
+               mm.serial_no as mother_serial
+        FROM matrimonial_profiles mp
+        LEFT JOIN members fm ON mp.father_member_id = fm.id
+        LEFT JOIN members mm ON mp.mother_member_id = mm.id
+        ${whereClause}
+        ORDER BY mp.created_at DESC
+        LIMIT $${paramIndex++} OFFSET $${paramIndex++};
+      `;
+      values.push(limit, offset);
+
+      const res = await pool.query(query, values);
+      const profiles = res.rows.map(mapMatrimonialRow);
+
+      return { profiles, totalCount };
+    } catch (err) {
+      console.error("[DB ERROR] getMatrimonialProfiles:", err);
+      return { profiles: [], totalCount: 0 };
+    }
+  },
+
+  async getMatrimonialProfileById(id: string): Promise<MatrimonialProfile | null> {
+    if (!pool) {
+      const list: MatrimonialProfile[] = ((globalThis as any).__memoryMatrimonialProfiles =
+        (globalThis as any).__memoryMatrimonialProfiles || []);
+      const item = list.find((p) => p.id === id);
+      return item || null;
+    }
+    try {
+      const query = `
+        SELECT mp.*,
+               fm.serial_no as father_serial,
+               mm.serial_no as mother_serial
+        FROM matrimonial_profiles mp
+        LEFT JOIN members fm ON mp.father_member_id = fm.id
+        LEFT JOIN members mm ON mp.mother_member_id = mm.id
+        WHERE mp.id::text = $1;
+      `;
+      const res = await pool.query(query, [id]);
+      if (res.rows.length === 0) return null;
+      return mapMatrimonialRow(res.rows[0]);
+    } catch (err) {
+      console.error("[DB ERROR] getMatrimonialProfileById:", err);
+      return null;
+    }
+  },
+
+  async getMatrimonialProfileByMemberId(memberId: string): Promise<MatrimonialProfile | null> {
+    if (!pool) {
+      const list: MatrimonialProfile[] = ((globalThis as any).__memoryMatrimonialProfiles =
+        (globalThis as any).__memoryMatrimonialProfiles || []);
+      const item = list.find((p) => p.memberId === memberId);
+      return item || null;
+    }
+    try {
+      const query = `
+        SELECT mp.*,
+               fm.serial_no as father_serial,
+               mm.serial_no as mother_serial
+        FROM matrimonial_profiles mp
+        LEFT JOIN members fm ON mp.father_member_id = fm.id
+        LEFT JOIN members mm ON mp.mother_member_id = mm.id
+        WHERE mp.member_id::text = $1;
+      `;
+      const res = await pool.query(query, [memberId]);
+      if (res.rows.length === 0) return null;
+      return mapMatrimonialRow(res.rows[0]);
+    } catch (err) {
+      console.error("[DB ERROR] getMatrimonialProfileByMemberId:", err);
+      return null;
+    }
+  },
+
+  async getHouseholdMatrimonialProfiles(householdId: string): Promise<MatrimonialProfile[]> {
+    if (!pool) {
+      const list: MatrimonialProfile[] = ((globalThis as any).__memoryMatrimonialProfiles =
+        (globalThis as any).__memoryMatrimonialProfiles || []);
+      return list.filter((p) => p.householdId === householdId);
+    }
+    try {
+      const query = `
+        SELECT mp.*,
+               fm.serial_no as father_serial,
+               mm.serial_no as mother_serial
+        FROM matrimonial_profiles mp
+        LEFT JOIN members fm ON mp.father_member_id = fm.id
+        LEFT JOIN members mm ON mp.mother_member_id = mm.id
+        WHERE mp.household_id::text = $1
+        ORDER BY mp.created_at DESC;
+      `;
+      const res = await pool.query(query, [householdId]);
+      return res.rows.map(mapMatrimonialRow);
+    } catch (err) {
+      console.error("[DB ERROR] getHouseholdMatrimonialProfiles:", err);
+      return [];
+    }
+  },
+
+  async updateMatrimonialProfile(id: string, data: Partial<MatrimonialProfile>, householdId?: string): Promise<MatrimonialProfile | null> {
+    if (!pool) {
+      const list: MatrimonialProfile[] = ((globalThis as any).__memoryMatrimonialProfiles =
+        (globalThis as any).__memoryMatrimonialProfiles || []);
+      const idx = list.findIndex((p) => p.id === id);
+      if (idx === -1) return null;
+      list[idx] = { ...list[idx], ...data, updatedAt: new Date().toISOString() };
+      return list[idx];
+    }
+    try {
+      const sets: string[] = ["updated_at = NOW()"];
+      const values: any[] = [id];
+      let paramIndex = 2;
+
+      if (data.status !== undefined) {
+        sets.push(`status = $${paramIndex++}`);
+        values.push(data.status);
+      }
+      if (data.aboutMe !== undefined) {
+        sets.push(`about_me = $${paramIndex++}`);
+        values.push(data.aboutMe);
+      }
+      if (data.heightCm !== undefined) {
+        sets.push(`height_cm = $${paramIndex++}`);
+        values.push(data.heightCm);
+      }
+      if (data.heightDisplay !== undefined) {
+        sets.push(`height_display = $${paramIndex++}`);
+        values.push(data.heightDisplay);
+      }
+      if (data.photos !== undefined) {
+        sets.push(`photos = $${paramIndex++}`);
+        values.push(JSON.stringify(data.photos));
+      }
+      if (data.customFields !== undefined) {
+        sets.push(`custom_fields = $${paramIndex++}`);
+        values.push(JSON.stringify(data.customFields));
+      }
+      if (data.partnerPreferences !== undefined) {
+        sets.push(`partner_preferences = $${paramIndex++}`);
+        values.push(JSON.stringify(data.partnerPreferences));
+      }
+
+      let extraWhere = "";
+      if (householdId) {
+        extraWhere = ` AND household_id::text = $${paramIndex++}`;
+        values.push(householdId);
+      }
+
+      const query = `
+        UPDATE matrimonial_profiles
+        SET ${sets.join(", ")}
+        WHERE id::text = $1 ${extraWhere}
+        RETURNING *;
+      `;
+      const res = await pool.query(query, values);
+      if (res.rows.length === 0) return null;
+      return mapMatrimonialRow(res.rows[0]);
+    } catch (err) {
+      console.error("[DB ERROR] updateMatrimonialProfile:", err);
+      return null;
+    }
+  },
+
+  async deleteMatrimonialProfile(id: string, householdId?: string): Promise<boolean> {
+    if (!pool) {
+      const list: MatrimonialProfile[] = ((globalThis as any).__memoryMatrimonialProfiles =
+        (globalThis as any).__memoryMatrimonialProfiles || []);
+      const idx = list.findIndex((p) => p.id === id);
+      if (idx !== -1) {
+        list.splice(idx, 1);
+        return true;
+      }
+      return false;
+    }
+    try {
+      let query = `DELETE FROM matrimonial_profiles WHERE id::text = $1`;
+      const values: any[] = [id];
+      if (householdId) {
+        query += ` AND household_id::text = $2`;
+        values.push(householdId);
+      }
+      const res = await pool.query(query, values);
+      return (res.rowCount || 0) > 0;
+    } catch (err) {
+      console.error("[DB ERROR] deleteMatrimonialProfile:", err);
+      return false;
+    }
+  },
 };
+
+function mapMatrimonialRow(row: any): MatrimonialProfile {
+  let age: number | undefined = undefined;
+  if (row.dob) {
+    const d = new Date(row.dob);
+    if (!isNaN(d.getTime())) {
+      age = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    }
+  }
+  return {
+    id: String(row.id),
+    householdId: String(row.household_id || row.householdId || ""),
+    memberId: String(row.member_id || row.memberId || ""),
+    createdByUserId: String(row.created_by_user_id || row.createdByUserId || ""),
+    status: row.status || "active",
+    gender: row.gender || "male",
+    fullName: row.full_name || row.fullName || "",
+    createdFor: row.created_for || row.createdFor || "Self",
+    maritalStatus: row.marital_status || row.maritalStatus || "Never Married",
+    dob: row.dob instanceof Date ? row.dob.toISOString().split("T")[0] : String(row.dob || ""),
+    placeOfBirth: row.place_of_birth || row.placeOfBirth || "",
+    heightCm: row.height_cm ? parseInt(row.height_cm, 10) : (row.heightCm || undefined),
+    heightDisplay: row.height_display || row.heightDisplay || "",
+    weightBuild: row.weight_build || row.weightBuild || "",
+    complexion: row.complexion || row.complexion || "",
+    bloodGroup: row.blood_group || row.bloodGroup || "",
+    motherTongue: row.mother_tongue || row.motherTongue || "Hindi",
+    languagesSpoken: Array.isArray(row.languages_spoken) ? row.languages_spoken : (Array.isArray(row.languagesSpoken) ? row.languagesSpoken : []),
+    diet: row.diet || "Vegetarian",
+    smokeDrink: row.smoke_drink || row.smokeDrink || "Non-Smoker / Non-Drinker",
+    physicalStatus: row.physical_status || row.physicalStatus || "Normal",
+    aboutMe: row.about_me || row.aboutMe || "",
+    gotra: row.gotra || "",
+    highestEducation: row.highest_education || row.highestEducation || "",
+    degreeName: row.degree_name || row.degreeName || "",
+    collegeName: row.college_name || row.collegeName || "",
+    schoolingHonors: row.schooling_honors || row.schoolingHonors || "",
+    employmentSector: row.employment_sector || row.employmentSector || "",
+    occupationTitle: row.occupation_title || row.occupationTitle || "",
+    companyName: row.company_name || row.companyName || "",
+    annualIncome: row.annual_income || row.annualIncome || "",
+    workCity: row.work_city || row.workCity || "",
+    workCountry: row.work_country || row.workCountry || "India",
+    willingToRelocate: row.willing_to_relocate || row.willingToRelocate || "Yes",
+    fatherName: row.father_name || row.fatherName || "",
+    fatherMemberId: row.father_member_id || row.fatherMemberId || undefined,
+    fatherOccupation: row.father_occupation || row.fatherOccupation || "",
+    motherName: row.mother_name || row.motherName || "",
+    motherMemberId: row.mother_member_id || row.motherMemberId || undefined,
+    motherOccupation: row.mother_occupation || row.motherOccupation || "",
+    linkedSiblings: typeof row.linked_siblings === "string" ? JSON.parse(row.linked_siblings) : (row.linked_siblings || row.linkedSiblings || []),
+    nativePlace: row.native_place || row.nativePlace || "",
+    familyLocation: row.family_location || row.familyLocation || "",
+    familyType: row.family_type || row.familyType || "Nuclear",
+    familyValues: row.family_values || row.familyValues || "Traditional",
+    familyFinancialStatus: row.family_financial_status || row.familyFinancialStatus || "Upper Middle Class",
+    aboutFamily: row.about_family || row.aboutFamily || "",
+    customFields: typeof row.custom_fields === "string" ? JSON.parse(row.custom_fields) : (row.custom_fields || row.customFields || []),
+    photos: typeof row.photos === "string" ? JSON.parse(row.photos) : (row.photos || []),
+    partnerPreferences: typeof row.partner_preferences === "string" ? JSON.parse(row.partner_preferences) : (row.partner_preferences || row.partnerPreferences || {}),
+    contactPerson: row.contact_person || row.contactPerson || "",
+    contactRelation: row.contact_relation || row.contactRelation || "",
+    contactPhone: row.contact_phone || row.contactPhone || "",
+    secondaryPhone: row.secondary_phone || row.secondaryPhone || "",
+    contactEmail: row.contact_email || row.contactEmail || "",
+    residentialAddress: row.residential_address || row.residentialAddress || "",
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || new Date().toISOString()),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || new Date().toISOString()),
+    age,
+    fatherMemberSerial: row.father_serial || undefined,
+    motherMemberSerial: row.mother_serial || undefined,
+  };
+}
 

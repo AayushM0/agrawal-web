@@ -68,6 +68,9 @@ export default function MainFooter() {
                 <Link href="/login" className="hover:text-brand-primary transition-colors">Moderator Admin Portal</Link>
               </li>
               <li>
+                <Link href="/matrimony" className="hover:text-brand-primary transition-colors font-medium text-brand-primary">💍 Matrimony Portal (वैवाहिक मंच)</Link>
+              </li>
+              <li>
                 <Link href="/claim" className="hover:text-brand-primary transition-colors">Claim Member Profile</Link>
               </li>
             </ul>
