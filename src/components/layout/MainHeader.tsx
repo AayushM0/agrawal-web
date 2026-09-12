@@ -70,6 +70,7 @@ export default function MainHeader() {
     const wasAuth = isAuthRoute(prevPathnameRef.current);
     const isNowAuth = isAuthRoute(pathname);
     prevPathnameRef.current = pathname;
+    setMobileMenuOpen(false);
 
     if (wasAuth !== isNowAuth || isNowAuth) {
       getSession()
@@ -455,6 +456,7 @@ export default function MainHeader() {
             <div className="space-y-1">
               <Link
                 href="/"
+                onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all ${
                   pathname === "/" ? "bg-brand-primary text-white" : "text-body-heading hover:bg-canvas-warm"
                 }`}
@@ -465,6 +467,7 @@ export default function MainHeader() {
 
               <Link
                 href="/about"
+                onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all ${
                   pathname === "/about" ? "bg-brand-primary text-white" : "text-body-heading hover:bg-canvas-warm"
                 }`}
@@ -475,6 +478,7 @@ export default function MainHeader() {
 
               <Link
                 href="/directory"
+                onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all ${
                   pathname.startsWith("/directory") ? "bg-brand-primary text-white" : "text-body-heading hover:bg-canvas-warm"
                 }`}
@@ -485,6 +489,7 @@ export default function MainHeader() {
 
               <Link
                 href="/matrimony"
+                onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all ${
                   pathname.startsWith("/matrimony") ? "bg-brand-primary text-white" : "text-body-heading hover:bg-canvas-warm"
                 }`}

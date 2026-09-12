@@ -19,7 +19,7 @@ export default function AboutPage() {
         <div className="bg-white border border-brand-accent/30 rounded-2xl p-6 shadow-warm mb-8">
           <h2 className="text-lg font-bold text-brand-primary mb-2">The Philosophy of Trust & Privacy</h2>
           <p className="text-xs sm:text-sm text-body-text leading-relaxed">
-            Community trust must always come before technology. Personal information is safeguarded with granular visibility toggles, OTP verification, and strict login gating. We begin with the Family Directory, laying the trusted foundation for future business, matrimonial, career, and social initiatives.
+            Community trust must always come before technology. Personal information is safeguarded with granular visibility toggles, OTP verification, and strict login gating. We begin with the Family Directory and Matrimonial Network, laying the trusted foundation for future global business, career, and social initiatives.
           </p>
         </div>
 

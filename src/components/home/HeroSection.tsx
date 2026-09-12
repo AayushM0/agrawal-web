@@ -42,6 +42,13 @@ export default function HeroSection() {
               </svg>
               <span>Search Directory</span>
             </Link>
+            <Link
+              href="/matrimony"
+              className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-full text-xs sm:text-sm font-bold text-brand-primary bg-white border border-brand-accent/50 hover:bg-canvas-warm transition-all text-center shadow-xs"
+            >
+              <span>💍</span>
+              <span>Matrimony Portal</span>
+            </Link>
           </div>
         </div>
       </div>
