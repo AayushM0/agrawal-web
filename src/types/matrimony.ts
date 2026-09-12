@@ -103,6 +103,7 @@ export interface MatrimonialProfile {
   age?: number;
   fatherMemberSerial?: string;
   motherMemberSerial?: string;
+  isGovtIdVerified?: boolean;
 }
 
 export interface MatrimonyFilter {

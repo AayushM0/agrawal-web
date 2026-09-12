@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { getSession } from "@/actions/auth";
 import { sanitizeSearchString, sanitizeNameString } from "@/lib/sanitizer";
+import { sanitizeMatrimonialProfile } from "@/lib/privacy";
 import { gotras } from "@/data/gotras";
 import type {
   MatrimonialProfile,
@@ -388,7 +389,7 @@ export async function searchMatrimonialProfiles(filters: MatrimonyFilter = {}): 
     const res = await db.getMatrimonialProfiles(sanitizedFilters);
     return {
       success: true,
-      profiles: res.profiles,
+      profiles: res.profiles.map((p) => sanitizeMatrimonialProfile(p, false)),
       totalCount: res.totalCount,
     };
   } catch (err: any) {
@@ -431,9 +432,26 @@ export async function getMatrimonialProfileDetail(id: string): Promise<{
       return { success: false, error: "This matrimonial profile is currently paused or inactive." };
     }
 
+    // Resolve Govt ID verification status from candidate's directory member profile
+    const member = await db.getMemberById(profile.memberId);
+    const isGovtIdVerified = Boolean(
+      member?.aadhaarNumber ||
+      member?.panNumber ||
+      member?.passportNumber ||
+      member?.govtIdNumber ||
+      (member as any)?.isGovtIdVerified
+    );
+
+    // Apply strict directory-grade privacy sanitization:
+    // Hides full street address, masks phone/email for non-managers, suppresses raw Govt IDs
+    const sanitizedProfile = {
+      ...sanitizeMatrimonialProfile(profile, canManage),
+      isGovtIdVerified,
+    };
+
     return {
       success: true,
-      profile,
+      profile: sanitizedProfile,
       canManage,
     };
   } catch (err: any) {

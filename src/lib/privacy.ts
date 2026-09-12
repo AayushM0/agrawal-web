@@ -95,3 +95,28 @@ export function sanitizeMemberProfile(member: any, session: SessionData | null):
     fullAddress: undefined, // Protect full street address from directory
   };
 }
+
+export function sanitizeMatrimonialProfile(profile: any, canManage = false): any {
+  if (!profile) return null;
+
+  return {
+    ...profile,
+    contactPhone: canManage ? profile.contactPhone : maskPhone(profile.contactPhone),
+    secondaryPhone: canManage
+      ? profile.secondaryPhone
+      : profile.secondaryPhone
+      ? maskPhone(profile.secondaryPhone)
+      : undefined,
+    contactEmail: canManage
+      ? profile.contactEmail
+      : profile.contactEmail
+      ? maskEmail(profile.contactEmail)
+      : undefined,
+    residentialAddress: undefined, // Never expose full street address publicly on matrimonial profiles
+    aadhaarNumber: undefined,
+    panNumber: undefined,
+    passportNumber: undefined,
+    govtIdNumber: undefined,
+  };
+}
+

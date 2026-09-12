@@ -8,6 +8,7 @@ import {
   updateMatrimonialProfileStatus,
   deleteMatrimonialProfile,
 } from "@/actions/matrimony";
+import { revealContact } from "@/actions/reveal";
 import type { MatrimonialProfile } from "@/types/matrimony";
 
 export default function MatrimonyDetailPage() {
@@ -21,6 +22,27 @@ export default function MatrimonyDetailPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  // Privacy: Contact Reveal State (Rate-limited, max 50 reveals/day)
+  const [showContact, setShowContact] = useState(false);
+  const [contactData, setContactData] = useState<{ phone: string; email: string } | null>(null);
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [revealError, setRevealError] = useState("");
+
+  const handleReveal = async () => {
+    if (!profile) return;
+    setIsRevealing(true);
+    setRevealError("");
+    const res = await revealContact({ targetMemberId: profile.memberId });
+    setIsRevealing(false);
+
+    if (res.success && res.phone && res.email) {
+      setContactData({ phone: res.phone, email: res.email });
+      setShowContact(true);
+    } else {
+      setRevealError(res.error || "Unable to reveal contact details.");
+    }
+  };
 
   useEffect(() => {
     async function load() {
@@ -220,6 +242,12 @@ export default function MatrimonyDetailPage() {
                     <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
                       ✓ Verified Member
                     </span>
+                    {profile.isGovtIdVerified && (
+                      <span className="text-xs font-bold text-emerald-800 bg-emerald-100/70 px-2.5 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                        <span>🛡️</span>
+                        <span>Govt ID Verified</span>
+                      </span>
+                    )}
                     <span className="text-xs font-bold text-body-muted">
                       Managed by {profile.createdFor}
                     </span>
@@ -476,21 +504,57 @@ export default function MatrimonyDetailPage() {
                     Contact Family for Alliance (रिश्ते हेतु संपर्क)
                   </h3>
                 </div>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={`https://wa.me/${profile.contactPhone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
-                      `Jai Shree Agrasen Ji 🙏\nI am contacting regarding ${profile.fullName}'s matrimonial profile on Maharaja Agrasen Foundation.`
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-4 py-2 rounded-full text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 transition flex items-center gap-1.5 shadow-xs"
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Link
+                    href={`/dashboard/messages?recipient=${profile.memberId}`}
+                    className="px-4 py-2 rounded-full text-xs font-bold text-[#800020] bg-[#FFF3D6] border border-[#D4AF37] hover:bg-[#FCE8B2] transition shadow-xs flex items-center gap-1.5"
                   >
                     <span>💬</span>
-                    <span>Chat on WhatsApp</span>
-                  </a>
+                    <span>Message on Platform</span>
+                  </Link>
+
+                  {(canManage || (showContact && contactData)) && (
+                    <a
+                      href={`https://wa.me/${(contactData?.phone || profile.contactPhone).replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                        `Jai Shree Agrasen Ji 🙏\nI am contacting regarding ${profile.fullName}'s matrimonial profile on Maharaja Agrasen Foundation.`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 rounded-full text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 transition flex items-center gap-1.5 shadow-xs"
+                    >
+                      <span>💬</span>
+                      <span>Chat on WhatsApp</span>
+                    </a>
+                  )}
                 </div>
               </div>
 
+              {/* Privacy Reveal Banner (if not owner and not yet revealed) */}
+              {!canManage && !showContact && (
+                <div className="p-4 rounded-2xl bg-white border border-brand-accent/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="text-xs">
+                    <span className="font-bold text-brand-primary block">
+                      🔒 Direct Contact Details Privacy-Protected
+                    </span>
+                    <p className="text-[11px] text-body-muted mt-0.5">
+                      Mobile numbers and emails are masked to prevent automated scraping. Click reveal to view verified numbers.
+                    </p>
+                    {revealError && (
+                      <p className="text-[11px] text-red-600 font-semibold mt-1">⚠️ {revealError}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleReveal}
+                    disabled={isRevealing}
+                    className="w-full sm:w-auto shrink-0 px-4 py-2 rounded-full text-xs font-bold text-white va-btn-primary shadow-xs transition"
+                  >
+                    {isRevealing ? "Revealing..." : "👁️ Reveal Direct Contact"}
+                  </button>
+                </div>
+              )}
+
+              {/* Contact Information Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-brand-accent/20">
                 <div>
                   <span className="text-[11px] text-body-muted block">Contact Person</span>
@@ -500,17 +564,29 @@ export default function MatrimonyDetailPage() {
 
                 <div>
                   <span className="text-[11px] text-body-muted block">Phone Number</span>
-                  <strong className="text-brand-primary font-mono">{profile.contactPhone}</strong>
-                  {profile.secondaryPhone && (
+                  <strong className="text-brand-primary font-mono">
+                    {canManage
+                      ? profile.contactPhone
+                      : showContact && contactData
+                      ? contactData.phone
+                      : profile.contactPhone}
+                  </strong>
+                  {profile.secondaryPhone && canManage && (
                     <span className="block text-[11px] text-body-muted font-mono">{profile.secondaryPhone}</span>
                   )}
                 </div>
 
                 <div>
-                  <span className="text-[11px] text-body-muted block">Email / Address</span>
-                  <strong className="text-brand-primary truncate block">{profile.contactEmail || "On Request"}</strong>
+                  <span className="text-[11px] text-body-muted block">Email / Location</span>
+                  <strong className="text-brand-primary truncate block">
+                    {canManage
+                      ? profile.contactEmail || "On Request"
+                      : showContact && contactData
+                      ? contactData.email || "On Request"
+                      : profile.contactEmail || "On Request"}
+                  </strong>
                   <span className="block text-[11px] text-body-muted truncate">
-                    {profile.residentialAddress || profile.familyLocation}
+                    {profile.familyLocation}
                   </span>
                 </div>
               </div>
