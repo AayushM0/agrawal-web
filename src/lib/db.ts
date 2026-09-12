@@ -279,6 +279,7 @@ async function ensureSchema(client: any) {
           secondary_phone VARCHAR(50),
           contact_email VARCHAR(100),
           residential_address TEXT,
+          referenced_by VARCHAR(150),
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
@@ -286,6 +287,7 @@ async function ensureSchema(client: any) {
       CREATE INDEX IF NOT EXISTS idx_matrimonial_profiles_gender_status ON matrimonial_profiles(gender, status);
       CREATE INDEX IF NOT EXISTS idx_matrimonial_profiles_household ON matrimonial_profiles(household_id);
       ALTER TABLE matrimonial_profiles ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE matrimonial_profiles ADD COLUMN IF NOT EXISTS referenced_by VARCHAR(150);
     `);
     schemaEnsured = true;
   } catch (err) {
@@ -1882,7 +1884,8 @@ export const db = {
         father_occupation, mother_name, mother_member_id, mother_occupation, linked_siblings,
         native_place, family_location, family_type, family_values, family_financial_status,
         about_family, custom_fields, photos, partner_preferences, contact_person,
-        contact_relation, contact_phone, secondary_phone, contact_email, residential_address
+        contact_relation, contact_phone, secondary_phone, contact_email, residential_address,
+        referenced_by
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10, $11, $12, $13,
@@ -1893,7 +1896,8 @@ export const db = {
         $36, $37, $38, $39, $40,
         $41, $42, $43, $44, $45,
         $46, $47, $48, $49, $50,
-        $51, $52, $53, $54, $55
+        $51, $52, $53, $54, $55,
+        $56
       ) RETURNING *;
     `;
 
@@ -1953,6 +1957,7 @@ export const db = {
       p.secondaryPhone || null,
       p.contactEmail || null,
       p.residentialAddress || null,
+      p.referencedBy || null,
     ];
 
     const res = await pool.query(query, values);
@@ -2311,6 +2316,7 @@ function mapMatrimonialRow(row: any): MatrimonialProfile {
     secondaryPhone: row.secondary_phone || row.secondaryPhone || "",
     contactEmail: row.contact_email || row.contactEmail || "",
     residentialAddress: row.residential_address || row.residentialAddress || "",
+    referencedBy: row.referenced_by || row.referencedBy || undefined,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || new Date().toISOString()),
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || new Date().toISOString()),
     age,

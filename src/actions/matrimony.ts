@@ -293,6 +293,7 @@ export async function createMatrimonialProfile(input: CreateMatrimonialProfileIn
       secondaryPhone: input.secondaryPhone?.trim() || "",
       contactEmail: input.contactEmail?.trim() || candidateMember.email || "",
       residentialAddress: input.residentialAddress?.trim() || household.fullAddress || "",
+      referencedBy: input.referencedBy?.trim() || undefined,
     });
 
     // 6. Asynchronous Notification Emails (Anti-Spoofing Alerts)

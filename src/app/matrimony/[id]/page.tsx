@@ -514,6 +514,13 @@ export default function MatrimonyDetailPage() {
                   </span>
                 </div>
               </div>
+
+              {profile.referencedBy && (
+                <div className="pt-2.5 border-t border-brand-accent/20 text-xs text-body-muted flex items-center gap-1.5">
+                  <span className="font-semibold text-brand-primary">Referenced / Suggested By:</span>
+                  <span className="font-medium text-body-heading">{profile.referencedBy}</span>
+                </div>
+              )}
             </div>
 
           </div>

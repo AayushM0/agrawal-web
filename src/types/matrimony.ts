@@ -94,6 +94,7 @@ export interface MatrimonialProfile {
   secondaryPhone?: string;
   contactEmail?: string;
   residentialAddress?: string;
+  referencedBy?: string;
 
   createdAt: string;
   updatedAt: string;
@@ -175,6 +176,7 @@ export interface CreateMatrimonialProfileInput {
   secondaryPhone?: string;
   contactEmail?: string;
   residentialAddress?: string;
+  referencedBy?: string;
 }
 
 export interface EligibleHouseholdMember {

@@ -157,6 +157,7 @@ function CreateMatrimonyProfileForm() {
   const [secondaryPhone, setSecondaryPhone] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [residentialAddress, setResidentialAddress] = useState("");
+  const [referencedBy, setReferencedBy] = useState("");
 
   // Load Household & Eligible Members
   useEffect(() => {
@@ -360,6 +361,7 @@ function CreateMatrimonyProfileForm() {
       secondaryPhone,
       contactEmail,
       residentialAddress,
+      referencedBy: referencedBy.trim() || undefined,
     };
 
     const res = await createMatrimonialProfile(payload);
@@ -1416,6 +1418,19 @@ function CreateMatrimonyProfileForm() {
                   onChange={(e) => setContactEmail(e.target.value)}
                   placeholder="email@example.com"
                   className="w-full px-3 py-2 rounded-xl border border-brand-accent/40"
+                />
+              </div>
+
+              <div className="sm:col-span-3 pt-2 border-t border-brand-accent/15">
+                <label className="block text-[11px] font-extrabold uppercase text-body-heading mb-1">
+                  Referenced By / Suggested By (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={referencedBy}
+                  onChange={(e) => setReferencedBy(e.target.value)}
+                  placeholder="e.g. Shri Ramesh Agarwal"
+                  className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 bg-white text-xs"
                 />
               </div>
             </div>
