@@ -6,27 +6,36 @@ import { createClient } from "@supabase/supabase-js";
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const envPath = path.join(__dirname, "../.env.local");
+const isProd = process.argv.includes("--prod");
+const isDryRun = process.argv.includes("--dry-run");
 
 // Load Environment variables
 let dbUrl = process.env.DATABASE_URL;
 let supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 let serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, "utf8");
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  const envContent = fs.readFileSync(filePath, "utf8");
   for (const line of envContent.split("\n")) {
     const trimmed = line.trim();
-    if (!dbUrl && trimmed.startsWith("DATABASE_URL=")) {
-      dbUrl = trimmed.replace(/^DATABASE_URL=/, "").replace(/["']/g, "");
-    }
-    if (!supabaseUrl && trimmed.startsWith("NEXT_PUBLIC_SUPABASE_URL=")) {
-      supabaseUrl = trimmed.replace(/^NEXT_PUBLIC_SUPABASE_URL=/, "").replace(/["']/g, "");
-    }
-    if (!serviceKey && trimmed.startsWith("SUPABASE_SERVICE_ROLE_KEY=")) {
-      serviceKey = trimmed.replace(/^SUPABASE_SERVICE_ROLE_KEY=/, "").replace(/["']/g, "");
-    }
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const idx = trimmed.indexOf("=");
+    if (idx === -1) continue;
+    const key = trimmed.slice(0, idx).trim();
+    const val = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, "");
+    if (key === "DATABASE_URL" && (!dbUrl || isProd)) dbUrl = val;
+    if (key === "NEXT_PUBLIC_SUPABASE_URL" && (!supabaseUrl || isProd)) supabaseUrl = val;
+    if (key === "SUPABASE_SERVICE_ROLE_KEY" && (!serviceKey || isProd)) serviceKey = val;
   }
+}
+
+if (isProd) {
+  console.log("🌐 Target: PRODUCTION (.env.production.local)");
+  loadEnvFile(path.join(__dirname, "../.env.production.local"));
+} else {
+  console.log("💻 Target: LOCAL (.env.local)");
+  loadEnvFile(path.join(__dirname, "../.env.local"));
 }
 
 console.log("=== Base64 -> Supabase Storage Photo Migration ===");
@@ -42,7 +51,6 @@ if (!supabaseUrl || !serviceKey) {
   process.exit(1);
 }
 
-const isDryRun = process.argv.includes("--dry-run");
 if (isDryRun) {
   console.log("🔍 Running in DRY-RUN mode. No changes will be applied.");
 }
@@ -83,7 +91,7 @@ async function migrate() {
       const b64Length = b64.length;
       totalBytesFreed += b64Length;
 
-      const match = b64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+      const match = b64.trim().match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/s);
       if (!match) {
         console.warn(`⚠️ Skipping member ${m.id} (${m.full_name}): Unrecognized Base64 format.`);
         continue;
@@ -93,8 +101,11 @@ async function migrate() {
       let ext = "jpg";
       if (contentType.includes("png")) ext = "png";
       else if (contentType.includes("webp")) ext = "webp";
+      else if (contentType.includes("gif")) ext = "gif";
+      else if (contentType.includes("svg")) ext = "svg";
 
-      const buffer = Buffer.from(match[2], "base64");
+      const rawB64 = match[2].trim().replace(/\s/g, "");
+      const buffer = Buffer.from(rawB64, "base64");
       const cleanId = String(m.id).replace(/[^a-zA-Z0-9_-]/g, "_");
       const fileName = `avatars/member_${cleanId}-${Date.now()}.${ext}`;
 

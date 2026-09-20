@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Country, State, City, ICountry } from "country-state-city";
+import { ALL_COUNTRIES } from "@/data/countries";
+
+type GeoLib = typeof import("country-state-city");
 
 interface LocationData {
   country: string;
@@ -34,22 +36,38 @@ export default function LocationSelector({
   showFullAddress = true,
   className = "",
 }: LocationSelectorProps) {
-  const [countries] = useState<ICountry[]>(Country.getAllCountries());
+  const [geoLib, setGeoLib] = useState<GeoLib | null>(null);
+
+  // Lazy-load the heavy country-state-city database in the background
+  useEffect(() => {
+    let mounted = true;
+    import("country-state-city").then((lib) => {
+      if (mounted) setGeoLib(lib);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const countries = ALL_COUNTRIES.map(c => ({
+    name: c.name,
+    isoCode: c.code,
+    phonecode: c.dialCode.startsWith("+") ? c.dialCode : `+${c.dialCode}`,
+    flag: c.flag
+  }));
   
   // Find initial ISO codes based on string names
   const [selectedCountryCode, setSelectedCountryCode] = useState(() => {
     if (!country) return "IN";
-    const found = Country.getAllCountries().find(
-      c => c.name.toLowerCase() === country.toLowerCase() || c.isoCode.toLowerCase() === country.toLowerCase()
+    const found = ALL_COUNTRIES.find(
+      c => c.name.toLowerCase() === country.toLowerCase() || c.code.toLowerCase() === country.toLowerCase()
     );
-    return found ? found.isoCode : "IN";
+    return found ? found.code : "IN";
   });
 
   const [selectedStateCode, setSelectedStateCode] = useState(() => {
     if (!state) return "";
-    const stateList = State.getStatesOfCountry(selectedCountryCode);
-    const found = stateList.find(s => s.name.toLowerCase() === state.toLowerCase() || s.isoCode.toLowerCase() === state.toLowerCase());
-    return found ? found.isoCode : "";
+    return "";
   });
 
   const [localPostalCode, setLocalPostalCode] = useState(postalCode);
@@ -60,12 +78,23 @@ export default function LocationSelector({
   const [postalLookupSuccessMsg, setPostalLookupSuccessMsg] = useState("");
   const lastLookedUpPinRef = useRef<string>("");
 
-  const states = State.getStatesOfCountry(selectedCountryCode);
-  const cities = selectedStateCode ? City.getCitiesOfState(selectedCountryCode, selectedStateCode) : [];
+  const states = geoLib ? geoLib.State.getStatesOfCountry(selectedCountryCode) : [];
+  const cities = geoLib && selectedStateCode ? geoLib.City.getCitiesOfState(selectedCountryCode, selectedStateCode) : [];
+
+  // When geoLib finishes loading, sync selectedStateCode if state prop was provided
+  useEffect(() => {
+    if (geoLib && state && !selectedStateCode) {
+      const stateList = geoLib.State.getStatesOfCountry(selectedCountryCode);
+      const found = stateList.find(s => s.name.toLowerCase() === state.toLowerCase() || s.isoCode.toLowerCase() === state.toLowerCase());
+      if (found) setSelectedStateCode(found.isoCode);
+    }
+  }, [geoLib, state, selectedCountryCode, selectedStateCode]);
 
   const triggerChange = useCallback((updated: Partial<LocationData>) => {
-    const countryObj = Country.getCountryByCode(selectedCountryCode);
-    const stateObj = State.getStateByCodeAndCountry(updated.state !== undefined ? updated.state : selectedStateCode, selectedCountryCode);
+    const countryObj = ALL_COUNTRIES.find(c => c.code === selectedCountryCode);
+    const stateObj = geoLib
+      ? geoLib.State.getStateByCodeAndCountry(updated.state !== undefined ? updated.state : selectedStateCode, selectedCountryCode)
+      : null;
     
     const nextCountry = countryObj?.name || "India";
     const nextState = stateObj?.name || (updated.state !== undefined ? updated.state : state);
@@ -80,12 +109,12 @@ export default function LocationSelector({
       postalCode: nextPostal,
       fullAddress: nextAddress,
     }, nextCity);
-  }, [selectedCountryCode, selectedStateCode, localCity, localPostalCode, localAddress, state, onLocationChange]);
+  }, [geoLib, selectedCountryCode, selectedStateCode, localCity, localPostalCode, localAddress, state, onLocationChange]);
 
   useEffect(() => {
-    const countryObj = Country.getCountryByCode(selectedCountryCode);
+    const countryObj = ALL_COUNTRIES.find(c => c.code === selectedCountryCode);
     if (countryObj && onPhoneCodeChange) {
-      const code = countryObj.phonecode.startsWith("+") ? countryObj.phonecode : `+${countryObj.phonecode}`;
+      const code = countryObj.dialCode.startsWith("+") ? countryObj.dialCode : `+${countryObj.dialCode}`;
       onPhoneCodeChange(code);
     }
   }, [selectedCountryCode, onPhoneCodeChange]);
@@ -121,7 +150,7 @@ export default function LocationSelector({
           const resolvedCity = data.city || data.district;
 
           // Find matching state ISO in state list
-          const curStates = State.getStatesOfCountry(selectedCountryCode);
+          const curStates = geoLib ? geoLib.State.getStatesOfCountry(selectedCountryCode) : [];
           const matchedStateObj = curStates.find(
             s => s.name.toLowerCase() === resolvedState.toLowerCase() || 
                  resolvedState.toLowerCase().includes(s.name.toLowerCase()) ||
@@ -161,18 +190,18 @@ export default function LocationSelector({
         clearTimeout(timer);
       };
     }
-  }, [localPostalCode, selectedCountryCode, triggerChange]);
+  }, [localPostalCode, selectedCountryCode, triggerChange, geoLib]);
 
   const handleCountryChange = (code: string) => {
     setSelectedCountryCode(code);
     setSelectedStateCode("");
     setLocalCity("");
     lastLookedUpPinRef.current = "";
-    const countryObj = Country.getCountryByCode(code);
+    const countryObj = ALL_COUNTRIES.find(c => c.code === code);
     const countryName = countryObj?.name || "";
     
     if (countryObj && onPhoneCodeChange) {
-      const pCode = countryObj.phonecode.startsWith("+") ? countryObj.phonecode : `+${countryObj.phonecode}`;
+      const pCode = countryObj.dialCode.startsWith("+") ? countryObj.dialCode : `+${countryObj.dialCode}`;
       onPhoneCodeChange(pCode);
     }
 
@@ -188,8 +217,8 @@ export default function LocationSelector({
   const handleStateChange = (stateCode: string) => {
     setSelectedStateCode(stateCode);
     setLocalCity("");
-    const stateObj = State.getStateByCodeAndCountry(stateCode, selectedCountryCode);
-    triggerChange({ state: stateObj?.name || "", city: "" });
+    const stateObj = geoLib ? geoLib.State.getStateByCodeAndCountry(stateCode, selectedCountryCode) : null;
+    triggerChange({ state: stateObj?.name || stateCode, city: "" });
   };
 
   return (

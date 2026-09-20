@@ -18,12 +18,14 @@ if (!pool && process.env.DATABASE_URL) {
       process.env.DATABASE_URL.includes("127.0.0.1") ||
       process.env.DATABASE_URL.includes("::1");
 
+    const isProduction = process.env.NODE_ENV === "production";
+
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: isLocalDb ? false : { rejectUnauthorized: false },
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
+      max: isProduction ? 2 : 10,
+      idleTimeoutMillis: isProduction ? 10000 : 30000,
+      connectionTimeoutMillis: 5000,
       keepAlive: true,
     });
     pool.on("error", (err) => {
@@ -31,7 +33,11 @@ if (!pool && process.env.DATABASE_URL) {
     });
     globalForPg.pgPool = pool;
 
-    if (!globalForPg.schemaEnsured && process.env.NODE_ENV !== "test") {
+    const shouldAutoMigrate =
+      process.env.AUTO_MIGRATE_SCHEMA === "true" ||
+      process.env.NODE_ENV === "development";
+
+    if (!globalForPg.schemaEnsured && shouldAutoMigrate && process.env.NODE_ENV !== "test") {
       pool.connect().then(async (client) => {
         try {
           await ensureSchema(client);
@@ -43,6 +49,8 @@ if (!pool && process.env.DATABASE_URL) {
       }).catch((err) => {
         console.warn("Schema migration connect skipped/deferred:", err?.message || err);
       });
+    } else {
+      globalForPg.schemaEnsured = true;
     }
   } catch (err) {
     console.error("Failed to initialize PG pool:", err);

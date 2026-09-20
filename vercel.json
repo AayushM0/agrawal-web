@@ -3,6 +3,9 @@
   "buildCommand": "next build",
   "installCommand": "npm install --legacy-peer-deps",
   "cleanUrls": true,
+  "regions": [
+    "sin1"
+  ],
   "crons": [
     {
       "path": "/api/cron/prune-messages",

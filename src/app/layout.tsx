@@ -6,24 +6,25 @@ import MainHeader from "@/components/layout/MainHeader";
 import RoyalFooter from "@/components/layout/RoyalFooter";
 import CookieBanner from "@/components/layout/CookieBanner";
 import OfflineIndicator from "@/components/layout/OfflineIndicator";
+import { getSession } from "@/actions/session";
 
 const poppins = Poppins({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800", "900"],
+  weight: ["400", "600", "700"],
   variable: "--font-poppins",
   display: "swap",
 });
 
 const notoSansDevanagari = Noto_Sans_Devanagari({
   subsets: ["devanagari"],
-  weight: ["400", "600", "700", "800"],
+  weight: ["400", "600", "700"],
   variable: "--font-devanagari",
   display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -60,11 +61,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await getSession();
+
   return (
     <html
       lang="en"
@@ -73,7 +76,7 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col bg-canvas-page text-body-text antialiased font-sans overflow-x-hidden">
         <OfflineIndicator />
         <TopNavBar />
-        <MainHeader />
+        <MainHeader initialSession={session} />
         <div className="flex-1">
           {children}
         </div>

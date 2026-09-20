@@ -7,11 +7,11 @@ import { getSession, clearSession, SessionData } from "@/actions/session";
 import { getConversations } from "@/actions/chat";
 import { useRouter, usePathname } from "next/navigation";
 
-export default function MainHeader() {
+export default function MainHeader({ initialSession }: { initialSession?: SessionData | null } = {}) {
   const router = useRouter();
   const pathname = usePathname();
-  const [session, setSession] = useState<SessionData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [session, setSession] = useState<SessionData | null>(initialSession ?? null);
+  const [isLoading, setIsLoading] = useState(initialSession === undefined);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Notification & Messages State
@@ -29,7 +29,7 @@ export default function MainHeader() {
   // Track previous pathname to detect auth transitions
   const prevPathnameRef = useRef(pathname);
 
-  // 2. Fetch session on initial mount and when window regains focus
+  // 2. Fetch session on initial mount (if not hydrated from server) and when window regains focus
   useEffect(() => {
     let isMounted = true;
     const updateSession = () => {
@@ -45,7 +45,9 @@ export default function MainHeader() {
         });
     };
 
-    updateSession();
+    if (initialSession === undefined) {
+      updateSession();
+    }
 
     const onFocus = () => {
       if (typeof document !== "undefined" && !document.hidden) {
