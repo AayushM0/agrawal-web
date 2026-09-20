@@ -257,4 +257,37 @@ test("Seam 13: Registration drafts schema, server actions, and admin integration
   assert.ok(adminCode.includes('"incomplete"'), "Moderation page must include 'incomplete' filter tab");
 });
 
+// --- SEAM 14: Message Request Email Notifications & Real-Time Pop-up Toast ---
+test("Seam 14: First-turn message request email dispatch and in-app popup toast adhere to contracts", () => {
+  const emailUtilFile = path.join(webRoot, "src/lib/email.ts");
+  const toastComponentFile = path.join(webRoot, "src/components/chat/MessageRequestToast.tsx");
+  const chatActionFile = path.join(webRoot, "src/actions/chat.ts");
+  const headerFile = path.join(webRoot, "src/components/layout/MainHeader.tsx");
+
+  // 1. Email Utility Contract
+  assert.ok(fs.existsSync(emailUtilFile), "src/lib/email.ts must exist");
+  const emailCode = fs.readFileSync(emailUtilFile, "utf8");
+  assert.ok(emailCode.includes("export async function sendMessageRequestNotificationEmail"), "Must export sendMessageRequestNotificationEmail");
+  assert.ok(emailCode.includes("api.resend.com/emails"), "Must dispatch to Resend API endpoint");
+  assert.ok(emailCode.includes("RESEND_API_KEY"), "Must check RESEND_API_KEY");
+
+  // 2. Chat Action First-Turn Integration
+  const chatCode = fs.readFileSync(chatActionFile, "utf8");
+  assert.ok(chatCode.includes("sendMessageRequestNotificationEmail"), "sendMessage must call sendMessageRequestNotificationEmail");
+  assert.ok(chatCode.includes("isFirstRequestTurn") || chatCode.includes("isRequestTurn") || chatCode.includes("existingMessages.length === 0"), "Must detect first-turn message request");
+  assert.ok(chatCode.includes("senderName"), "Pusher incoming-message payload must include senderName");
+  assert.ok(chatCode.includes("isRequest"), "Pusher incoming-message payload must include isRequest flag");
+
+  // 3. Floating Pop-up Toast Component
+  assert.ok(fs.existsSync(toastComponentFile), "src/components/chat/MessageRequestToast.tsx must exist");
+  const toastCode = fs.readFileSync(toastComponentFile, "utf8");
+  assert.ok(toastCode.includes("MessageRequestToast"), "Toast file must declare MessageRequestToast");
+  assert.ok(toastCode.includes("Open Chat") || toastCode.includes("open-chat"), "Toast must include open chat action");
+
+  // 4. MainHeader Real-Time & Polling Pop-up Integration
+  const headerCode = fs.readFileSync(headerFile, "utf8");
+  assert.ok(headerCode.includes("MessageRequestToast"), "MainHeader must import MessageRequestToast");
+  assert.ok(headerCode.includes("incoming-message"), "MainHeader must listen for incoming-message events");
+});
+
 

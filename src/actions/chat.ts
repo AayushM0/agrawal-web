@@ -3,6 +3,7 @@
 import { getSession } from "@/actions/auth";
 import { db } from "@/lib/db";
 import { scanForFraud } from "@/lib/anti-fraud";
+import { sendMessageRequestNotificationEmail } from "@/lib/email";
 
 // In-Memory Rate Limiting: Max 10 new conversations per day, 60 messages per hour
 const chatRateLimits = new Map<string, { conversationsToday: number; messagesThisHour: number; lastHourReset: number; lastDayReset: number }>();
@@ -119,6 +120,7 @@ export async function sendMessage(params: {
     }
 
     // Two-stage request guard: If pending and sender is initiator, check if already sent initial note
+    let isFirstRequestTurn = false;
     if (conversation.status === "pending" && isInitiator) {
       const existingMessages = await db.getMessagesByConversation(conversation.id, 5);
       if (existingMessages.length > 0) {
@@ -127,6 +129,7 @@ export async function sendMessage(params: {
           error: "Message request pending: Please wait for the recipient to accept before sending further messages.",
         };
       }
+      isFirstRequestTurn = existingMessages.length === 0;
     }
 
     // Check rate limits
@@ -150,6 +153,34 @@ export async function sendMessage(params: {
       isFlagged: fraudScan.isFlagged,
       flagReason: fraudScan.reason || undefined,
     });
+
+    // 1. If this is the first turn of a connection request, trigger email notification asynchronously
+    if (isFirstRequestTurn) {
+      (async () => {
+        try {
+          const [recipientMember, senderMember] = await Promise.all([
+            db.getMemberById(actualRecipientId),
+            db.getMemberById(senderMemberId),
+          ]);
+
+          if (recipientMember?.email) {
+            await sendMessageRequestNotificationEmail({
+              recipientEmail: recipientMember.email,
+              recipientName: recipientMember.fullName || "Valued Member",
+              senderName: senderMember?.fullName || "A Community Member",
+              senderGotra: senderMember?.gotra || null,
+              senderCity: senderMember?.currentCity || null,
+              messagePreview: trimmedBody.slice(0, 250),
+              conversationId: conversation.id,
+            });
+          }
+        } catch (emailErr) {
+          console.warn("Message request notification email failed (non-fatal):", emailErr);
+        }
+      })().catch((err) => {
+        console.warn("Async email dispatcher notice:", err);
+      });
+    }
 
     // Fire Pusher real-time events (graceful: never block the return if Pusher fails)
     if (process.env.PUSHER_APP_ID && process.env.NEXT_PUBLIC_PUSHER_APP_KEY && process.env.PUSHER_SECRET) {
@@ -176,11 +207,17 @@ export async function sendMessage(params: {
           createdAt: msg.created_at,
         });
 
-        // 2. Notify the recipient's sidebar so unread counts update instantly
+        // 2. Fetch sender profile to include in real-time user notification
+        const senderProfile = await db.getMemberById(senderMemberId).catch(() => null);
+
+        // 3. Notify the recipient's personal user channel so pop-up toasts & unread counts update instantly
         await pusher.trigger(`private-user-${actualRecipientId}`, "incoming-message", {
           conversationId: conversation.id,
           senderId: senderMemberId,
-          messagePreview: trimmedBody.slice(0, 100),
+          senderName: senderProfile?.fullName || "A Community Member",
+          senderGotra: senderProfile?.gotra || null,
+          messagePreview: trimmedBody.slice(0, 120),
+          isRequest: isFirstRequestTurn,
         });
       } catch (pusherErr) {
         console.error("Pusher trigger failed (non-fatal):", pusherErr);

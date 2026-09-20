@@ -6,6 +6,8 @@ import Image from "next/image";
 import { getSession, clearSession, SessionData } from "@/actions/session";
 import { getConversations } from "@/actions/chat";
 import { useRouter, usePathname } from "next/navigation";
+import { MessageRequestToast, MessageRequestToastData } from "@/components/chat/MessageRequestToast";
+import { getPusherClient } from "@/hooks/useChatRealtime";
 
 export default function MainHeader({ initialSession }: { initialSession?: SessionData | null } = {}) {
   const router = useRouter();
@@ -18,7 +20,10 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
   const [unreadRequests, setUnreadRequests] = useState<any[]>([]);
   const [recentConversations, setRecentConversations] = useState<any[]>([]);
   const [showNotificationPanel, setShowNotificationPanel] = useState(false);
+  const [activeToast, setActiveToast] = useState<MessageRequestToastData | null>(null);
   const notificationDropdownRef = useRef<HTMLDivElement>(null);
+  const seenRequestsRef = useRef<Set<string>>(new Set());
+  const initialLoadDoneRef = useRef<boolean>(false);
 
   // 1. Instant UI cleanup on route navigation (pure client state)
   useEffect(() => {
@@ -84,6 +89,50 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
     }
   }, [pathname]);
 
+  // 3b. Real-time Pusher incoming-message listener for logged-in user
+  useEffect(() => {
+    if (!session?.userId) return;
+
+    const pusher = getPusherClient();
+    if (!pusher) return;
+
+    const channel = pusher.subscribe(`private-user-${session.userId}`);
+
+    channel.bind("incoming-message", (data: any) => {
+      // Refresh notifications badge
+      getConversations()
+        .then((res) => {
+          if (res.success) {
+            setUnreadRequests(res.requests || []);
+            setRecentConversations(res.active || []);
+          }
+        })
+        .catch(() => {});
+
+      // If it's a message request or contains sender name, trigger the real-time popup toast
+      if (data && (data.isRequest || data.senderName)) {
+        const reqId = String(data.conversationId || Date.now());
+        if (!seenRequestsRef.current.has(reqId)) {
+          seenRequestsRef.current.add(reqId);
+          if (pathname !== "/dashboard/messages") {
+            setActiveToast({
+              id: reqId,
+              senderName: data.senderName || "A Community Member",
+              senderGotra: data.senderGotra || null,
+              messagePreview: data.messagePreview || "Sent you a message request.",
+              conversationId: data.conversationId || "",
+            });
+          }
+        }
+      }
+    });
+
+    return () => {
+      channel.unbind_all();
+      pusher.unsubscribe(`private-user-${session.userId}`);
+    };
+  }, [session?.userId, pathname]);
+
   // 4. Notifications poll every 30s when logged in - decoupled from navigation
   useEffect(() => {
     if (!session) {
@@ -97,8 +146,33 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
       try {
         const res = await getConversations();
         if (res.success && isMounted) {
-          setUnreadRequests(res.requests || []);
+          const reqs = res.requests || [];
+          setUnreadRequests(reqs);
           setRecentConversations(res.active || []);
+
+          if (!initialLoadDoneRef.current) {
+            // First load: seed seen requests so existing historical requests don't toast
+            reqs.forEach((r: any) => seenRequestsRef.current.add(String(r.id)));
+            initialLoadDoneRef.current = true;
+          } else {
+            // Subsequent polls: toast any newly discovered request
+            for (const r of reqs) {
+              const rId = String(r.id);
+              if (!seenRequestsRef.current.has(rId)) {
+                seenRequestsRef.current.add(rId);
+                if (pathname !== "/dashboard/messages") {
+                  setActiveToast({
+                    id: rId,
+                    senderName: r.otherParticipant?.fullName || "A Community Member",
+                    senderGotra: r.otherParticipant?.gotra || null,
+                    messagePreview: r.lastMessagePreview || "Sent you a message request.",
+                    conversationId: r.id,
+                  });
+                }
+                break;
+              }
+            }
+          }
         }
       } catch {}
     }
@@ -108,7 +182,7 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
       isMounted = false;
       clearInterval(timer);
     };
-  }, [session?.userId]);
+  }, [session?.userId, pathname]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -133,8 +207,18 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
   const isAdmin = session?.role === "admin";
   const totalUnreadCount = unreadRequests.length + recentConversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
+  const handleOpenChat = (conversationId: string) => {
+    router.push(`/dashboard/messages${conversationId ? `?conv=${encodeURIComponent(conversationId)}` : ""}`);
+  };
+
   return (
-    <header className="sticky top-0 z-50 bg-[#fffdf8]/95 backdrop-blur-md border-b border-brand-accent/25 shadow-warm transition-all">
+    <>
+      <MessageRequestToast
+        toast={activeToast}
+        onClose={() => setActiveToast(null)}
+        onOpenChat={handleOpenChat}
+      />
+      <header className="sticky top-0 z-50 bg-[#fffdf8]/95 backdrop-blur-md border-b border-brand-accent/25 shadow-warm transition-all">
       <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
         {/* Brand Logo & Title */}
         <Link href="/" className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 text-decoration-none group">
@@ -577,6 +661,7 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
           </div>
         </div>
       )}
-    </header>
+      </header>
+    </>
   );
 }
