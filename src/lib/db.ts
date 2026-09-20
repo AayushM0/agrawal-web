@@ -13,9 +13,14 @@ let pool: Pool | null = globalForPg.pgPool || null;
 
 if (!pool && process.env.DATABASE_URL) {
   try {
+    const isLocalDb =
+      process.env.DATABASE_URL.includes("localhost") ||
+      process.env.DATABASE_URL.includes("127.0.0.1") ||
+      process.env.DATABASE_URL.includes("::1");
+
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
+      ssl: isLocalDb ? false : { rejectUnauthorized: false },
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
