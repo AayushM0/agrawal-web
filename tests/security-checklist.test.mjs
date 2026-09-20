@@ -54,5 +54,6 @@ test("Checklist 4: Supabase Row-Level Security (RLS) enabled in schema.sql", () 
 
   assert.ok(schema.includes("ALTER TABLE households ENABLE ROW LEVEL SECURITY;"), "households RLS must be enabled");
   assert.ok(schema.includes("ALTER TABLE members ENABLE ROW LEVEL SECURITY;"), "members RLS must be enabled");
+  assert.ok(schema.includes("ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;"), "login_attempts RLS must be enabled");
   assert.ok(schema.includes("CREATE POLICY \"Allow Realtime messages select\""), "messages Realtime policy must exist");
 });

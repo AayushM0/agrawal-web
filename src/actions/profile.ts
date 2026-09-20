@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { getSession } from "./auth";
+import { uploadMemberPhoto } from "@/lib/storage";
 import type { Member } from "@/types/household";
 
 export interface UpdateProfileInput {
@@ -73,10 +74,17 @@ export async function saveMemberProfile(input: UpdateProfileInput) {
     return { success: false, error: `${label} is required.` };
   }
 
+  let finalPhotoUrl = input.photoUrl;
+  if (finalPhotoUrl && finalPhotoUrl.trim().startsWith("data:image/")) {
+    finalPhotoUrl = await uploadMemberPhoto(finalPhotoUrl, {
+      identifier: `member_${input.memberId}`,
+    });
+  }
+
   const success = await db.updateMemberProfile(input.memberId, {
     fullName: input.fullName.trim(),
     fatherName: input.fatherName?.trim() || undefined,
-    photoUrl: input.photoUrl,
+    photoUrl: finalPhotoUrl,
     dob: input.dob?.trim() || undefined,
     gender: input.gender,
     maritalStatus: input.maritalStatus,
@@ -229,6 +237,13 @@ export async function addHouseholdMember(input: AddMemberInput): Promise<{
   }
 
   try {
+    let finalPhotoUrl = input.photoUrl;
+    if (finalPhotoUrl && finalPhotoUrl.trim().startsWith("data:image/")) {
+      finalPhotoUrl = await uploadMemberPhoto(finalPhotoUrl, {
+        identifier: `member_new_${Date.now()}`,
+      });
+    }
+
     const newMember = await db.addMemberToHousehold(household.id, {
       fullName: input.fullName.trim(),
       relationToHead: input.relationToHead.toLowerCase() as any,
@@ -236,7 +251,7 @@ export async function addHouseholdMember(input: AddMemberInput): Promise<{
       gender: input.gender || "Male",
       maritalStatus: input.maritalStatus || "Unmarried",
       dob: input.dob?.trim(),
-      photoUrl: input.photoUrl,
+      photoUrl: finalPhotoUrl,
       phone: input.phone?.trim(),
       email: input.email?.trim().toLowerCase(),
       profession: input.professionTitle?.trim() || input.profession?.trim() || "Not specified",

@@ -42,5 +42,7 @@ scripts/clean-db.mjs
 ACTIVITY_LOG.md
 changes.md
 tasks/
-docs/
+# local uploads
+/public/uploads/*
+!/public/uploads/.gitkeep
 

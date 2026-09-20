@@ -7,7 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node tests/seams.test.mjs"
+    "test": "node tests/seams.test.mjs",
+    "db:up": "docker compose -f ../docker-compose.yml up -d",
+    "db:down": "docker compose -f ../docker-compose.yml down",
+    "db:status": "docker compose -f ../docker-compose.yml ps",
+    "db:setup": "node scripts/seed-dev.mjs",
+    "db:clean": "node scripts/clean-db.mjs --confirm-wipe-local",
+    "db:migrate-photos": "node scripts/migrate-photos.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.7.0",

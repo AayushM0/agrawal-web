@@ -6,6 +6,7 @@ import { gotras } from "../data/gotras";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { validateProfileImage } from "@/lib/image-validator";
 import { validatePassword, hashPassword } from "@/lib/auth-crypto";
+import { uploadMemberPhoto } from "@/lib/storage";
 
 export interface RegisterHouseholdInput {
   headName: string;
@@ -36,7 +37,8 @@ const VALID_GENDERS = new Set(["male", "female", "other"]);
 const VALID_MARITAL = new Set(["married", "unmarried", "widowed", "divorced"]);
 
 export async function registerHousehold(input: RegisterHouseholdInput) {
-  // 1. Consent Validation
+  try {
+    // 1. Consent Validation
   if (!input.consentAccepted) {
     return { success: false, error: "Consent to Privacy Policy and Terms is required." };
   }
@@ -286,18 +288,27 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
 
   // 7. Create new Household with pending_review status
   const householdId = `h-${Date.now()}`;
-  const householdCode = `AGR-2026-${Math.floor(100 + Math.random() * 900)}`;
+  const randPart = Math.floor(100000 + Math.random() * 900000);
+  const householdCode = `AGR-2026-${randPart}`;
 
-  const structuredMembers: Member[] = input.members.map((m, idx) => {
-    const hasIndividualContact = Boolean((m.phone && m.phone.trim()) || (m.email && m.email.trim()));
-    const isAutoClaimed = idx === 0 || !hasIndividualContact;
+  const structuredMembers: Member[] = await Promise.all(
+    input.members.map(async (m, idx) => {
+      const hasIndividualContact = Boolean((m.phone && m.phone.trim()) || (m.email && m.email.trim()));
+      const isAutoClaimed = idx === 0 || !hasIndividualContact;
 
-    return {
-      ...m,
-      fullName: m.fullName.trim(),
-      relationToHead: (m.relationToHead?.toLowerCase() as any) || (idx === 0 ? "self" : "other"),
-      fatherName: m.fatherName?.trim() || undefined,
-      photoUrl: m.photoUrl?.trim() || undefined,
+      let finalPhotoUrl = m.photoUrl?.trim() || undefined;
+      if (finalPhotoUrl && finalPhotoUrl.startsWith("data:image/")) {
+        finalPhotoUrl = await uploadMemberPhoto(finalPhotoUrl, {
+          identifier: `reg_${idx === 0 ? "head" : `mem_${idx}`}_${Date.now()}`,
+        });
+      }
+
+      return {
+        ...m,
+        fullName: m.fullName.trim(),
+        relationToHead: (m.relationToHead?.toLowerCase() as any) || (idx === 0 ? "self" : "other"),
+        fatherName: m.fatherName?.trim() || undefined,
+        photoUrl: finalPhotoUrl,
       phone: m.phone ? (m.phone.includes("@") ? m.phone.trim() : normalizePhoneNumber(m.phone)) : undefined,
       email: m.email?.trim().toLowerCase() || undefined,
       currentCity: m.currentCity?.trim() || city || cleanNativePlace,
@@ -325,7 +336,7 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
         photo: "public_to_members",
       },
     };
-  });
+  }));
 
   const newHousehold: Household = {
     id: householdId,
@@ -363,6 +374,30 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     serialNo: primarySerial,
     message: "Registration submitted successfully into community moderation queue.",
   };
+  } catch (err: any) {
+    console.error("registerHousehold unexpected error:", err);
+    let errorMsg = "Registration failed due to a server error. Please try again.";
+    if (err?.code === "23505") {
+      if (err.detail?.includes("verified_contact") || err.constraint?.includes("verified_contact")) {
+        errorMsg = "A household registration already exists under this verified contact number or email.";
+      } else if (err.detail?.includes("household_code") || err.constraint?.includes("household_code")) {
+        errorMsg = "A system identifier collision occurred. Please click Submit again to proceed.";
+      } else if (err.detail?.includes("serial_no") || err.constraint?.includes("serial_no")) {
+        errorMsg = "A serial number collision occurred. Please click Submit again to proceed.";
+      } else {
+        errorMsg = "A duplicate record was detected in directory records. Please verify your details.";
+      }
+    } else if (err?.message?.includes("Database not connected") || err?.code === "ECONNREFUSED" || err?.code === "ETIMEDOUT") {
+      errorMsg = "The directory database service is temporarily unavailable. Please retry in a few moments.";
+    } else if (err?.message) {
+      errorMsg = err.message;
+    }
+
+    return {
+      success: false,
+      error: errorMsg,
+    };
+  }
 }
 
 export async function checkContactRegistration(contact: string, excludeMemberId?: string) {

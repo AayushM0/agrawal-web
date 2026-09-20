@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/actions/auth";
 import { sanitizeSearchString, sanitizeNameString } from "@/lib/sanitizer";
 import { sanitizeMatrimonialProfile } from "@/lib/privacy";
+import { uploadMemberPhoto } from "@/lib/storage";
 import { gotras } from "@/data/gotras";
 import type {
   MatrimonialProfile,
@@ -229,13 +230,25 @@ export async function createMatrimonialProfile(input: CreateMatrimonialProfileIn
     const heightDisplay = input.heightDisplay || formatHeightDisplay(input.heightCm);
 
     // Photos: default to existing member photo if none provided
-    let photos = input.photos || [];
-    if (photos.length === 0 && candidateMember.photoUrl) {
-      photos = [candidateMember.photoUrl];
+    let rawPhotos = input.photos || [];
+    if (rawPhotos.length === 0 && candidateMember.photoUrl) {
+      rawPhotos = [candidateMember.photoUrl];
     }
-    if (photos.length > 3) {
-      photos = photos.slice(0, 3);
+    if (rawPhotos.length > 3) {
+      rawPhotos = rawPhotos.slice(0, 3);
     }
+
+    const photos: string[] = await Promise.all(
+      rawPhotos.map(async (p, idx) => {
+        if (p && p.trim().startsWith("data:image/")) {
+          return await uploadMemberPhoto(p, {
+            folder: "matrimony",
+            identifier: `matrimony_${candidateMember.id}_${idx}`,
+          });
+        }
+        return p?.trim() || "";
+      })
+    );
 
     // 5. Persist profile
     const profile = await db.createMatrimonialProfile({

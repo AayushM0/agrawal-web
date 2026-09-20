@@ -744,7 +744,13 @@ export default function SignupPage() {
     } catch (err: any) {
       setIsSubmitting(false);
       console.error("Submission error:", err);
-      showToast("Registration submission error. Please check inputs and try again.", "error");
+      const isPayloadSize = err?.message?.includes("Body exceeded") || err?.message?.includes("payload");
+      const message = isPayloadSize
+        ? "Uploaded photographs exceed server limits. Please upload smaller photos or retry."
+        : (err?.message && !err.message.includes("Server Components render")
+            ? err.message
+            : "Registration submission error. Please check your network connection and try again.");
+      showToast(message, "error");
     }
   };
 

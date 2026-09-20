@@ -1,0 +1,146 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import pg from "pg";
+import { createClient } from "@supabase/supabase-js";
+
+const { Pool } = pg;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const envPath = path.join(__dirname, "../.env.local");
+
+// Load Environment variables
+let dbUrl = process.env.DATABASE_URL;
+let supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+let serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, "utf8");
+  for (const line of envContent.split("\n")) {
+    const trimmed = line.trim();
+    if (!dbUrl && trimmed.startsWith("DATABASE_URL=")) {
+      dbUrl = trimmed.replace(/^DATABASE_URL=/, "").replace(/["']/g, "");
+    }
+    if (!supabaseUrl && trimmed.startsWith("NEXT_PUBLIC_SUPABASE_URL=")) {
+      supabaseUrl = trimmed.replace(/^NEXT_PUBLIC_SUPABASE_URL=/, "").replace(/["']/g, "");
+    }
+    if (!serviceKey && trimmed.startsWith("SUPABASE_SERVICE_ROLE_KEY=")) {
+      serviceKey = trimmed.replace(/^SUPABASE_SERVICE_ROLE_KEY=/, "").replace(/["']/g, "");
+    }
+  }
+}
+
+console.log("=== Base64 -> Supabase Storage Photo Migration ===");
+
+if (!dbUrl) {
+  console.error("❌ Missing DATABASE_URL");
+  process.exit(1);
+}
+
+if (!supabaseUrl || !serviceKey) {
+  console.error("❌ Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  console.error("Supabase credentials are required to upload legacy images to cloud storage.");
+  process.exit(1);
+}
+
+const isDryRun = process.argv.includes("--dry-run");
+if (isDryRun) {
+  console.log("🔍 Running in DRY-RUN mode. No changes will be applied.");
+}
+
+const pool = new Pool({
+  connectionString: dbUrl,
+  ssl: dbUrl.includes("supabase.com") ? { rejectUnauthorized: false } : false,
+});
+
+const supabase = createClient(supabaseUrl, serviceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
+async function migrate() {
+  const client = await pool.connect();
+  try {
+    console.log("📡 Scanning database for legacy Base64 photos in 'members' table...");
+    const res = await client.query(`
+      SELECT id, full_name, photo_url 
+      FROM members 
+      WHERE photo_url IS NOT NULL 
+        AND photo_url LIKE 'data:image/%';
+    `);
+
+    const membersWithBase64 = res.rows;
+    console.log(`📸 Found ${membersWithBase64.length} members with Base64 photos stored in PostgreSQL.`);
+
+    if (membersWithBase64.length === 0) {
+      console.log("✅ All member photos are already clean URLs or empty. Nothing to migrate!");
+      return;
+    }
+
+    let successCount = 0;
+    let totalBytesFreed = 0;
+
+    for (const m of membersWithBase64) {
+      const b64 = m.photo_url;
+      const b64Length = b64.length;
+      totalBytesFreed += b64Length;
+
+      const match = b64.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+      if (!match) {
+        console.warn(`⚠️ Skipping member ${m.id} (${m.full_name}): Unrecognized Base64 format.`);
+        continue;
+      }
+
+      const contentType = match[1].toLowerCase();
+      let ext = "jpg";
+      if (contentType.includes("png")) ext = "png";
+      else if (contentType.includes("webp")) ext = "webp";
+
+      const buffer = Buffer.from(match[2], "base64");
+      const cleanId = String(m.id).replace(/[^a-zA-Z0-9_-]/g, "_");
+      const fileName = `avatars/member_${cleanId}-${Date.now()}.${ext}`;
+
+      if (isDryRun) {
+        console.log(`[DRY-RUN] Would upload ${b64Length} bytes for '${m.full_name}' -> ${fileName}`);
+        successCount++;
+        continue;
+      }
+
+      console.log(`⬆️ Uploading avatar for '${m.full_name}' (${(b64Length / 1024).toFixed(1)} KB)...`);
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("member-photos")
+        .upload(fileName, buffer, {
+          contentType,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error(`❌ Upload failed for member ${m.id}:`, uploadError.message);
+        continue;
+      }
+
+      const { data: publicData } = supabase.storage
+        .from("member-photos")
+        .getPublicUrl(fileName);
+
+      const publicUrl = publicData.publicUrl;
+
+      // Update PostgreSQL record
+      await client.query("UPDATE members SET photo_url = $1 WHERE id = $2;", [publicUrl, m.id]);
+      console.log(`✅ Updated member '${m.full_name}' with CDN URL: ${publicUrl}`);
+      successCount++;
+    }
+
+    console.log("\n" + "=".repeat(60));
+    console.log(`🎉 Migration Finished: ${successCount}/${membersWithBase64.length} members migrated.`);
+    console.log(`💾 Estimated database bloat eliminated: ${(totalBytesFreed / (1024 * 1024)).toFixed(2)} MB`);
+    console.log("=".repeat(60));
+
+  } catch (err) {
+    console.error("❌ Migration error:", err);
+    process.exit(1);
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+migrate();

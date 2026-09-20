@@ -27,7 +27,6 @@ if (!pool && process.env.DATABASE_URL) {
     globalForPg.pgPool = pool;
 
     if (!globalForPg.schemaEnsured && process.env.NODE_ENV !== "test") {
-      globalForPg.schemaEnsured = true;
       pool.connect().then(async (client) => {
         try {
           await ensureSchema(client);
@@ -212,6 +211,7 @@ async function ensureSchema(client: any) {
       ALTER TABLE message_reports ENABLE ROW LEVEL SECURITY;
       ALTER TABLE otp_rate_limits ENABLE ROW LEVEL SECURITY;
       ALTER TABLE admin_login_attempts ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
       ALTER TABLE support_inquiries ENABLE ROW LEVEL SECURITY;
 
       -- Allow SELECT to anon for Realtime web-socket updates (restricted to Realtime-only by blocking PostgREST queries)
@@ -290,6 +290,7 @@ async function ensureSchema(client: any) {
       ALTER TABLE matrimonial_profiles ADD COLUMN IF NOT EXISTS referenced_by VARCHAR(150);
     `);
     schemaEnsured = true;
+    globalForPg.schemaEnsured = true;
   } catch (err) {
     console.warn("Schema migration non-fatal:", err);
   }

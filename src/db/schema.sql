@@ -232,17 +232,34 @@ ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE message_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE otp_rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_login_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE support_inquiries ENABLE ROW LEVEL SECURITY;
 
 -- Households, Members, Message Reports, Rate Limits, and Admin Attempts have NO policies defined.
 -- In PostgreSQL, this default deny-all state blocks all public anon/authenticated REST/GraphQL operations.
 -- Our Next.js backend connects as database owner/superuser, bypassing RLS automatically.
 
+-- Ensure standard roles exist in local PostgreSQL environments
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+EXCEPTION WHEN OTHERS THEN null;
+END $$;
+
 -- For conversations and messages (used by Supabase Realtime in browser):
 -- Define SELECT policies for anon/authenticated roles to receive websocket broadcasts.
 -- Restrict to Realtime-only by blocking PostgREST queries (where request.path is set).
-DROP POLICY IF EXISTS "Allow Realtime conversations select" ON conversations;
-CREATE POLICY "Allow Realtime conversations select" ON conversations FOR SELECT TO anon USING (current_setting('request.path', true) IS NULL);
+DO $$ 
+BEGIN
+  DROP POLICY IF EXISTS "Allow Realtime conversations select" ON conversations;
+  CREATE POLICY "Allow Realtime conversations select" ON conversations FOR SELECT TO anon USING (current_setting('request.path', true) IS NULL);
 
-DROP POLICY IF EXISTS "Allow Realtime messages select" ON messages;
-CREATE POLICY "Allow Realtime messages select" ON messages FOR SELECT TO anon USING (current_setting('request.path', true) IS NULL);
+  DROP POLICY IF EXISTS "Allow Realtime messages select" ON messages;
+  CREATE POLICY "Allow Realtime messages select" ON messages FOR SELECT TO anon USING (current_setting('request.path', true) IS NULL);
+EXCEPTION WHEN OTHERS THEN null;
+END $$;
