@@ -12,13 +12,15 @@ import {
   getAdminSupportInquiries,
   updateAdminInquiryStatus,
 } from "@/actions/moderate";
+import { getIncompleteRegistrations } from "@/actions/draft";
 import { Household } from "@/types/household";
 
 export default function ModerationQueuePage() {
   const [households, setHouseholds] = useState<Household[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [inquiries, setInquiries] = useState<any[]>([]);
-  const [filter, setFilter] = useState<"pending" | "all" | "rejected" | "reports" | "inquiries">("pending");
+  const [drafts, setDrafts] = useState<any[]>([]);
+  const [filter, setFilter] = useState<"pending" | "all" | "rejected" | "reports" | "inquiries" | "incomplete">("pending");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -27,10 +29,11 @@ export default function ModerationQueuePage() {
 
   const loadQueue = async () => {
     setIsLoading(true);
-    const [data, repRes, inqRes] = await Promise.all([
+    const [data, repRes, inqRes, draftRes] = await Promise.all([
       getModerationHouseholds(),
       getMessageReports(),
       getAdminSupportInquiries(),
+      getIncompleteRegistrations(),
     ]);
     setHouseholds(data);
     if (repRes.success) {
@@ -38,6 +41,9 @@ export default function ModerationQueuePage() {
     }
     if (inqRes.success) {
       setInquiries(inqRes.inquiries || []);
+    }
+    if (draftRes.success) {
+      setDrafts(draftRes.drafts || []);
     }
     setIsLoading(false);
   };
@@ -208,6 +214,16 @@ export default function ModerationQueuePage() {
               >
                 📩 Inquiries ({inquiries.filter((i) => i.status === "open").length})
               </button>
+              <button
+                onClick={() => setFilter("incomplete")}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  filter === "incomplete"
+                    ? "bg-brand-primary text-white"
+                    : "text-body-muted hover:text-brand-primary"
+                }`}
+              >
+                📝 Incomplete Signups ({drafts.length})
+              </button>
             </div>
           </div>
         </div>
@@ -223,6 +239,80 @@ export default function ModerationQueuePage() {
             <div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
             <p className="text-xs font-bold text-body-muted">Loading live moderation queue...</p>
           </div>
+        ) : filter === "incomplete" ? (
+          drafts.length === 0 ? (
+            <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">
+              <div className="text-3xl mb-2">📝</div>
+              <p className="text-sm font-bold text-brand-primary mb-1">
+                No Incomplete Signups
+              </p>
+              <p className="text-xs text-body-muted max-w-md mx-auto">
+                All candidates who started registration have completed and submitted their family profiles.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white border-2 border-brand-accent/30 rounded-3xl overflow-hidden shadow-warm">
+              <div className="p-5 bg-canvas-warm/40 border-b border-brand-accent/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-sm font-black text-brand-primary">
+                    Incomplete Signups & Abandoned Registrations ({drafts.length})
+                  </h2>
+                  <p className="text-xs text-body-muted">
+                    Candidates who initiated registration on Step 1 (email & mobile) but have not yet submitted their full profile.
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-canvas-warm/80 border-b border-brand-accent/30 text-body-heading font-bold">
+                      <th className="py-3 px-4">Primary Email</th>
+                      <th className="py-3 px-4">Mobile Number</th>
+                      <th className="py-3 px-4">Candidate Name</th>
+                      <th className="py-3 px-4">Dropped Off At</th>
+                      <th className="py-3 px-4">Last Active</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-accent/15 text-body-text">
+                    {drafts.map((d) => (
+                      <tr key={d.id} className="hover:bg-amber-50/50 transition">
+                        <td className="py-3 px-4 font-mono font-bold text-brand-primary">
+                          {d.email}
+                        </td>
+                        <td className="py-3 px-4 font-mono font-medium">
+                          {d.phoneDialCode ? `${d.phoneDialCode} ` : ""}{d.phone}
+                        </td>
+                        <td className="py-3 px-4 font-medium">
+                          {d.headName || <span className="text-body-muted italic">Not provided yet</span>}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-canvas-warm border border-brand-accent/40 text-brand-primary">
+                            {d.currentStep === 2
+                              ? "Step 2: Family Details"
+                              : d.currentStep === 3
+                              ? "Step 3: Additional Members"
+                              : d.currentStep === 4
+                              ? "Step 4: Consent & Review"
+                              : `Step ${d.currentStep}`}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-body-muted text-[11px]">
+                          {new Date(d.updatedAt).toLocaleString("en-SG", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
         ) : filter === "reports" ? (
           reports.length === 0 ? (
             <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">

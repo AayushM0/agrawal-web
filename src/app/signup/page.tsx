@@ -10,6 +10,7 @@ import { registerHousehold, checkContactRegistration } from "@/actions/register"
 import { checkContactAvailability } from "@/actions/claim";
 import { sendOtp, verifyOtp } from "@/actions/otp";
 import { getSession } from "@/actions/auth";
+import { saveRegistrationDraft } from "@/actions/draft";
 import LocationSelector from "@/components/LocationSelector";
 import PhoneInputWithCountry from "@/components/PhoneInputWithCountry";
 import { calculateAge, maskPhone, maskEmail, maskGovtId } from "@/lib/privacy";
@@ -321,6 +322,15 @@ export default function SignupPage() {
 
       // Synchronize head email and proceed directly to Step 2
       setHeadEmail(cleanEmail);
+
+      // Asynchronously record partial registration draft in background (non-blocking)
+      saveRegistrationDraft({
+        email: cleanEmail,
+        phone: cleanPhone,
+        phoneDialCode,
+        currentStep: 2,
+      }).catch(() => {});
+
       showToast("Contact details verified! Proceeding to Family Details...", "success");
       setStep(2);
     } catch (err: any) {
@@ -474,6 +484,15 @@ export default function SignupPage() {
         return;
       }
     }
+
+    // Asynchronously update lead draft with Head Name (non-blocking)
+    saveRegistrationDraft({
+      email: headEmail || contactValue.trim().toLowerCase(),
+      phone: headPhone.trim(),
+      phoneDialCode,
+      headName: headName.trim(),
+      currentStep: 3,
+    }).catch(() => {});
 
     setStep(3);
   };
@@ -630,6 +649,15 @@ export default function SignupPage() {
         }
       }
     }
+
+    // Asynchronously update lead draft to Step 4 (non-blocking)
+    saveRegistrationDraft({
+      email: headEmail || contactValue.trim().toLowerCase(),
+      phone: headPhone.trim(),
+      phoneDialCode,
+      headName: headName.trim(),
+      currentStep: 4,
+    }).catch(() => {});
 
     setStep(4);
   };

@@ -7,6 +7,7 @@ import { normalizePhoneNumber } from "@/lib/phone";
 import { validateProfileImage } from "@/lib/image-validator";
 import { validatePassword, hashPassword } from "@/lib/auth-crypto";
 import { uploadMemberPhoto } from "@/lib/storage";
+import { markRegistrationDraftCompleted } from "./draft";
 
 export interface RegisterHouseholdInput {
   headName: string;
@@ -367,6 +368,9 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
   // Find assigned serial number from created record
   const headMember = await db.getMemberByContact(canonicalContact);
   const primarySerial = headMember?.serialNo || created.members?.[0]?.serialNo || created.serialNo || householdCode;
+
+  // Resolve and complete lead draft
+  await markRegistrationDraftCompleted(canonicalContact, headPhone || headMember?.phone);
 
   return {
     success: true,

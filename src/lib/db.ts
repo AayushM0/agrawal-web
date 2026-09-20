@@ -216,6 +216,20 @@ async function ensureSchema(client: any) {
       CREATE INDEX IF NOT EXISTS idx_support_inquiries_created ON support_inquiries(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_support_inquiries_status ON support_inquiries(status);
 
+      CREATE TABLE IF NOT EXISTS registration_drafts (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          email TEXT NOT NULL UNIQUE,
+          phone TEXT NOT NULL,
+          phone_dial_code VARCHAR(10) DEFAULT '+91',
+          head_name TEXT,
+          current_step INT NOT NULL DEFAULT 2,
+          is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_registration_drafts_incomplete ON registration_drafts(is_completed, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_registration_drafts_email ON registration_drafts(email);
+
       -- Enable RLS on all tables (Supabase advisor fix)
       ALTER TABLE households ENABLE ROW LEVEL SECURITY;
       ALTER TABLE members ENABLE ROW LEVEL SECURITY;
@@ -226,6 +240,7 @@ async function ensureSchema(client: any) {
       ALTER TABLE admin_login_attempts ENABLE ROW LEVEL SECURITY;
       ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
       ALTER TABLE support_inquiries ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE registration_drafts ENABLE ROW LEVEL SECURITY;
 
       -- Allow SELECT to anon for Realtime web-socket updates (restricted to Realtime-only by blocking PostgREST queries)
       DROP POLICY IF EXISTS "Allow Realtime conversations select" ON conversations;
@@ -2262,6 +2277,88 @@ export const db = {
       console.error("[DB ERROR] deleteMatrimonialProfile:", err);
       return false;
     }
+  },
+
+  async saveRegistrationDraft(data: {
+    email: string;
+    phone: string;
+    phoneDialCode?: string;
+    headName?: string;
+    currentStep?: number;
+  }): Promise<boolean> {
+    if (!pool) return false;
+    try {
+      const cleanEmail = data.email.trim().toLowerCase();
+      const cleanPhone = data.phone.trim();
+      const dialCode = data.phoneDialCode?.trim() || "+91";
+      const headName = data.headName?.trim() || null;
+      const step = data.currentStep || 2;
+
+      await pool.query(
+        `INSERT INTO registration_drafts (email, phone, phone_dial_code, head_name, current_step, is_completed, updated_at)
+         VALUES ($1, $2, $3, $4, $5, FALSE, NOW())
+         ON CONFLICT (email) DO UPDATE SET
+           phone = EXCLUDED.phone,
+           phone_dial_code = EXCLUDED.phone_dial_code,
+           head_name = COALESCE(EXCLUDED.head_name, registration_drafts.head_name),
+           current_step = EXCLUDED.current_step,
+           updated_at = NOW()
+         WHERE registration_drafts.is_completed = FALSE;`,
+        [cleanEmail, cleanPhone, dialCode, headName, step]
+      );
+      return true;
+    } catch (err) {
+      console.warn("Save registration draft non-fatal notice:", err);
+      return false;
+    }
+  },
+
+  async markRegistrationDraftCompleted(email: string, phone?: string): Promise<boolean> {
+    if (!pool) return false;
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanPhone = phone?.trim() || "";
+      await pool.query(
+        `UPDATE registration_drafts 
+         SET is_completed = TRUE, updated_at = NOW() 
+         WHERE (LOWER(email) = $1 OR (phone = $2 AND $2 != '')) AND is_completed = FALSE;`,
+        [cleanEmail, cleanPhone]
+      );
+      return true;
+    } catch (err) {
+      console.warn("Mark registration draft completed notice:", err);
+      return false;
+    }
+  },
+
+  async getIncompleteRegistrations(): Promise<Array<{
+    id: string;
+    email: string;
+    phone: string;
+    phoneDialCode: string;
+    headName: string | null;
+    currentStep: number;
+    createdAt: string;
+    updatedAt: string;
+  }>> {
+    if (!pool) throw new Error("Database not connected");
+    const res = await pool.query(
+      `SELECT id, email, phone, phone_dial_code as "phoneDialCode", head_name as "headName",
+              current_step as "currentStep", created_at as "createdAt", updated_at as "updatedAt"
+       FROM registration_drafts
+       WHERE is_completed = FALSE
+       ORDER BY updated_at DESC;`
+    );
+    return res.rows.map((r: any) => ({
+      id: String(r.id),
+      email: r.email,
+      phone: r.phone,
+      phoneDialCode: r.phoneDialCode || "+91",
+      headName: r.headName || null,
+      currentStep: r.currentStep,
+      createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+      updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
+    }));
   },
 };
 

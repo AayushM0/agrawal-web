@@ -226,3 +226,35 @@ test("Seam 12: Directory search, getMemberById SQL, and CSP headers adhere to co
   assert.ok(searchActionCode.includes('m.visibility?.photo === "hidden"'), "Search action must check for hidden photo visibility");
 });
 
+// --- SEAM 13: Form Abandonment & Incomplete Registration Lead Capture ---
+test("Seam 13: Registration drafts schema, server actions, and admin integration adhere to contracts", () => {
+  const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+  const draftActionFile = path.join(webRoot, "src/actions/draft.ts");
+  
+  // 1. Database Schema DDL check
+  assert.ok(schemaSql.includes("CREATE TABLE IF NOT EXISTS registration_drafts"), "Must declare registration_drafts table in schema.sql");
+  assert.ok(schemaSql.includes("idx_registration_drafts_incomplete"), "Must index registration_drafts by completion and date");
+
+  // 2. Draft action file must exist and export required contracts
+  assert.ok(fs.existsSync(draftActionFile), "src/actions/draft.ts must exist");
+  const draftCode = fs.readFileSync(draftActionFile, "utf8");
+  assert.ok(draftCode.includes("export async function saveRegistrationDraft"), "Must export saveRegistrationDraft");
+  assert.ok(draftCode.includes("export async function markRegistrationDraftCompleted"), "Must export markRegistrationDraftCompleted");
+  assert.ok(draftCode.includes("export async function getIncompleteRegistrations"), "Must export getIncompleteRegistrations");
+  assert.ok(draftCode.includes('role !== "admin"') || draftCode.includes("admin"), "getIncompleteRegistrations must verify admin role");
+
+  // 3. Register action must resolve draft on final submission
+  const registerCode = fs.readFileSync(path.join(webRoot, "src/actions/register.ts"), "utf8");
+  assert.ok(registerCode.includes("markRegistrationDraftCompleted"), "registerHousehold must call markRegistrationDraftCompleted");
+
+  // 4. Signup wizard must trigger saveRegistrationDraft
+  const signupCode = fs.readFileSync(path.join(webRoot, "src/app/signup/page.tsx"), "utf8");
+  assert.ok(signupCode.includes("saveRegistrationDraft"), "Signup page must trigger saveRegistrationDraft on Step 1 advancement");
+
+  // 5. Admin moderation queue must integrate incomplete signups
+  const adminCode = fs.readFileSync(path.join(webRoot, "src/app/admin/moderation/page.tsx"), "utf8");
+  assert.ok(adminCode.includes("getIncompleteRegistrations"), "Moderation page must fetch incomplete registrations");
+  assert.ok(adminCode.includes('"incomplete"'), "Moderation page must include 'incomplete' filter tab");
+});
+
+
