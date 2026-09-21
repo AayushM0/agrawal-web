@@ -11,8 +11,12 @@ import React from "react";
 
 const sendSMS = sendTwilioSms;
 
-async function sendWelcomeEmail(member: any, household: any) {
-  if (!process.env.RESEND_API_KEY || !member.email) return;
+export async function sendWelcomeEmail(member: any, household: any, overrideEmail?: string): Promise<{ success: boolean; error?: any }> {
+  const recipient = overrideEmail || member.email;
+  if (!process.env.RESEND_API_KEY || !recipient) {
+    console.warn("[RESEND EMAIL WARNING] RESEND_API_KEY or recipient email missing");
+    return { success: false, error: "Missing RESEND_API_KEY or recipient email" };
+  }
 
   try {
     const passData = createUnifiedPassData({ member, household });
@@ -26,10 +30,22 @@ async function sendWelcomeEmail(member: any, household: any) {
       },
       body: JSON.stringify({
         from: process.env.RESEND_FROM_EMAIL || "Maharaja Agrasen Foundation <verify@maharajaagrasenfoundation.com>",
-        to: member.email,
+        to: recipient,
         subject: `Your Official ID (${passData.serialNo}) - Maharaja Agrasen Foundation`,
         text: `Welcome! Your membership is approved. Your assigned Serial Number is ${passData.serialNo}. Your official ID card is attached to this email.`,
-        html: `<p>Welcome! Your membership is approved. Your assigned Serial Number is <strong>${passData.serialNo}</strong>. Your official ID card is attached to this email.</p>`,
+        html: `
+          <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; color: #333; padding: 20px; border: 1px solid #e7e5e4; border-radius: 12px;">
+            <h2 style="color: #9a3412; margin-top: 0;">Congratulations, ${member.fullName}!</h2>
+            <p>Your Maharaja Agrasen Foundation membership has been verified and approved.</p>
+            <div style="background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 16px; margin: 16px 0;">
+              <p style="margin: 0; font-size: 14px; color: #92400e;"><strong>Assigned Serial Number:</strong> <code style="font-size: 16px; font-weight: bold; color: #9a3412;">${passData.serialNo}</code></p>
+            </div>
+            <p>Your official <strong>CR80 Printable Identity Pass (ID Card)</strong> with <em>अंतर्राष्ट्रीय अग्रवाल समाज</em> credentials has been generated and attached to this email as a PDF.</p>
+            <p style="font-size: 12px; color: #78716c; margin-top: 24px; border-top: 1px solid #e7e5e4; padding-top: 12px;">
+              Maharaja Agrasen Foundation Limited Singapore • One Community • One Platform
+            </p>
+          </div>
+        `,
         attachments: [
           {
             filename: `ID_Card_${passData.fullName.replace(/\s+/g, "_")}.pdf`,
@@ -42,9 +58,12 @@ async function sendWelcomeEmail(member: any, household: any) {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       console.error("[RESEND EMAIL ERROR]", err);
+      return { success: false, error: err };
     }
-  } catch (e) {
+    return { success: true };
+  } catch (e: any) {
     console.error("Email failed:", e);
+    return { success: false, error: e?.message || e };
   }
 }
 
