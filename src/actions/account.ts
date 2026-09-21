@@ -18,27 +18,23 @@ export async function deleteHouseholdAccount(input: DeleteAccountInput) {
     return { success: false, error: "Invalid OTP. Account deletion requires verified identity confirmation." };
   }
 
-  // 2. Cascade delete household and permanently scrub all member PII (DPDP Compliance)
-  const household = await db.getHouseholdByContact(input.verifiedContact);
-  const targetId = household ? household.id : input.householdId;
-
-  if (!targetId) {
+  // 2. Resolve household and enforce strict contact binding (Anti-IDOR)
+  const household = (await db.getHouseholdById(input.householdId)) || (await db.getHouseholdByContact(input.verifiedContact));
+  if (!household) {
     return { success: false, error: "Household account not found." };
   }
+  if (household.verifiedContact !== input.verifiedContact) {
+    return { success: false, error: "Unauthorized: Verified contact does not match this household record." };
+  }
+  const targetId = household.id;
 
   // 3. Purge physical member photos from storage
-  try {
-    const fullHousehold = await db.getHouseholdById(targetId);
-    if (fullHousehold?.members) {
-      await Promise.allSettled(
-        fullHousehold.members
-          .filter((m: any) => m.photoUrl)
-          .map((m: any) => deleteMemberPhoto(m.photoUrl))
-      );
-    }
-  } catch (photoErr) {
-    console.warn("[ACCOUNT DELETION] Photo purge non-blocking warning:", photoErr);
-  }
+  const members = await db.getMembersByHousehold(targetId);
+  await Promise.allSettled(
+    members
+      .filter((m: any) => m.photoUrl)
+      .map((m: any) => deleteMemberPhoto(m.photoUrl))
+  );
 
   // 4. Execute hard permanent delete of household and all associated members from database
   await db.deleteHousehold(targetId);

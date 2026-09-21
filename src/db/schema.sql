@@ -250,7 +250,7 @@ CREATE INDEX IF NOT EXISTS idx_registration_drafts_email ON registration_drafts(
 
 -- 9. Admin Audit Logs (DPDP Act 2023 & Anti-Insider Leak Logging)
 CREATE TABLE IF NOT EXISTS admin_audit_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     admin_id TEXT NOT NULL,
     admin_contact TEXT NOT NULL,
     action TEXT NOT NULL,

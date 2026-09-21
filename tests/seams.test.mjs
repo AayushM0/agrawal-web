@@ -449,6 +449,10 @@ test("Seam 18: DPDP right to erasure purges storage photos and admin actions are
   assert.ok(moderateAction.includes("APPROVE_HOUSEHOLD"), "moderate.ts must log APPROVE_HOUSEHOLD");
   assert.ok(moderateAction.includes("REJECT_HOUSEHOLD"), "moderate.ts must log REJECT_HOUSEHOLD");
   assert.ok(moderateAction.includes("APPROVE_ALL_HOUSEHOLDS"), "moderate.ts must log APPROVE_ALL_HOUSEHOLDS");
+
+  // 4. IDOR prevention and bucket pinning
+  assert.ok(accountAction.includes("household.verifiedContact !== input.verifiedContact"), "deleteHouseholdAccount must enforce verifiedContact matching");
+  assert.ok(storageLib.includes('bucket === "member-photos"'), "deleteMemberPhoto must strictly pin deletion to member-photos bucket");
 });
 
 

@@ -98,10 +98,7 @@ export async function verifyTurnstileToken(
     const data = (await response.json()) as CloudflareVerifyApiResponse;
 
     if (!data.success) {
-      const errorMsg =
-        data["error-codes"] && data["error-codes"].length > 0
-          ? data["error-codes"].join(", ")
-          : "Turnstile validation failed";
+      const errorMsg = data["error-codes"]?.join(", ") || "Turnstile validation failed";
       return {
         success: false,
         error: `Bot verification failed: ${errorMsg}`,

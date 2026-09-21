@@ -149,18 +149,13 @@ export async function deleteMemberPhoto(photoUrl?: string | null): Promise<boole
       return true;
     }
 
-    // 2. Supabase Storage cleanup
+    // 2. Supabase Storage cleanup (strictly pinned to public member-photos bucket)
     const client = getSupabaseClient();
     if (client && trimmed.includes("/storage/v1/object/public/")) {
-      const parts = trimmed.split("/storage/v1/object/public/")[1];
-      if (parts) {
-        const slashIdx = parts.indexOf("/");
-        if (slashIdx > -1) {
-          const bucket = parts.substring(0, slashIdx);
-          const objectPath = parts.substring(slashIdx + 1);
-          await client.storage.from(bucket).remove([objectPath]);
-          return true;
-        }
+      const [bucket, ...rest] = trimmed.split("/storage/v1/object/public/")[1]?.split("/") || [];
+      if (bucket === "member-photos" && rest.length) {
+        await client.storage.from(bucket).remove([rest.join("/")]);
+        return true;
       }
     }
   } catch (err) {
