@@ -98,7 +98,7 @@ export default function MainFooter() {
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-body-muted">
           <p>© 2026 Maharaja Agrasen Foundation Limited Singapore. All rights reserved.</p>
           <p className="font-devanagari text-[11px] text-brand-primary font-bold">
-            एक समाज • एक मंच • एक परिवार
+            अंतर्राष्ट्रीय अग्रवाल समाज फाउंडेशन • एक समाज • एक मंच • एक परिवार
           </p>
         </div>
       </div>

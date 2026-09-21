@@ -310,11 +310,11 @@ export default function LanyardPassClient({ passData }: { passData: PassData }) 
               className="flex items-center justify-between px-4 py-2 text-[9px] border-t-2"
               style={{ background: "#1c1917", color: "#e7e5e4", borderTopColor: "#b45309" }}
             >
-              <span className="flex items-center gap-1 font-semibold text-amber-400">
+              <span className="flex items-center gap-1.5 font-bold text-amber-400 font-devanagari text-[10px]">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="#f59e0b"><circle cx="12" cy="12" r="10" /></svg>
-                AUTHENTICATED MEMBER PASS
+                अंतर्राष्ट्रीय अग्रवाल समाज
               </span>
-              <span>VALID FOR LIFETIME</span>
+              <span className="font-semibold text-stone-300">VALID FOR LIFETIME</span>
             </div>
           </div>
         </div>

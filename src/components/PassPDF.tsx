@@ -347,7 +347,7 @@ export function PassPDF({ passData }: { passData: any }) {
           <View style={styles.footer}>
             <View style={styles.footerLeft}>
               <View style={styles.footerDot} />
-              <Text style={styles.footerLeftText}>AUTHENTICATED MEMBER PASS</Text>
+              <Text style={styles.footerLeftText}>अंतर्राष्ट्रीय अग्रवाल समाज</Text>
             </View>
             <Text style={styles.footerRightText}>VALID FOR LIFETIME</Text>
           </View>

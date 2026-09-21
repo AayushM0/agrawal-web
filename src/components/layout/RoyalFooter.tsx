@@ -120,7 +120,7 @@ export default function RoyalFooter() {
         </div>
 
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-body-muted">
-          <p>© 2026 Maharaja Agrasen Foundation Limited Singapore. All Rights Reserved. एक समाज • एक मंच • एक परिवार</p>
+          <p>© 2026 Maharaja Agrasen Foundation Limited Singapore. All Rights Reserved. अंतर्राष्ट्रीय अग्रवाल समाज फाउंडेशन • एक समाज • एक मंच • एक परिवार</p>
           <div className="flex flex-wrap gap-x-4 gap-y-2 font-medium justify-center sm:justify-end">
             <Link href="/privacy" className="hover:text-brand-primary transition-colors">Privacy Policy</Link>
             <Link href="/terms" className="hover:text-brand-primary transition-colors">Terms of Service</Link>
