@@ -1553,6 +1553,49 @@ export const db = {
     }
   },
 
+  async checkChatRateLimits(
+    memberId: string,
+    isNewConversation: boolean
+  ): Promise<{ allowed: boolean; error?: string }> {
+    if (!pool) return { allowed: true };
+    try {
+      if (isNewConversation) {
+        const convRes = await pool.query(
+          `SELECT COUNT(*)::int as count 
+           FROM conversations 
+           WHERE initiator_id = $1::uuid 
+             AND created_at > NOW() - INTERVAL '1 day';`,
+          [memberId]
+        );
+        if ((convRes.rows[0]?.count || 0) >= 10) {
+          return {
+            allowed: false,
+            error: "Daily limit reached: Maximum 10 new message requests allowed per day.",
+          };
+        }
+      }
+
+      const msgRes = await pool.query(
+        `SELECT COUNT(*)::int as count 
+         FROM messages 
+         WHERE sender_id = $1::uuid 
+           AND created_at > NOW() - INTERVAL '1 hour';`,
+        [memberId]
+      );
+      if ((msgRes.rows[0]?.count || 0) >= 60) {
+        return {
+          allowed: false,
+          error: "Rate limit exceeded: Maximum 60 messages allowed per hour.",
+        };
+      }
+
+      return { allowed: true };
+    } catch (e) {
+      console.warn("[RATE LIMIT CHECK NON-FATAL]:", e);
+      return { allowed: true };
+    }
+  },
+
   async createMessageReport(report: {
     conversationId: string;
     reporterId: string;

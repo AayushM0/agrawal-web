@@ -115,8 +115,7 @@ export function MessageRequestToast({
             }}
             className="px-4 py-1.5 rounded-xl text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary-hover shadow-sm transition flex items-center gap-1.5"
           >
-            <span>Open Chat</span>
-            <span>&rarr;</span>
+            <span>Open Chat &rarr;</span>
           </button>
         </div>
       </div>

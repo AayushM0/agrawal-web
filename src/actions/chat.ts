@@ -5,43 +5,21 @@ import { db } from "@/lib/db";
 import { scanForFraud } from "@/lib/anti-fraud";
 import { sendMessageRequestNotificationEmail } from "@/lib/email";
 
-// In-Memory Rate Limiting: Max 10 new conversations per day, 60 messages per hour
-const chatRateLimits = new Map<string, { conversationsToday: number; messagesThisHour: number; lastHourReset: number; lastDayReset: number }>();
-
-function checkRateLimit(memberId: string, isNewConversation: boolean): { allowed: boolean; error?: string } {
-  const now = Date.now();
-  const entry = chatRateLimits.get(memberId) || {
-    conversationsToday: 0,
-    messagesThisHour: 0,
-    lastHourReset: now,
-    lastDayReset: now,
-  };
-
-  // Reset hourly window
-  if (now - entry.lastHourReset > 60 * 60 * 1000) {
-    entry.messagesThisHour = 0;
-    entry.lastHourReset = now;
+let cachedPusher: any = null;
+async function getPusherServer() {
+  if (cachedPusher) return cachedPusher;
+  if (!process.env.PUSHER_APP_ID || !process.env.NEXT_PUBLIC_PUSHER_APP_KEY || !process.env.PUSHER_SECRET) {
+    return null;
   }
-
-  // Reset daily window
-  if (now - entry.lastDayReset > 24 * 60 * 60 * 1000) {
-    entry.conversationsToday = 0;
-    entry.lastDayReset = now;
-  }
-
-  if (isNewConversation && entry.conversationsToday >= 10) {
-    return { allowed: false, error: "Daily limit reached: Maximum 10 new message requests allowed per day." };
-  }
-
-  if (entry.messagesThisHour >= 60) {
-    return { allowed: false, error: "Rate limit exceeded: Maximum 60 messages allowed per hour." };
-  }
-
-  if (isNewConversation) entry.conversationsToday++;
-  entry.messagesThisHour++;
-  chatRateLimits.set(memberId, entry);
-
-  return { allowed: true };
+  const PusherServer = (await import("pusher")).default;
+  cachedPusher = new PusherServer({
+    appId: process.env.PUSHER_APP_ID,
+    key: process.env.NEXT_PUBLIC_PUSHER_APP_KEY,
+    secret: process.env.PUSHER_SECRET,
+    cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "us2",
+    useTLS: true,
+  });
+  return cachedPusher;
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -133,12 +111,12 @@ export async function sendMessage(params: {
           error: "Message request pending: Please wait for the recipient to accept before sending further messages.",
         };
       }
-      isFirstRequestTurn = existingMessages.length === 0;
+      isFirstRequestTurn = true;
     }
 
-    // Check rate limits
+    // Check rate limits via database (serverless-safe & multi-instance persistent)
     const isNew = !params.conversationId && conversation.status === "pending";
-    const rateCheck = checkRateLimit(senderMemberId, isNew);
+    const rateCheck = await db.checkChatRateLimits(senderMemberId, isNew);
     if (!rateCheck.allowed) {
       return { success: false, error: rateCheck.error };
     }
@@ -174,7 +152,7 @@ export async function sendMessage(params: {
           if (recipientMember?.email) {
             await sendMessageRequestNotificationEmail({
               recipientEmail: recipientMember.email,
-              recipientName: recipientMember.fullName || "Valued Member",
+              recipientName: recipientMember.fullName,
               senderName: senderMember?.fullName || "A Community Member",
               senderGotra: senderMember?.gotra || null,
               senderCity: senderMember?.currentCity || null,
@@ -183,24 +161,15 @@ export async function sendMessage(params: {
             });
           }
         } catch (emailErr) {
-          console.warn("Message request notification email failed (non-fatal):", emailErr);
+          console.error("Async email dispatch failed (non-fatal):", emailErr);
         }
-      })().catch((err) => {
-        console.warn("Async email dispatcher notice:", err);
-      });
+      })();
     }
 
     // Fire Pusher real-time events (graceful: never block the return if Pusher fails)
-    if (process.env.PUSHER_APP_ID && process.env.NEXT_PUBLIC_PUSHER_APP_KEY && process.env.PUSHER_SECRET) {
+    const pusher = await getPusherServer();
+    if (pusher) {
       try {
-        const PusherServer = (await import("pusher")).default;
-        const pusher = new PusherServer({
-          appId: process.env.PUSHER_APP_ID,
-          key: process.env.NEXT_PUBLIC_PUSHER_APP_KEY,
-          secret: process.env.PUSHER_SECRET,
-          cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "us2",
-          useTLS: true,
-        });
 
         // 1. Trigger the active chat room so both participants see the new message immediately
         await pusher.trigger(`private-chat-room-${conversation.id}`, "new-message", {
@@ -344,16 +313,9 @@ export async function respondToRequest(params: {
     await db.updateConversationStatus(params.conversationId, newStatus);
 
     // Fire Pusher events so both sides see the status change in real-time
-    if (process.env.PUSHER_APP_ID && process.env.NEXT_PUBLIC_PUSHER_APP_KEY && process.env.PUSHER_SECRET) {
+    const pusher = await getPusherServer();
+    if (pusher) {
       try {
-        const PusherServer = (await import("pusher")).default;
-        const pusher = new PusherServer({
-          appId: process.env.PUSHER_APP_ID,
-          key: process.env.NEXT_PUBLIC_PUSHER_APP_KEY,
-          secret: process.env.PUSHER_SECRET,
-          cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || "us2",
-          useTLS: true,
-        });
 
         // Notify the active chat room that conversation status changed
         await pusher.trigger(`private-chat-room-${params.conversationId}`, "conversation-updated", {
@@ -452,6 +414,23 @@ export async function getAttachmentSignedUrl(
       return { success: false, error: "Invalid storage path." };
     }
 
+    // IDOR guard: verify caller is a participant of the conversation this file belongs to.
+    // Storage paths are structured as "{conversationId}/{timestamp}-{filename}".
+    const conversationId = storagePath.split("/")[0];
+    if (!UUID_REGEX.test(conversationId)) {
+      return { success: false, error: "Invalid storage path format." };
+    }
+    const conversation = await db.getConversationById(conversationId);
+    if (!conversation) {
+      return { success: false, error: "Conversation not found." };
+    }
+    const isParticipant =
+      String(conversation.initiatorId ?? conversation.initiator_id) === memberId ||
+      String(conversation.recipientId ?? conversation.recipient_id) === memberId;
+    if (!isParticipant && session?.role !== "admin") {
+      return { success: false, error: "Access denied." };
+    }
+
     const { getChatAttachmentSignedUrl } = await import("@/lib/storage");
     const url = await getChatAttachmentSignedUrl(storagePath, 3600);
 
@@ -465,4 +444,3 @@ export async function getAttachmentSignedUrl(
     return { success: false, error: err.message || "Failed to generate attachment URL." };
   }
 }
-

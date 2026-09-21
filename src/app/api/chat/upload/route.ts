@@ -4,7 +4,9 @@ import { db } from "@/lib/db";
 import {
   uploadChatAttachment,
   ALLOWED_ATTACHMENT_MIME_TYPES,
+  ALLOWED_ATTACHMENT_EXTENSIONS,
   MAX_ATTACHMENT_BYTES,
+  validateAttachmentMagicBytes,
 } from "@/lib/storage";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -49,7 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid conversationId" }, { status: 400 });
     }
 
-    // ── 3. Validate file type ──────────────────────────────────────────────────
+    // ── 3. Validate file type & extension ──────────────────────────────────────
     const mimeType = file.type?.toLowerCase() || "";
     if (!ALLOWED_ATTACHMENT_MIME_TYPES[mimeType]) {
       return NextResponse.json(
@@ -58,10 +60,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const fileExt = file.name.split(".").pop()?.toLowerCase() || "";
+    const allowedExts = ALLOWED_ATTACHMENT_EXTENSIONS[mimeType] || [];
+    if (!allowedExts.includes(fileExt)) {
+      return NextResponse.json(
+        { error: `File extension '.${fileExt}' is not permitted for declared type '${mimeType}'.` },
+        { status: 415 }
+      );
+    }
+
     // ── 4. Validate file size ──────────────────────────────────────────────────
     if (file.size > MAX_ATTACHMENT_BYTES) {
       return NextResponse.json(
-        { error: `File too large. Maximum size is ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB.` },
+        { error: "File too large. Maximum size is 10 MB." },
         { status: 413 }
       );
     }
@@ -77,7 +88,8 @@ export async function POST(req: NextRequest) {
     }
 
     const isParticipant =
-      conversation.initiator_id === memberId || conversation.recipient_id === memberId;
+      String(conversation.initiator_id ?? conversation.initiatorId) === memberId ||
+      String(conversation.recipient_id ?? conversation.recipientId) === memberId;
     if (!isParticipant) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
@@ -89,10 +101,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── 6. Upload to Supabase Storage ─────────────────────────────────────────
+    // ── 6. Buffer conversion & Magic Byte Verification ─────────────────────────
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    if (!validateAttachmentMagicBytes(buffer, mimeType)) {
+      return NextResponse.json(
+        { error: "File content signature does not match declared MIME type." },
+        { status: 415 }
+      );
+    }
+
+    // ── 7. Upload to Supabase Storage ─────────────────────────────────────────
     const result = await uploadChatAttachment(buffer, file.name, mimeType, conversationId);
 
     if (!result) {

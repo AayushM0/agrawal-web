@@ -1,3 +1,13 @@
+/** HTML-escape user content before interpolating into email HTML to prevent injection. */
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export interface SendMessageRequestEmailInput {
   recipientEmail: string;
   recipientName: string;
@@ -23,8 +33,9 @@ export async function sendMessageRequestNotificationEmail(input: SendMessageRequ
       return { success: false, error: "Invalid recipient email address" };
     }
 
-    const senderName = input.senderName?.trim() || "A Community Member";
-    const recipientName = input.recipientName?.trim() || "Valued Member";
+    // Strip newlines to prevent email header injection (VULN-006)
+    const senderName = (input.senderName?.trim() || "A Community Member").replace(/[\r\n]/g, " ");
+    const recipientName = (input.recipientName?.trim() || "Valued Member").replace(/[\r\n]/g, " ");
     const senderGotra = input.senderGotra ? `Gotra: ${input.senderGotra}` : "";
     const senderLocation = input.senderCity ? `Location: ${input.senderCity}` : "";
     const senderMeta = [senderGotra, senderLocation].filter(Boolean).join(" • ");
@@ -62,15 +73,15 @@ export async function sendMessageRequestNotificationEmail(input: SendMessageRequ
           <tr>
             <td style="padding: 32px 28px;">
               <p style="font-size: 15px; margin: 0 0 16px 0; color: #422b22;">
-                Namaste <b>${recipientName}</b>,
+                Namaste <b>${escHtml(recipientName)}</b>,
               </p>
               <p style="font-size: 15px; line-height: 1.6; margin: 0 0 20px 0; color: #422b22;">
-                You have received a new connection message request from <b>${senderName}</b>${senderMeta ? ` (${senderMeta})` : ""}:
+                You have received a new connection message request from <b>${escHtml(senderName)}</b>${senderMeta ? ` (${escHtml(senderMeta)})` : ""}:
               </p>
 
               <div style="background-color: #fffdfa; border-left: 4px solid #d9531e; border-top: 1px solid #f2e4d0; border-right: 1px solid #f2e4d0; border-bottom: 1px solid #f2e4d0; border-radius: 8px; padding: 16px 20px; margin: 20px 0;">
                 <p style="margin: 0; font-size: 14px; font-style: italic; color: #5a3d31; line-height: 1.6;">
-                  &ldquo;${cleanPreview}&rdquo;
+                  &ldquo;${escHtml(cleanPreview)}&rdquo;
                 </p>
               </div>
 

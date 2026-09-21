@@ -149,7 +149,85 @@ export const ALLOWED_ATTACHMENT_MIME_TYPES: Record<string, string> = {
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": "ppt",
 };
 
+export const ALLOWED_ATTACHMENT_EXTENSIONS: Record<string, string[]> = {
+  "image/jpeg": ["jpg", "jpeg"],
+  "image/jpg": ["jpg", "jpeg"],
+  "image/png": ["png"],
+  "image/gif": ["gif"],
+  "image/webp": ["webp"],
+  "video/mp4": ["mp4"],
+  "video/quicktime": ["mov", "qt"],
+  "video/webm": ["webm"],
+  "application/pdf": ["pdf"],
+  "application/vnd.ms-powerpoint": ["ppt"],
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": ["pptx"],
+};
+
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10 MB
+
+/**
+ * Validates file buffer magic bytes against declared MIME type to prevent type spoofing.
+ */
+export function validateAttachmentMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  if (!buffer || buffer.length < 4) return false;
+
+  switch (mimeType) {
+    case "image/jpeg":
+    case "image/jpg":
+      return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    case "image/png":
+      return (
+        buffer[0] === 0x89 &&
+        buffer[1] === 0x50 &&
+        buffer[2] === 0x4e &&
+        buffer[3] === 0x47
+      );
+    case "image/gif":
+      return (
+        buffer[0] === 0x47 &&
+        buffer[1] === 0x49 &&
+        buffer[2] === 0x46 &&
+        buffer[3] === 0x38
+      );
+    case "image/webp":
+      return (
+        buffer.length >= 12 &&
+        buffer.subarray(0, 4).toString("ascii") === "RIFF" &&
+        buffer.subarray(8, 12).toString("ascii") === "WEBP"
+      );
+    case "application/pdf":
+      return buffer.subarray(0, 5).toString("ascii") === "%PDF-";
+    case "video/mp4":
+      return buffer.length >= 8 && buffer.subarray(4, 8).toString("ascii") === "ftyp";
+    case "video/quicktime":
+      if (buffer.length < 8) return false;
+      const tag = buffer.subarray(4, 8).toString("ascii");
+      return ["ftyp", "moov", "mdat", "wide"].includes(tag);
+    case "video/webm":
+      return (
+        buffer[0] === 0x1a &&
+        buffer[1] === 0x45 &&
+        buffer[2] === 0xdf &&
+        buffer[3] === 0xa3
+      );
+    case "application/vnd.ms-powerpoint":
+      return (
+        buffer[0] === 0xd0 &&
+        buffer[1] === 0xcf &&
+        buffer[2] === 0x11 &&
+        buffer[3] === 0xe0
+      );
+    case "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      return (
+        buffer[0] === 0x50 &&
+        buffer[1] === 0x4b &&
+        buffer[2] === 0x03 &&
+        buffer[3] === 0x04
+      );
+    default:
+      return false;
+  }
+}
 
 export interface ChatAttachmentUploadResult {
   storagePath: string;   // path inside bucket e.g. "conv-id/timestamp-filename.jpg"

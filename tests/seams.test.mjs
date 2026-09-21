@@ -288,6 +288,9 @@ test("Seam 14: First-turn message request email dispatch and in-app popup toast 
   const headerCode = fs.readFileSync(headerFile, "utf8");
   assert.ok(headerCode.includes("MessageRequestToast"), "MainHeader must import MessageRequestToast");
   assert.ok(headerCode.includes("incoming-message"), "MainHeader must listen for incoming-message events");
+
+  // 5. Security & XSS protection in email template
+  assert.ok(emailCode.includes("escHtml"), "email.ts must sanitize user data with escHtml");
 });
 
 test("Seam 15: Chat attachments schema, storage helpers, upload route, and UI adhere to contracts", () => {
@@ -300,12 +303,14 @@ test("Seam 15: Chat attachments schema, storage helpers, upload route, and UI ad
   assert.ok(schema.includes("attachment_size"), "schema.sql must define attachment_size column");
   assert.ok(!schema.includes("message_body TEXT NOT NULL"), "message_body must be nullable in schema.sql");
 
-  // 2. Storage lib exports attachment helpers
+  // 2. Storage lib exports attachment helpers and validation
   const storageFile = path.resolve(webRoot, "src/lib/storage.ts");
   const storageCode = fs.readFileSync(storageFile, "utf8");
   assert.ok(storageCode.includes("uploadChatAttachment"), "storage.ts must export uploadChatAttachment");
   assert.ok(storageCode.includes("getChatAttachmentSignedUrl"), "storage.ts must export getChatAttachmentSignedUrl");
   assert.ok(storageCode.includes("ALLOWED_ATTACHMENT_MIME_TYPES"), "storage.ts must define ALLOWED_ATTACHMENT_MIME_TYPES");
+  assert.ok(storageCode.includes("ALLOWED_ATTACHMENT_EXTENSIONS"), "storage.ts must define ALLOWED_ATTACHMENT_EXTENSIONS");
+  assert.ok(storageCode.includes("validateAttachmentMagicBytes"), "storage.ts must export validateAttachmentMagicBytes");
   assert.ok(storageCode.includes("MAX_ATTACHMENT_BYTES"), "storage.ts must define MAX_ATTACHMENT_BYTES");
   assert.ok(storageCode.includes("chat-attachments"), "storage.ts must reference chat-attachments bucket");
 
@@ -316,14 +321,16 @@ test("Seam 15: Chat attachments schema, storage helpers, upload route, and UI ad
   assert.ok(routeCode.includes("status !== \"accepted\""), "Upload route must reject non-accepted conversations");
   assert.ok(routeCode.includes("isParticipant"), "Upload route must verify caller is conversation participant");
   assert.ok(routeCode.includes("MAX_ATTACHMENT_BYTES"), "Upload route must enforce size limit");
+  assert.ok(routeCode.includes("validateAttachmentMagicBytes"), "Upload route must verify magic bytes");
 
-  // 4. sendMessage server action accepts optional messageBody + attachment params
+  // 4. sendMessage server action accepts optional messageBody + attachment params and protects signed URLs
   const chatActionFile = path.resolve(webRoot, "src/actions/chat.ts");
   const chatCode = fs.readFileSync(chatActionFile, "utf8");
   assert.ok(chatCode.includes("attachmentUrl?"), "sendMessage must accept optional attachmentUrl");
   assert.ok(chatCode.includes("attachmentType?"), "sendMessage must accept optional attachmentType");
   assert.ok(chatCode.includes("getAttachmentSignedUrl"), "chat.ts must export getAttachmentSignedUrl action");
   assert.ok(chatCode.includes("!trimmedBody && !params.attachmentUrl"), "sendMessage must allow attachment-only messages");
+  assert.ok(chatCode.includes("isParticipant"), "getAttachmentSignedUrl must check isParticipant before signing");
 
   // 5. Chat UI contains file picker and attachment rendering
   const messagesPage = path.resolve(webRoot, "src/app/dashboard/messages/page.tsx");

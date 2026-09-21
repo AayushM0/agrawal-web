@@ -610,9 +610,7 @@ function MessagesDashboardContent() {
                       Send a respectful greeting to introduce yourself.
                     </div>
                   ) : (
-                    activeMessages
-                      .filter((msg) => !selectedConv?.id || String(msg.conversationId || msg.conversation_id) === String(selectedConv.id))
-                      .map((msg) => {
+                    activeMessages.map((msg) => {
                         const isMe = String(msg.senderId) !== String(selectedConv.otherParticipant?.id);
                         return (
                           <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
