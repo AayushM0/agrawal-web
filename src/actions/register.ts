@@ -8,6 +8,7 @@ import { validateProfileImage } from "@/lib/image-validator";
 import { validatePassword, hashPassword } from "@/lib/auth-crypto";
 import { uploadMemberPhoto } from "@/lib/storage";
 import { markRegistrationDraftCompleted } from "./draft";
+import { maskAadhaar, hashGovtId } from "@/lib/privacy";
 
 export interface RegisterHouseholdInput {
   headName: string;
@@ -148,6 +149,14 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     }
     if (cleanPan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
       return { success: false, error: "A valid 10-character PAN Number (e.g. ABCDE1234F) is required if provided." };
+    }
+    const aadhaarHash = hashGovtId(cleanAadhaar);
+    const existingAadhaar = await db.getHouseholdByAadhaarHash(aadhaarHash);
+    if (existingAadhaar) {
+      return {
+        success: false,
+        error: "A household registration already exists under this Aadhaar Number.",
+      };
     }
   } else {
     if (!cleanPassport || cleanPassport.length < 5) {
@@ -304,40 +313,44 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
         });
       }
 
+      const rawMemberAadhaar = idx === 0 ? cleanAadhaar : (m.aadhaarNumber ? m.aadhaarNumber.replace(/[^0-9]/g, "") : undefined);
+
       return {
         ...m,
         fullName: m.fullName.trim(),
         relationToHead: (m.relationToHead?.toLowerCase() as any) || (idx === 0 ? "self" : "other"),
         fatherName: m.fatherName?.trim() || undefined,
         photoUrl: finalPhotoUrl,
-      phone: m.phone ? (m.phone.includes("@") ? m.phone.trim() : normalizePhoneNumber(m.phone)) : undefined,
-      email: m.email?.trim().toLowerCase() || undefined,
-      currentCity: m.currentCity?.trim() || city || cleanNativePlace,
-      currentCountry: m.currentCountry?.trim() || country,
-      postalCode: m.postalCode?.trim() || postalCode,
-      state: m.state?.trim() || state,
-      fullAddress: m.fullAddress?.trim() || fullAddress,
-      profession: m.profession?.trim() || "",
-      professionTitle: m.professionTitle?.trim() || m.profession?.trim() || "",
-      professionDescription: m.professionDescription?.trim() || undefined,
-      companyName: m.companyName?.trim() || undefined,
-      anniversaryDate: m.anniversaryDate?.trim() || undefined,
-      hasCustomAddress: Boolean(m.hasCustomAddress),
-      aadhaarNumber: idx === 0 ? cleanAadhaar : (m.aadhaarNumber ? m.aadhaarNumber.replace(/[^0-9]/g, "") : undefined),
-      panNumber: idx === 0 ? cleanPan : (m.panNumber ? m.panNumber.trim().toUpperCase() : undefined),
-      passportNumber: idx === 0 ? cleanPassport : (m.passportNumber?.trim().toUpperCase() || undefined),
-      govtIdNumber: idx === 0 ? cleanGovtId : (m.govtIdNumber?.trim().toUpperCase() || undefined),
-      passwordHash: idx === 0 ? passwordHash : undefined,
-      id: `m-${Date.now()}-${idx}`,
-      verifiedBySelf: isAutoClaimed, // Head is self-verified; members without separate contact are auto-claimed
-      ownerLocked: isAutoClaimed,
-      visibility: {
-        contactInfo: "hidden",
-        dob: "hidden",
-        photo: "public_to_members",
-      },
-    };
-  }));
+        phone: m.phone ? (m.phone.includes("@") ? m.phone.trim() : normalizePhoneNumber(m.phone)) : undefined,
+        email: m.email?.trim().toLowerCase() || undefined,
+        currentCity: m.currentCity?.trim() || city || cleanNativePlace,
+        currentCountry: m.currentCountry?.trim() || country,
+        postalCode: m.postalCode?.trim() || postalCode,
+        state: m.state?.trim() || state,
+        fullAddress: m.fullAddress?.trim() || fullAddress,
+        profession: m.profession?.trim() || "",
+        professionTitle: m.professionTitle?.trim() || m.profession?.trim() || "",
+        professionDescription: m.professionDescription?.trim() || undefined,
+        companyName: m.companyName?.trim() || undefined,
+        anniversaryDate: m.anniversaryDate?.trim() || undefined,
+        hasCustomAddress: Boolean(m.hasCustomAddress),
+        aadhaarNumber: rawMemberAadhaar ? maskAadhaar(rawMemberAadhaar) : undefined,
+        aadhaarHash: rawMemberAadhaar ? hashGovtId(rawMemberAadhaar) : undefined,
+        panNumber: idx === 0 ? cleanPan : (m.panNumber ? m.panNumber.trim().toUpperCase() : undefined),
+        passportNumber: idx === 0 ? cleanPassport : (m.passportNumber?.trim().toUpperCase() || undefined),
+        govtIdNumber: idx === 0 ? cleanGovtId : (m.govtIdNumber?.trim().toUpperCase() || undefined),
+        passwordHash: idx === 0 ? passwordHash : undefined,
+        id: `m-${Date.now()}-${idx}`,
+        verifiedBySelf: isAutoClaimed, // Head is self-verified; members without separate contact are auto-claimed
+        ownerLocked: isAutoClaimed,
+        visibility: {
+          contactInfo: "hidden",
+          dob: "hidden",
+          photo: "public_to_members",
+        },
+      };
+    })
+  );
 
   const newHousehold: Household = {
     id: householdId,
@@ -351,7 +364,8 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     state,
     city,
     fullAddress,
-    aadhaarNumber: isIndia ? cleanAadhaar : undefined,
+    aadhaarNumber: isIndia && cleanAadhaar ? maskAadhaar(cleanAadhaar) : undefined,
+    aadhaarHash: isIndia && cleanAadhaar ? hashGovtId(cleanAadhaar) : undefined,
     panNumber: isIndia ? cleanPan : undefined,
     passportNumber: !isIndia ? cleanPassport : undefined,
     govtIdNumber: !isIndia ? cleanGovtId : undefined,

@@ -52,7 +52,29 @@ export async function searchDirectory(filters: SearchFilters = {}) {
       clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : reqHeaders.get("x-real-ip") || "127.0.0.1";
     } catch {}
 
-    if (!checkSearchRateLimit(clientIp)) {
+    const session = await getSession();
+
+    // Production Auth Gate: Enforce authenticated session for directory access (anti-scraping)
+    const isStrictAuth = process.env.NODE_ENV === "production" || process.env.ENFORCE_STRICT_AUTH === "true";
+    if (!session && isStrictAuth) {
+      return {
+        success: false,
+        error: "Please sign in to search the community directory.",
+        count: 0,
+        data: [],
+      };
+    }
+
+    // Serverless-resilient rate limiting: key by userId (if authenticated) or clientIp
+    const rateLimitKey = session?.userId ? `search:user:${session.userId}` : `search:ip:${clientIp}`;
+    let rateOk = true;
+    try {
+      rateOk = await db.checkDbRateLimit(rateLimitKey, "search", 40, 60);
+    } catch {
+      rateOk = checkSearchRateLimit(clientIp);
+    }
+
+    if (!rateOk) {
       return {
         success: false,
         error: "Rate limit exceeded. Please wait a moment before searching again.",
@@ -83,93 +105,118 @@ export async function searchDirectory(filters: SearchFilters = {}) {
     const validMaritalStatus = sanitizeMaritalStatus(filters.maritalStatus);
     const cleanQuery = sanitizeSearchString(filters.query, 80).toLowerCase();
 
-    const session = await getSession();
-    const allMembers = await db.getAllMembers();
+    let results: any[] = [];
+    let totalCount = 0;
+    let usedDbSearch = false;
 
-    // Filter only live approved households
-    let results = allMembers.filter((m) => m.householdStatus === "live");
-
-    // Exclude current logged-in member from directory results (hide self from search)
-    if (session?.userId) {
-      results = results.filter((m) => String(m.id) !== String(session.userId));
-    }
-
-    // Filter by Given Name
-    if (cleanName) {
-      results = results.filter((m) => {
-        const full = (m.fullName || "").toLowerCase();
-        return full.includes(cleanName);
-      });
-    }
-
-    // Filter by Surname
-    if (cleanSurname) {
-      results = results.filter((m) => (m.fullName || "").toLowerCase().includes(cleanSurname));
-    }
-
-    // Filter by Gotra (Strict Whitelist Check)
-    if (validGotra) {
-      results = results.filter((m) => (m.gotra || "").toLowerCase() === validGotra);
-    }
-
-    // Filter by Profession / Specialization / Company
-    if (cleanProfession) {
-      results = results.filter(
-        (m) =>
-          (m.profession || "").toLowerCase().includes(cleanProfession) ||
-          (m.professionTitle || "").toLowerCase().includes(cleanProfession) ||
-          (m.professionDescription || "").toLowerCase().includes(cleanProfession) ||
-          (m.companyName || "").toLowerCase().includes(cleanProfession)
+    try {
+      const paged = await db.searchMembersPaged(
+        {
+          name: cleanName || undefined,
+          surname: cleanSurname || undefined,
+          gotra: validGotra,
+          profession: cleanProfession || undefined,
+          location: validLocation,
+          nativePlace: cleanNativePlace || undefined,
+          minAge: cleanMinAge,
+          maxAge: cleanMaxAge,
+          maritalStatus: validMaritalStatus,
+          query: cleanQuery || undefined,
+          excludeUserId: session?.userId ? String(session.userId) : undefined,
+        },
+        { limit: 60, offset: 0 }
       );
+      results = paged.data;
+      totalCount = paged.totalCount;
+      usedDbSearch = true;
+    } catch {
+      // Fallback for mock/test environments without PostgreSQL connection pool
+      const allMembers = await db.getAllMembers();
+      results = allMembers.filter((m) => m.householdStatus === "live");
+
+      if (session?.userId) {
+        results = results.filter((m) => String(m.id) !== String(session.userId));
+      }
     }
 
-    // Filter by Location (City, State, Country, Postal Code)
-    if (validLocation) {
-      results = results.filter(
-        (m) =>
-          (m.currentCity || "").toLowerCase().includes(validLocation) ||
-          (m.state || "").toLowerCase().includes(validLocation) ||
-          (m.currentCountry || "").toLowerCase().includes(validLocation) ||
-          (m.postalCode || "").toLowerCase().includes(validLocation)
-      );
-    }
+    if (!usedDbSearch) {
+      // Filter by Given Name
+      if (cleanName) {
+        results = results.filter((m) => {
+          const full = (m.fullName || "").toLowerCase();
+          return full.includes(cleanName);
+        });
+      }
 
-    // Filter by Native Place (Ancestral Village/City)
-    if (cleanNativePlace) {
-      results = results.filter((m) =>
-        (m.nativePlace || "").toLowerCase().includes(cleanNativePlace)
-      );
-    }
+      // Filter by Surname
+      if (cleanSurname) {
+        results = results.filter((m) => (m.fullName || "").toLowerCase().includes(cleanSurname));
+      }
 
-    // Filter by Age Range (Biological calculation)
-    if (cleanMinAge !== null || cleanMaxAge !== null) {
-      results = results.filter((m) => {
-        const age = calculateAge(m.dob);
-        if (age === null) return false;
-        if (cleanMinAge !== null && age < cleanMinAge) return false;
-        if (cleanMaxAge !== null && age > cleanMaxAge) return false;
-        return true;
-      });
-    }
+      // Filter by Gotra (Strict Whitelist Check)
+      if (validGotra) {
+        results = results.filter((m) => (m.gotra || "").toLowerCase() === validGotra);
+      }
 
-    // Filter by Marital Status
-    if (validMaritalStatus) {
-      results = results.filter(
-        (m) => (m.maritalStatus || "").toLowerCase() === validMaritalStatus
-      );
-    }
+      // Filter by Profession / Specialization / Company
+      if (cleanProfession) {
+        results = results.filter(
+          (m) =>
+            (m.profession || "").toLowerCase().includes(cleanProfession) ||
+            (m.professionTitle || "").toLowerCase().includes(cleanProfession) ||
+            (m.professionDescription || "").toLowerCase().includes(cleanProfession) ||
+            (m.companyName || "").toLowerCase().includes(cleanProfession)
+        );
+      }
 
-    // Filter by Legacy Free-Text Query (if supplied)
-    if (cleanQuery) {
-      results = results.filter(
-        (m) =>
-          (m.fullName || "").toLowerCase().includes(cleanQuery) ||
-          (m.profession || "").toLowerCase().includes(cleanQuery) ||
-          (m.professionTitle || "").toLowerCase().includes(cleanQuery) ||
-          (m.companyName || "").toLowerCase().includes(cleanQuery) ||
-          (m.nativePlace || "").toLowerCase().includes(cleanQuery) ||
-          (m.currentCity || "").toLowerCase().includes(cleanQuery)
-      );
+      // Filter by Location (City, State, Country, Postal Code)
+      if (validLocation) {
+        results = results.filter(
+          (m) =>
+            (m.currentCity || "").toLowerCase().includes(validLocation) ||
+            (m.state || "").toLowerCase().includes(validLocation) ||
+            (m.currentCountry || "").toLowerCase().includes(validLocation) ||
+            (m.postalCode || "").toLowerCase().includes(validLocation)
+        );
+      }
+
+      // Filter by Native Place (Ancestral Village/City)
+      if (cleanNativePlace) {
+        results = results.filter((m) =>
+          (m.nativePlace || "").toLowerCase().includes(cleanNativePlace)
+        );
+      }
+
+      // Filter by Age Range (Biological calculation)
+      if (cleanMinAge !== null || cleanMaxAge !== null) {
+        results = results.filter((m) => {
+          const age = calculateAge(m.dob);
+          if (age === null) return false;
+          if (cleanMinAge !== null && age < cleanMinAge) return false;
+          if (cleanMaxAge !== null && age > cleanMaxAge) return false;
+          return true;
+        });
+      }
+
+      // Filter by Marital Status
+      if (validMaritalStatus) {
+        results = results.filter(
+          (m) => (m.maritalStatus || "").toLowerCase() === validMaritalStatus
+        );
+      }
+
+      // Filter by Legacy Free-Text Query (if supplied)
+      if (cleanQuery) {
+        results = results.filter(
+          (m) =>
+            (m.fullName || "").toLowerCase().includes(cleanQuery) ||
+            (m.profession || "").toLowerCase().includes(cleanQuery) ||
+            (m.professionTitle || "").toLowerCase().includes(cleanQuery) ||
+            (m.companyName || "").toLowerCase().includes(cleanQuery) ||
+            (m.nativePlace || "").toLowerCase().includes(cleanQuery) ||
+            (m.currentCity || "").toLowerCase().includes(cleanQuery)
+        );
+      }
     }
 
     // Privacy Protection at Query Boundary (TRD §6):
@@ -225,11 +272,16 @@ export async function getMemberProfile(memberId: string) {
     return { success: false, error: "Invalid member identifier format." };
   }
   try {
+    const session = await getSession();
+    const isStrictAuth = process.env.NODE_ENV === "production" || process.env.ENFORCE_STRICT_AUTH === "true";
+    if (!session && isStrictAuth) {
+      return { success: false, error: "Please sign in to view member profiles." };
+    }
+
     const member = await db.getMemberById(cleanId);
     if (!member) {
       return { success: false, error: "Member profile not found." };
     }
-    const session = await getSession();
     const safeProfile: any = sanitizeMemberProfile(member, session);
     try {
       const matProfile = await db.getMatrimonialProfileByMemberId(member.id);

@@ -341,3 +341,40 @@ test("Seam 15: Chat attachments schema, storage helpers, upload route, and UI ad
   assert.ok(pageCode.includes("/api/chat/upload"), "Chat UI must call /api/chat/upload");
   assert.ok(pageCode.includes("lightboxUrl"), "Chat UI must have lightbox state for image preview");
 });
+
+// --- SEAM 16: Part 1 Security Hardening & Zero-Knowledge Deduplication ---
+test("Seam 16: Aadhaar masking, DB search pushdown, serverless rate limits, and email XSS guards adhere to contracts", () => {
+  const privacyCode = fs.readFileSync(path.join(webRoot, "src/lib/privacy.ts"), "utf8");
+  const registerCode = fs.readFileSync(path.join(webRoot, "src/actions/register.ts"), "utf8");
+  const dbCode = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const searchCode = fs.readFileSync(path.join(webRoot, "src/actions/search.ts"), "utf8");
+  const matrimonyCode = fs.readFileSync(path.join(webRoot, "src/actions/matrimony.ts"), "utf8");
+  const nextConfigCode = fs.readFileSync(path.join(webRoot, "next.config.ts"), "utf8");
+  const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+
+  // 1. Aadhaar masking & blind HMAC indexing
+  assert.ok(privacyCode.includes("export function maskAadhaar"), "privacy.ts must export maskAadhaar");
+  assert.ok(privacyCode.includes("export function hashGovtId"), "privacy.ts must export hashGovtId");
+  assert.ok(schemaSql.includes("aadhaar_hash TEXT"), "schema.sql must define aadhaar_hash column");
+  assert.ok(registerCode.includes("maskAadhaar"), "register.ts must store masked Aadhaar");
+  assert.ok(registerCode.includes("hashGovtId"), "register.ts must generate blind Aadhaar hash");
+  assert.ok(dbCode.includes("getHouseholdByAadhaarHash"), "db.ts must export getHouseholdByAadhaarHash for duplicate detection");
+
+  // 2. DB Search pushdown eliminating heap exhaustion
+  assert.ok(dbCode.includes("searchMembersPaged"), "db.ts must implement searchMembersPaged");
+  assert.ok(searchCode.includes("db.searchMembersPaged"), "searchDirectory must call db.searchMembersPaged");
+
+  // 3. Serverless rate limiting & auth gating
+  assert.ok(dbCode.includes("checkDbRateLimit"), "db.ts must implement checkDbRateLimit");
+  assert.ok(searchCode.includes("checkDbRateLimit"), "searchDirectory must use checkDbRateLimit");
+  assert.ok(searchCode.includes("isStrictAuth"), "searchDirectory must enforce isStrictAuth in production");
+
+  // 4. Matrimonial email sanitization
+  assert.ok(matrimonyCode.includes("escapeHtml"), "matrimony.ts must implement escapeHtml");
+  assert.ok(matrimonyCode.includes("cleanSubject"), "matrimony.ts must strip newlines to prevent SMTP injection");
+
+  // 5. CSP domain pinning
+  assert.ok(!nextConfigCode.includes("'unsafe-eval'"), "next.config.ts must not contain unsafe-eval");
+  assert.ok(!nextConfigCode.includes("script-src 'self' 'unsafe-inline' 'unsafe-eval' https:"), "next.config.ts must not have wildcard https script-src");
+});
+

@@ -30,6 +30,7 @@ export interface Member {
   photoUrl?: string;
   bio?: string;
   aadhaarNumber?: string;
+  aadhaarHash?: string;
   panNumber?: string;
   passportNumber?: string;
   govtIdNumber?: string;
@@ -54,6 +55,7 @@ export interface Household {
   city?: string;
   fullAddress?: string;
   aadhaarNumber?: string;
+  aadhaarHash?: string;
   panNumber?: string;
   passportNumber?: string;
   govtIdNumber?: string;

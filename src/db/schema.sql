@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS households (
     city TEXT,
     full_address TEXT,
     aadhaar_number TEXT,
+    aadhaar_hash TEXT,
     pan_number TEXT,
     passport_number TEXT,
     govt_id_number TEXT,
@@ -76,6 +77,7 @@ CREATE TABLE IF NOT EXISTS members (
     photo_url TEXT,
     bio TEXT,
     aadhaar_number TEXT,
+    aadhaar_hash TEXT,
     pan_number TEXT,
     passport_number TEXT,
     govt_id_number TEXT,
@@ -102,6 +104,8 @@ CREATE INDEX IF NOT EXISTS idx_members_trgm_name ON members USING gin(full_name 
 CREATE INDEX IF NOT EXISTS idx_households_status ON households(status);
 CREATE INDEX IF NOT EXISTS idx_households_gotra ON households(gotra);
 CREATE INDEX IF NOT EXISTS idx_households_serial_no ON households(serial_no);
+CREATE INDEX IF NOT EXISTS idx_households_aadhaar_hash ON households(aadhaar_hash);
+CREATE INDEX IF NOT EXISTS idx_members_aadhaar_hash ON members(aadhaar_hash);
 
 -- Schema Migration Deltas
 ALTER TABLE households ADD COLUMN IF NOT EXISTS serial_no VARCHAR(32) UNIQUE;

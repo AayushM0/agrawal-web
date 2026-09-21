@@ -24,6 +24,17 @@ function formatHeightDisplay(cm?: number): string {
   return `${feet}' ${inches}" (${cm} cm)`;
 }
 
+// HTML escaping helper for email templates
+function escapeHtml(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 // Notification Email Helper
 async function sendMatrimonyNotificationEmail(payload: {
   to: string;
@@ -33,11 +44,17 @@ async function sendMatrimonyNotificationEmail(payload: {
   actionUrl?: string;
   actionText?: string;
 }) {
+  const cleanSubject = payload.subject.replace(/[\r\n]+/g, " ").trim();
   if (!process.env.RESEND_API_KEY) {
-    console.warn(`[MATRIMONY NOTIFICATION SIMULATION] To: ${payload.to} | Subject: ${payload.subject}`);
+    console.warn(`[MATRIMONY NOTIFICATION SIMULATION] To: ${payload.to} | Subject: ${cleanSubject}`);
     return;
   }
   try {
+    const safeHeading = escapeHtml(payload.heading);
+    const safeBodyText = escapeHtml(payload.bodyText);
+    const safeActionText = escapeHtml(payload.actionText || "View Details →");
+    const safeActionUrl = payload.actionUrl && /^https?:\/\//i.test(payload.actionUrl) ? payload.actionUrl : "";
+
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e5d5be; border-radius: 12px; background: #fffcf8;">
         <div style="text-align: center; margin-bottom: 20px;">
@@ -45,13 +62,13 @@ async function sendMatrimonyNotificationEmail(payload: {
           <p style="color: #c9933b; font-weight: bold; margin: 4px 0 0 0; font-size: 13px;">अग्रवाल वैवाहिक मंच • Global Matrimony</p>
         </div>
         <div style="background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #f3e8dc;">
-          <h3 style="color: #2c1810; margin-top: 0;">${payload.heading}</h3>
-          <p style="color: #55433c; font-size: 14px; line-height: 1.6;">${payload.bodyText}</p>
+          <h3 style="color: #2c1810; margin-top: 0;">${safeHeading}</h3>
+          <p style="color: #55433c; font-size: 14px; line-height: 1.6;">${safeBodyText}</p>
           ${
-            payload.actionUrl
+            safeActionUrl
               ? `<div style="text-align: center; margin-top: 24px;">
-                   <a href="${payload.actionUrl}" style="background: #800020; color: #ffffff; padding: 10px 24px; text-decoration: none; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-block;">
-                     ${payload.actionText || "View Details →"}
+                   <a href="${safeActionUrl}" style="background: #800020; color: #ffffff; padding: 10px 24px; text-decoration: none; border-radius: 20px; font-weight: bold; font-size: 13px; display: inline-block;">
+                     ${safeActionText}
                    </a>
                  </div>`
               : ""
@@ -72,7 +89,7 @@ async function sendMatrimonyNotificationEmail(payload: {
       body: JSON.stringify({
         from: process.env.RESEND_FROM_EMAIL || "Maharaja Agrasen Foundation <verify@maharajaagrasenfoundation.com>",
         to: payload.to,
-        subject: payload.subject,
+        subject: cleanSubject,
         html,
       }),
     });

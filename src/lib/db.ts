@@ -111,9 +111,11 @@ async function ensureSchema(client: any) {
       ALTER TABLE households ADD COLUMN IF NOT EXISTS city TEXT;
       ALTER TABLE households ADD COLUMN IF NOT EXISTS full_address TEXT;
       ALTER TABLE households ADD COLUMN IF NOT EXISTS aadhaar_number TEXT;
+      ALTER TABLE households ADD COLUMN IF NOT EXISTS aadhaar_hash TEXT;
       ALTER TABLE households ADD COLUMN IF NOT EXISTS pan_number TEXT;
       ALTER TABLE households ADD COLUMN IF NOT EXISTS passport_number TEXT;
       ALTER TABLE households ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
+      CREATE INDEX IF NOT EXISTS idx_households_aadhaar_hash ON households(aadhaar_hash);
 
       ALTER TABLE members ADD COLUMN IF NOT EXISTS profession_title TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS profession_description TEXT;
@@ -123,11 +125,13 @@ async function ensureSchema(client: any) {
       ALTER TABLE members ADD COLUMN IF NOT EXISTS state TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS full_address TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS aadhaar_number TEXT;
+      ALTER TABLE members ADD COLUMN IF NOT EXISTS aadhaar_hash TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS passport_number TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS password_hash TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS serial_no VARCHAR(32) UNIQUE;
       CREATE INDEX IF NOT EXISTS idx_members_serial_no ON members(serial_no);
+      CREATE INDEX IF NOT EXISTS idx_members_aadhaar_hash ON members(aadhaar_hash);
 
       ALTER TABLE households ADD COLUMN IF NOT EXISTS password_hash TEXT;
 
@@ -139,6 +143,14 @@ async function ensureSchema(client: any) {
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_login_attempts_lookup ON login_attempts (identifier, ip_address, created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS action_rate_limits (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          key VARCHAR(255) NOT NULL,
+          action VARCHAR(50) NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_action_rate_limits ON action_rate_limits (key, action, created_at DESC);
 
       CREATE TABLE IF NOT EXISTS conversations (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -576,6 +588,7 @@ export const db = {
         city: h.city || "",
         fullAddress: h.full_address || "",
         aadhaarNumber: h.aadhaar_number,
+        aadhaarHash: h.aadhaar_hash,
         panNumber: h.pan_number,
         passportNumber: h.passport_number,
         govtIdNumber: h.govt_id_number,
@@ -588,6 +601,21 @@ export const db = {
       };
     } catch (e) {
       throw e;
+    }
+  },
+
+  async getHouseholdByAadhaarHash(aadhaarHash: string): Promise<Household | null> {
+    if (!aadhaarHash || !pool) return null;
+    try {
+      const res = await pool.query(
+        `SELECT id, household_code as "householdCode", head_name as "headName", verified_contact as "verifiedContact"
+         FROM households WHERE aadhaar_hash = $1 LIMIT 1;`,
+        [aadhaarHash]
+      );
+      if (res.rows.length === 0) return null;
+      return res.rows[0] as any;
+    } catch {
+      return null;
     }
   },
 
@@ -608,14 +636,14 @@ export const db = {
         INSERT INTO households (
           id, household_code, serial_no, head_user_id, head_name, native_place, gotra,
           country, postal_code, state, city, full_address,
-          aadhaar_number, pan_number, passport_number, govt_id_number,
+          aadhaar_number, aadhaar_hash, pan_number, passport_number, govt_id_number,
           status, verified_contact, consent_accepted_at, password_hash
         )
         VALUES (
           gen_random_uuid(), $1, $2, gen_random_uuid(), $3, $4, $5,
           $6, $7, $8, $9, $10,
-          $11, $12, $13, $14,
-          $15, $16, $17, $18
+          $11, $12, $13, $14, $15,
+          $16, $17, $18, $19
         )
         RETURNING id, serial_no;
       `;
@@ -631,6 +659,7 @@ export const db = {
         household.city || null,
         household.fullAddress || null,
         household.aadhaarNumber || null,
+        household.aadhaarHash || null,
         household.panNumber || null,
         household.passportNumber || null,
         household.govtIdNumber || null,
@@ -655,7 +684,7 @@ export const db = {
             profession_freetext, profession_title, profession_description,
             company_name, anniversary_date,
             phone, email, father_name, photo_url, bio,
-            aadhaar_number, pan_number, passport_number, govt_id_number,
+            aadhaar_number, aadhaar_hash, pan_number, passport_number, govt_id_number,
             visibility_contact, visibility_dob, visibility_photo, verified_by_self, owner_locked,
             password_hash, serial_no
           ) VALUES (
@@ -664,9 +693,9 @@ export const db = {
             $12, $13, $14,
             $15, $16,
             $17, $18, $19, $20, $21,
-            $22, $23, $24, $25,
-            $26, $27, $28, $29, $30,
-            $31, $32
+            $22, $23, $24, $25, $26,
+            $27, $28, $29, $30, $31,
+            $32, $33
           )
           RETURNING id, serial_no;
         `;
@@ -693,6 +722,7 @@ export const db = {
           m.photoUrl || null,
           m.bio || null,
           m.aadhaarNumber || (m.relationToHead === "self" ? household.aadhaarNumber : null),
+          m.aadhaarHash || (m.relationToHead === "self" ? household.aadhaarHash : null),
           m.panNumber || (m.relationToHead === "self" ? household.panNumber : null),
           m.passportNumber || (m.relationToHead === "self" ? household.passportNumber : null),
           m.govtIdNumber || (m.relationToHead === "self" ? household.govtIdNumber : null),
@@ -753,6 +783,146 @@ export const db = {
           photo: r.visibility_photo,
         }
       }));
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  async searchMembersPaged(
+    filters: {
+      name?: string;
+      surname?: string;
+      gotra?: string | null;
+      profession?: string;
+      location?: string | null;
+      nativePlace?: string;
+      minAge?: number | null;
+      maxAge?: number | null;
+      maritalStatus?: string | null;
+      query?: string;
+      excludeUserId?: string;
+    } = {},
+    pagination: { limit?: number; offset?: number } = { limit: 60, offset: 0 }
+  ): Promise<{ data: any[]; totalCount: number }> {
+    if (!pool) {
+      return { data: [], totalCount: 0 };
+    }
+    try {
+      const conditions: string[] = ["h.status = 'live'"];
+      const params: any[] = [];
+
+      if (filters.excludeUserId) {
+        params.push(filters.excludeUserId);
+        conditions.push(`m.id::text != $${params.length}`);
+      }
+
+      if (filters.name) {
+        params.push(`%${filters.name}%`);
+        conditions.push(`m.full_name ILIKE $${params.length}`);
+      }
+
+      if (filters.surname) {
+        params.push(`%${filters.surname}%`);
+        conditions.push(`m.full_name ILIKE $${params.length}`);
+      }
+
+      if (filters.gotra && filters.gotra !== "all") {
+        params.push(filters.gotra);
+        conditions.push(`h.gotra ILIKE $${params.length}`);
+      }
+
+      if (filters.profession) {
+        params.push(`%${filters.profession}%`);
+        conditions.push(`(m.profession_freetext ILIKE $${params.length} OR m.profession_title ILIKE $${params.length} OR m.company_name ILIKE $${params.length})`);
+      }
+
+      if (filters.location && filters.location !== "all") {
+        params.push(`%${filters.location}%`);
+        conditions.push(`(m.current_city ILIKE $${params.length} OR m.current_country ILIKE $${params.length} OR m.state ILIKE $${params.length})`);
+      }
+
+      if (filters.nativePlace) {
+        params.push(`%${filters.nativePlace}%`);
+        conditions.push(`(h.native_place ILIKE $${params.length} OR m.full_address ILIKE $${params.length})`);
+      }
+
+      if (filters.maritalStatus && filters.maritalStatus !== "all") {
+        params.push(filters.maritalStatus);
+        conditions.push(`m.marital_status ILIKE $${params.length}`);
+      }
+
+      if (filters.minAge != null && filters.minAge > 0) {
+        params.push(`${Math.floor(filters.minAge)} years`);
+        conditions.push(`m.dob <= (CURRENT_DATE - $${params.length}::interval)`);
+      }
+
+      if (filters.maxAge != null && filters.maxAge < 130) {
+        params.push(`${Math.floor(filters.maxAge) + 1} years`);
+        conditions.push(`m.dob >= (CURRENT_DATE - $${params.length}::interval)`);
+      }
+
+      if (filters.query) {
+        params.push(`%${filters.query}%`);
+        const p = `$${params.length}`;
+        conditions.push(`(
+          m.full_name ILIKE ${p} OR
+          m.profession_freetext ILIKE ${p} OR
+          m.profession_title ILIKE ${p} OR
+          m.company_name ILIKE ${p} OR
+          m.current_city ILIKE ${p} OR
+          h.gotra ILIKE ${p} OR
+          h.native_place ILIKE ${p}
+        )`);
+      }
+
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+      const countRes = await pool.query(
+        `SELECT COUNT(*)::int as count FROM members m JOIN households h ON m.household_id = h.id ${whereClause};`,
+        params
+      );
+      const totalCount = countRes.rows[0]?.count || 0;
+
+      const limit = Math.min(pagination.limit || 60, 100);
+      const offset = Math.max(pagination.offset || 0, 0);
+      params.push(limit);
+      const limitParam = `$${params.length}`;
+      params.push(offset);
+      const offsetParam = `$${params.length}`;
+
+      const dataQuery = `
+        SELECT 
+          m.id, m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
+          m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
+          m.current_country as "currentCountry", m.postal_code as "postalCode", m.state, m.full_address as "fullAddress",
+          m.profession_freetext as "profession", m.profession_title as "professionTitle", m.profession_description as "professionDescription",
+          m.company_name as "companyName", m.anniversary_date as "anniversaryDate",
+          m.phone, m.email, m.father_name as "fatherName", m.photo_url as "photoUrl", m.bio, m.verified_by_self as "verifiedBySelf",
+          m.owner_locked as "ownerLocked", m.visibility_contact, m.visibility_dob, m.visibility_photo,
+          m.aadhaar_number as "aadhaarNumber", m.pan_number as "panNumber", m.passport_number as "passportNumber", m.govt_id_number as "govtIdNumber",
+          m.serial_no as "serialNo",
+          h.household_code as "householdCode", h.serial_no as "householdSerialNo", h.gotra, h.native_place as "nativePlace", h.status as "householdStatus"
+        FROM members m
+        JOIN households h ON m.household_id = h.id
+        ${whereClause}
+        ORDER BY m.created_at DESC
+        LIMIT ${limitParam} OFFSET ${offsetParam};
+      `;
+
+      const dataRes = await pool.query(dataQuery, params);
+      const data = dataRes.rows.map(r => ({
+        ...r,
+        dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
+        serialNo: r.serialNo || r.householdSerialNo || r.householdCode,
+        householdSerialNo: r.householdSerialNo || r.householdCode,
+        visibility: {
+          contactInfo: r.visibility_contact,
+          dob: r.visibility_dob,
+          photo: r.visibility_photo,
+        }
+      }));
+
+      return { data, totalCount };
     } catch (e) {
       throw e;
     }
@@ -1756,6 +1926,29 @@ export const db = {
       );
     } catch (err) {
       console.warn("Record OTP request non-fatal:", err);
+    }
+  },
+
+  async checkDbRateLimit(key: string, action: string, maxRequests = 40, windowSeconds = 60): Promise<boolean> {
+    if (!pool) return true;
+    try {
+      const res = await pool.query(
+        `SELECT COUNT(*)::int as count FROM action_rate_limits
+         WHERE key = $1 AND action = $2 AND created_at > NOW() - ($3 || ' seconds')::interval;`,
+        [key, action, windowSeconds]
+      );
+      const count = res.rows[0]?.count || 0;
+      if (count >= maxRequests) return false;
+
+      await pool.query(
+        `INSERT INTO action_rate_limits (id, key, action, created_at)
+         VALUES (gen_random_uuid(), $1, $2, NOW());`,
+        [key, action]
+      );
+      return true;
+    } catch (err) {
+      console.warn("[DB RATE LIMIT FALLBACK]", err);
+      return true;
     }
   },
 

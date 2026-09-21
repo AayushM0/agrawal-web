@@ -47,6 +47,25 @@ export function maskEmail(email?: string): string {
   return `${local.slice(0, 1)}••••${local.slice(-1)}@${domain}`;
 }
 
+import crypto from "crypto";
+
+export function maskAadhaar(raw?: string): string {
+  if (!raw) return "••••";
+  const clean = raw.trim();
+  if (clean.startsWith("XXXX-XXXX-")) return clean;
+  const digits = clean.replace(/[^0-9]/g, "");
+  if (digits.length < 4) return "••••";
+  return `XXXX-XXXX-${digits.slice(-4)}`;
+}
+
+export function hashGovtId(raw?: string, secret?: string): string {
+  if (!raw) return "";
+  const clean = raw.trim().replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  if (!clean) return "";
+  const pepper = secret || process.env.AUTH_SECRET || "mafl_default_pepper_secret";
+  return crypto.createHmac("sha256", pepper).update(clean).digest("hex");
+}
+
 export function maskGovtId(id?: string): string {
   if (!id) return "••••";
   const clean = id.trim();
