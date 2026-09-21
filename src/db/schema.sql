@@ -157,12 +157,18 @@ CREATE TABLE IF NOT EXISTS messages (
     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     sender_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
     recipient_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-    message_body TEXT NOT NULL,
+    message_body TEXT,                    -- nullable: pure attachment messages have no text
+    attachment_url TEXT,                  -- Supabase Storage path for file attachments
+    attachment_type VARCHAR(20),          -- 'image' | 'video' | 'pdf' | 'ppt'
+    attachment_name TEXT,                 -- original filename
+    attachment_size INTEGER,              -- file size in bytes
     is_flagged BOOLEAN NOT NULL DEFAULT FALSE,
     flag_reason TEXT,
     read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE INDEX IF NOT EXISTS idx_messages_has_attachment ON messages(conversation_id) WHERE attachment_url IS NOT NULL;
+
 
 -- 5. Message Reports Table (Trust & Safety / Legal Audit Trail)
 CREATE TABLE IF NOT EXISTS message_reports (

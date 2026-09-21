@@ -128,3 +128,101 @@ export async function uploadMemberPhoto(
     return typeof payload === "string" ? payload : "";
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Chat Attachment Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const CHAT_ATTACHMENT_BUCKET = "chat-attachments";
+
+export const ALLOWED_ATTACHMENT_MIME_TYPES: Record<string, string> = {
+  "image/jpeg": "image",
+  "image/jpg": "image",
+  "image/png": "image",
+  "image/gif": "image",
+  "image/webp": "image",
+  "video/mp4": "video",
+  "video/quicktime": "video",
+  "video/webm": "video",
+  "application/pdf": "pdf",
+  "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "ppt",
+};
+
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024; // 10 MB
+
+export interface ChatAttachmentUploadResult {
+  storagePath: string;   // path inside bucket e.g. "conv-id/timestamp-filename.jpg"
+  attachmentType: string; // 'image' | 'video' | 'pdf' | 'ppt'
+  attachmentName: string; // original filename
+  attachmentSize: number; // bytes
+}
+
+/**
+ * Uploads a file Buffer to the private 'chat-attachments' Supabase Storage bucket.
+ * Returns the storage path (NOT a public URL — use getChatAttachmentSignedUrl to serve it).
+ */
+export async function uploadChatAttachment(
+  fileBuffer: Buffer,
+  originalName: string,
+  mimeType: string,
+  conversationId: string
+): Promise<ChatAttachmentUploadResult | null> {
+  const client = getSupabaseClient();
+  if (!client) {
+    console.warn("[STORAGE] Supabase client unavailable — cannot upload chat attachment");
+    return null;
+  }
+
+  const attachmentType = ALLOWED_ATTACHMENT_MIME_TYPES[mimeType];
+  if (!attachmentType) {
+    console.warn("[STORAGE] Unsupported MIME type for chat attachment:", mimeType);
+    return null;
+  }
+
+  // Sanitize filename: strip path traversal characters
+  const safeName = originalName.replace(/[^a-zA-Z0-9._\-\s]/g, "_").replace(/\s+/g, "_").slice(0, 120);
+  const storagePath = `${conversationId}/${Date.now()}-${safeName}`;
+
+  const { error } = await client.storage
+    .from(CHAT_ATTACHMENT_BUCKET)
+    .upload(storagePath, fileBuffer, {
+      contentType: mimeType,
+      upsert: false,
+    });
+
+  if (error) {
+    console.error("[STORAGE] Chat attachment upload failed:", error.message);
+    return null;
+  }
+
+  return {
+    storagePath,
+    attachmentType,
+    attachmentName: safeName,
+    attachmentSize: fileBuffer.length,
+  };
+}
+
+/**
+ * Generates a signed URL for a private chat attachment, valid for the given TTL (default 1 hour).
+ * Returns null if the client is unavailable or signing fails.
+ */
+export async function getChatAttachmentSignedUrl(
+  storagePath: string,
+  expiresInSeconds = 3600
+): Promise<string | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  const { data, error } = await client.storage
+    .from(CHAT_ATTACHMENT_BUCKET)
+    .createSignedUrl(storagePath, expiresInSeconds);
+
+  if (error || !data?.signedUrl) {
+    console.warn("[STORAGE] Failed to generate signed URL:", error?.message);
+    return null;
+  }
+
+  return data.signedUrl;
+}

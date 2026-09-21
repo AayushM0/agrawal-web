@@ -157,7 +157,11 @@ async function ensureSchema(client: any) {
           conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
           sender_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
           recipient_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
-          message_body TEXT NOT NULL,
+          message_body TEXT,
+          attachment_url TEXT,
+          attachment_type VARCHAR(20),
+          attachment_name TEXT,
+          attachment_size INTEGER,
           is_flagged BOOLEAN NOT NULL DEFAULT FALSE,
           flag_reason TEXT,
           read_at TIMESTAMPTZ,
@@ -1452,9 +1456,13 @@ export const db = {
     conversationId: string;
     senderId: string;
     recipientId: string;
-    messageBody: string;
+    messageBody?: string | null;
     isFlagged?: boolean;
     flagReason?: string;
+    attachmentUrl?: string;
+    attachmentType?: string;
+    attachmentName?: string;
+    attachmentSize?: number;
   }): Promise<any> {
     if (!pool) throw new Error("Database not connected");
     let client;
@@ -1463,22 +1471,26 @@ export const db = {
       await client.query("BEGIN");
 
       const insertRes = await client.query(
-        `INSERT INTO messages (id, conversation_id, sender_id, recipient_id, message_body, is_flagged, flag_reason, created_at)
-         VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, NOW())
+        `INSERT INTO messages (id, conversation_id, sender_id, recipient_id, message_body, is_flagged, flag_reason, attachment_url, attachment_type, attachment_name, attachment_size, created_at)
+         VALUES (gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9, $10, NOW())
          RETURNING *;`,
         [
           data.conversationId,
           data.senderId,
           data.recipientId,
-          data.messageBody.trim(),
+          data.messageBody?.trim() || null,
           data.isFlagged || false,
           data.flagReason || null,
+          data.attachmentUrl || null,
+          data.attachmentType || null,
+          data.attachmentName || null,
+          data.attachmentSize || null,
         ]
       );
       const msg = insertRes.rows[0];
 
       // Update conversation timestamp and preview
-      const preview = data.messageBody.trim().slice(0, 100);
+      const preview = data.messageBody?.trim().slice(0, 100) || (data.attachmentName ? `📎 ${data.attachmentName}` : "Attachment");
       await client.query(
         `UPDATE conversations 
          SET last_message_at = NOW(), last_message_preview = $1, updated_at = NOW() 
@@ -1498,6 +1510,7 @@ export const db = {
     }
   },
 
+
   async getMessagesByConversation(conversationId: string, limit = 50, offset = 0): Promise<any[]> {
     if (!pool) throw new Error("Database not connected");
     try {
@@ -1507,6 +1520,8 @@ export const db = {
            m.recipient_id as "recipientId", m.message_body as "messageBody",
            m.is_flagged as "isFlagged", m.flag_reason as "flagReason", 
            m.read_at as "readAt", m.created_at as "createdAt",
+           m.attachment_url as "attachmentUrl", m.attachment_type as "attachmentType",
+           m.attachment_name as "attachmentName", m.attachment_size as "attachmentSize",
            sender.full_name as "senderName", sender.photo_url as "senderPhoto"
          FROM messages m
          JOIN members sender ON m.sender_id = sender.id

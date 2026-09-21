@@ -66,8 +66,12 @@ async function resolveEffectiveMemberId(session: any): Promise<string | null> {
  */
 export async function sendMessage(params: {
   recipientMemberId: string;
-  messageBody: string;
+  messageBody?: string;          // optional — attachment-only messages have no text
   conversationId?: string;
+  attachmentUrl?: string;        // storage path in chat-attachments bucket
+  attachmentType?: string;       // 'image' | 'video' | 'pdf' | 'ppt'
+  attachmentName?: string;
+  attachmentSize?: number;
 }): Promise<{ success: boolean; message?: any; conversationId?: string; error?: string }> {
   try {
     const session = await getSession();
@@ -84,12 +88,12 @@ export async function sendMessage(params: {
       return { success: false, error: "You cannot message yourself." };
     }
 
-    const trimmedBody = params.messageBody?.trim();
-    if (!trimmedBody) {
+    const trimmedBody = params.messageBody?.trim() || null;
+    if (!trimmedBody && !params.attachmentUrl) {
       return { success: false, error: "Message cannot be empty." };
     }
 
-    if (trimmedBody.length > 2000) {
+    if (trimmedBody && trimmedBody.length > 2000) {
       return { success: false, error: "Message exceeds maximum length of 2000 characters." };
     }
 
@@ -139,8 +143,8 @@ export async function sendMessage(params: {
       return { success: false, error: rateCheck.error };
     }
 
-    // Anti-Fraud & Scam Heuristics
-    const fraudScan = scanForFraud(trimmedBody);
+    // Anti-Fraud & Scam Heuristics (only scan text body if present)
+    const fraudScan = trimmedBody ? scanForFraud(trimmedBody) : { isFlagged: false, reason: null };
 
     const actualRecipientId = isInitiator ? conversation.recipient_id : conversation.initiator_id;
 
@@ -152,6 +156,10 @@ export async function sendMessage(params: {
       messageBody: trimmedBody,
       isFlagged: fraudScan.isFlagged,
       flagReason: fraudScan.reason || undefined,
+      attachmentUrl: params.attachmentUrl,
+      attachmentType: params.attachmentType,
+      attachmentName: params.attachmentName,
+      attachmentSize: params.attachmentSize,
     });
 
     // 1. If this is the first turn of a connection request, trigger email notification asynchronously
@@ -170,7 +178,7 @@ export async function sendMessage(params: {
               senderName: senderMember?.fullName || "A Community Member",
               senderGotra: senderMember?.gotra || null,
               senderCity: senderMember?.currentCity || null,
-              messagePreview: trimmedBody.slice(0, 250),
+              messagePreview: (trimmedBody ?? "").slice(0, 250),
               conversationId: conversation.id,
             });
           }
@@ -216,7 +224,7 @@ export async function sendMessage(params: {
           senderId: senderMemberId,
           senderName: senderProfile?.fullName || "A Community Member",
           senderGotra: senderProfile?.gotra || null,
-          messagePreview: trimmedBody.slice(0, 120),
+          messagePreview: (trimmedBody ?? "").slice(0, 120),
           isRequest: isFirstRequestTurn,
         });
       } catch (pusherErr) {
@@ -425,3 +433,36 @@ export async function reportConversation(params: {
     return { success: false, error: err.message || "Failed to submit report." };
   }
 }
+
+/**
+ * Generate a fresh signed URL for a private chat attachment stored in Supabase Storage.
+ * Called client-side when rendering messages that contain attachments.
+ */
+export async function getAttachmentSignedUrl(
+  storagePath: string
+): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    const session = await getSession();
+    const memberId = await resolveEffectiveMemberId(session);
+    if (!memberId) {
+      return { success: false, error: "Authentication required." };
+    }
+
+    if (!storagePath || typeof storagePath !== "string") {
+      return { success: false, error: "Invalid storage path." };
+    }
+
+    const { getChatAttachmentSignedUrl } = await import("@/lib/storage");
+    const url = await getChatAttachmentSignedUrl(storagePath, 3600);
+
+    if (!url) {
+      return { success: false, error: "Could not generate signed URL." };
+    }
+
+    return { success: true, url };
+  } catch (err: any) {
+    console.error("getAttachmentSignedUrl error:", err);
+    return { success: false, error: err.message || "Failed to generate attachment URL." };
+  }
+}
+

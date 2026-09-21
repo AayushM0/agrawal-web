@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { getSession } from "@/actions/auth";
-import { getConversations, getMessages, sendMessage, respondToRequest, reportConversation } from "@/actions/chat";
+import { getConversations, getMessages, sendMessage, respondToRequest, reportConversation, getAttachmentSignedUrl } from "@/actions/chat";
 import { getMemberProfile } from "@/actions/search";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
 
@@ -32,6 +32,14 @@ function MessagesDashboardContent() {
   const [reportReason, setReportReason] = useState<"financial_fraud" | "harassment" | "spam" | "impersonation" | "other">("financial_fraud");
   const [reportDetails, setReportDetails] = useState("");
   const [reportSubmitted, setReportSubmitted] = useState(false);
+
+  // Attachment State
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Cache signed URLs in memory so we don't re-fetch every render: storagePath → signedUrl
+  const signedUrlCache = useRef<Record<string, string>>({});
 
   // Load session to get current member ID for private notifications
   useEffect(() => {
@@ -222,25 +230,74 @@ function MessagesDashboardContent() {
     return () => clearInterval(interval);
   }, [selectedConv?.id, isRealtimeConnected]);
 
+  // Fetch and cache a signed URL for a private attachment storage path
+  const getSignedUrl = async (storagePath: string): Promise<string | null> => {
+    if (signedUrlCache.current[storagePath]) return signedUrlCache.current[storagePath];
+    const res = await getAttachmentSignedUrl(storagePath);
+    if (res.success && res.url) {
+      signedUrlCache.current[storagePath] = res.url;
+      return res.url;
+    }
+    return null;
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessageText.trim() || sending) return;
+    if ((!newMessageText.trim() && !pendingFile) || sending) return;
 
     setError(null);
     setSending(true);
 
     try {
       const recipientId = selectedConv?.otherParticipant?.id || initialRecipientId;
+      let attachmentUrl: string | undefined;
+      let attachmentType: string | undefined;
+      let attachmentName: string | undefined;
+      let attachmentSize: number | undefined;
+
+      // 1. Upload file if one is pending
+      if (pendingFile && selectedConv?.id) {
+        setUploadingFile(true);
+        const formData = new FormData();
+        formData.append("file", pendingFile);
+        formData.append("conversationId", selectedConv.id);
+
+        const uploadRes = await fetch("/api/chat/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const uploadData = await uploadRes.json();
+        setUploadingFile(false);
+
+        if (!uploadRes.ok) {
+          setError(uploadData.error || "File upload failed");
+          setSending(false);
+          return;
+        }
+
+        attachmentUrl = uploadData.storagePath;
+        attachmentType = uploadData.attachmentType;
+        attachmentName = uploadData.attachmentName;
+        attachmentSize = uploadData.attachmentSize;
+      }
+
+      // 2. Send message (with or without attachment)
       const res = await sendMessage({
         recipientMemberId: recipientId,
-        messageBody: newMessageText,
+        messageBody: newMessageText || undefined,
         conversationId: selectedConv?.id || undefined,
+        attachmentUrl,
+        attachmentType,
+        attachmentName,
+        attachmentSize,
       });
 
       if (!res.success) {
         setError(res.error || "Failed to send message");
       } else {
         setNewMessageText("");
+        setPendingFile(null);
         if (res.conversationId) {
           const newId = res.conversationId;
           setSelectedConv((prev: any) => ({
@@ -261,8 +318,10 @@ function MessagesDashboardContent() {
       setError(err.message || "Failed to send message");
     } finally {
       setSending(false);
+      setUploadingFile(false);
     }
   };
+
 
   const handleRespondRequest = async (action: "accept" | "decline" | "block") => {
     if (!selectedConv?.id) return;
@@ -564,7 +623,23 @@ function MessagesDashboardContent() {
                                   : "bg-white border border-[#E8DCC4] text-[#2A1810] rounded-bl-none"
                               }`}
                             >
-                              <p className="whitespace-pre-wrap leading-relaxed">{msg.messageBody}</p>
+                              {/* Text body */}
+                              {msg.messageBody && (
+                                <p className="whitespace-pre-wrap leading-relaxed">{msg.messageBody}</p>
+                              )}
+
+                              {/* Attachment rendering */}
+                              {msg.attachmentUrl && (
+                                <AttachmentRenderer
+                                  storagePath={msg.attachmentUrl}
+                                  attachmentType={msg.attachmentType}
+                                  attachmentName={msg.attachmentName}
+                                  attachmentSize={msg.attachmentSize}
+                                  isMe={isMe}
+                                  getSignedUrl={getSignedUrl}
+                                  onLightbox={setLightboxUrl}
+                                />
+                              )}
 
                               {/* In-Stream Anti-Fraud Warning */}
                               {msg.isFlagged && (
@@ -591,26 +666,75 @@ function MessagesDashboardContent() {
                 )}
 
                 {/* Message Input Box */}
-                <form onSubmit={handleSendMessage} className="p-3 sm:p-4 border-t border-[#E8DCC4] bg-white flex items-center gap-2 sm:gap-3">
-                  <input
-                    type="text"
-                    value={newMessageText}
-                    onChange={(e) => setNewMessageText(e.target.value)}
-                    placeholder="Type a message..."
-                    maxLength={2000}
-                    disabled={selectedConv.status === "blocked" || (selectedConv.status === "pending" && selectedConv.isInitiator && activeMessages.length > 0)}
-                    className="flex-1 min-w-0 px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm border border-[#D4AF37]/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#800020] bg-[#FAF6F0]/30 disabled:opacity-50"
-                  />
-                  <button
-                    type="submit"
-                    disabled={sending || !newMessageText.trim() || selectedConv.status === "blocked"}
-                    aria-label="Send Message"
-                    className="shrink-0 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-[#800020] text-[#D4AF37] font-bold text-xs sm:text-sm rounded-xl hover:bg-[#68001A] transition disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-sm"
-                  >
-                    <span className="hidden sm:inline">{sending ? "..." : "Send"}</span>
-                    <span className="text-sm">➤</span>
-                  </button>
-                </form>
+                <div className="border-t border-[#E8DCC4] bg-white">
+                  {/* Pending file preview chip */}
+                  {pendingFile && (
+                    <div className="px-3 pt-2 pb-0 flex items-center gap-2">
+                      <div className="flex items-center gap-2 bg-[#FFF8EE] border border-[#E8DCC4] rounded-lg px-3 py-1.5 text-xs text-[#5C3A1E] max-w-full overflow-hidden">
+                        <span>{pendingFile.type.startsWith("image/") ? "🖼️" : pendingFile.type.startsWith("video/") ? "🎬" : "📄"}</span>
+                        <span className="truncate max-w-[200px] font-medium">{pendingFile.name}</span>
+                        <span className="text-gray-400 shrink-0">({(pendingFile.size / 1024).toFixed(0)} KB)</span>
+                        <button
+                          type="button"
+                          onClick={() => { setPendingFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                          className="ml-1 text-gray-400 hover:text-red-500 shrink-0 font-bold"
+                          aria-label="Remove attachment"
+                        >✕</button>
+                      </div>
+                    </div>
+                  )}
+                  <form onSubmit={handleSendMessage} className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+                    {/* Hidden file input */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      accept="image/*,video/mp4,video/quicktime,video/webm,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (file && file.size > 10 * 1024 * 1024) {
+                          setError("File is too large. Maximum size is 10 MB.");
+                          e.target.value = "";
+                          return;
+                        }
+                        setPendingFile(file);
+                        setError(null);
+                      }}
+                    />
+                    {/* Paperclip button — only in accepted conversations */}
+                    {selectedConv.status === "accepted" && (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={sending || uploadingFile}
+                        aria-label="Attach file"
+                        className="shrink-0 p-2 text-[#800020] hover:bg-[#FFF0F3] rounded-xl transition disabled:opacity-40"
+                        title="Attach image, video, or document (max 10 MB)"
+                      >
+                        📎
+                      </button>
+                    )}
+                    <input
+                      type="text"
+                      value={newMessageText}
+                      onChange={(e) => setNewMessageText(e.target.value)}
+                      placeholder={pendingFile ? "Add a caption (optional)..." : "Type a message..."}
+                      maxLength={2000}
+                      disabled={selectedConv.status === "blocked" || (selectedConv.status === "pending" && selectedConv.isInitiator && activeMessages.length > 0)}
+                      className="flex-1 min-w-0 px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm border border-[#D4AF37]/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#800020] bg-[#FAF6F0]/30 disabled:opacity-50"
+                    />
+                    <button
+                      type="submit"
+                      disabled={sending || uploadingFile || (!newMessageText.trim() && !pendingFile) || selectedConv.status === "blocked"}
+                      aria-label="Send Message"
+                      className="shrink-0 px-3.5 sm:px-5 py-2 sm:py-2.5 bg-[#800020] text-[#D4AF37] font-bold text-xs sm:text-sm rounded-xl hover:bg-[#68001A] transition disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <span className="hidden sm:inline">{uploadingFile ? "⏫" : sending ? "..." : "Send"}</span>
+                      <span className="text-sm">➤</span>
+                    </button>
+                  </form>
+                </div>
+
               </>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-gray-400">
@@ -692,7 +816,132 @@ function MessagesDashboardContent() {
           </div>
         </div>
       )}
+
+      {/* Image Lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <img
+            src={lightboxUrl}
+            alt="Attachment"
+            className="max-w-full max-h-full object-contain rounded-xl shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 text-white text-2xl font-bold hover:text-gray-300"
+            aria-label="Close lightbox"
+          >✕</button>
+        </div>
+      )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AttachmentRenderer — renders image / video / pdf / ppt attachments in a bubble
+// ─────────────────────────────────────────────────────────────────────────────
+
+function AttachmentRenderer({
+  storagePath,
+  attachmentType,
+  attachmentName,
+  attachmentSize,
+  isMe,
+  getSignedUrl,
+  onLightbox,
+}: {
+  storagePath: string;
+  attachmentType: string;
+  attachmentName: string;
+  attachmentSize: number;
+  isMe: boolean;
+  getSignedUrl: (path: string) => Promise<string | null>;
+  onLightbox: (url: string) => void;
+}) {
+  const [url, setUrl] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    getSignedUrl(storagePath).then((signed) => {
+      if (!cancelled) {
+        setUrl(signed);
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [storagePath]);
+
+  const fileSizeLabel = attachmentSize
+    ? attachmentSize > 1024 * 1024
+      ? `${(attachmentSize / 1024 / 1024).toFixed(1)} MB`
+      : `${(attachmentSize / 1024).toFixed(0)} KB`
+    : "";
+
+  if (loading) {
+    return <div className="mt-1 text-xs opacity-60 animate-pulse">Loading attachment...</div>;
+  }
+
+  if (!url) {
+    return <div className="mt-1 text-xs opacity-60">⚠️ Could not load attachment</div>;
+  }
+
+  if (attachmentType === "image") {
+    return (
+      <div className="mt-2">
+        <img
+          src={url}
+          alt={attachmentName}
+          className="max-w-full rounded-xl cursor-pointer hover:opacity-90 transition shadow-sm"
+          style={{ maxHeight: 260 }}
+          onClick={() => onLightbox(url)}
+        />
+        {attachmentName && (
+          <p className={`text-[10px] mt-1 opacity-60 ${isMe ? "text-white" : "text-gray-500"}`}>{attachmentName}</p>
+        )}
+      </div>
+    );
+  }
+
+  if (attachmentType === "video") {
+    return (
+      <div className="mt-2">
+        <video
+          src={url}
+          controls
+          className="max-w-full rounded-xl shadow-sm"
+          style={{ maxHeight: 260 }}
+        />
+        {attachmentName && (
+          <p className={`text-[10px] mt-1 opacity-60 ${isMe ? "text-white" : "text-gray-500"}`}>{attachmentName}</p>
+        )}
+      </div>
+    );
+  }
+
+  // PDF / PPT — download card
+  const icon = attachmentType === "pdf" ? "📄" : "📊";
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`mt-2 flex items-center gap-2 px-3 py-2 rounded-xl border transition ${
+        isMe
+          ? "border-white/20 bg-white/10 hover:bg-white/20 text-white"
+          : "border-[#E8DCC4] bg-[#FAF6F0] hover:bg-[#F5ECE0] text-[#2A1810]"
+      }`}
+    >
+      <span className="text-xl">{icon}</span>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold truncate">{attachmentName || "Document"}</p>
+        {fileSizeLabel && <p className="text-[10px] opacity-60">{fileSizeLabel} · Click to open</p>}
+      </div>
+      <span className="ml-auto text-xs opacity-60 shrink-0">↗</span>
+    </a>
   );
 }
 
