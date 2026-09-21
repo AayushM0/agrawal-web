@@ -378,3 +378,32 @@ test("Seam 16: Aadhaar masking, DB search pushdown, serverless rate limits, and 
   assert.ok(!nextConfigCode.includes("script-src 'self' 'unsafe-inline' 'unsafe-eval' https:"), "next.config.ts must not have wildcard https script-src");
 });
 
+// --- SEAM 17: Part 2 Cloudflare Turnstile Bot Defense Contract ---
+test("Seam 17: Cloudflare Turnstile server service and client widget adhere to contracts", () => {
+  const turnstileLibPath = path.join(webRoot, "src/lib/turnstile.ts");
+  const turnstileWidgetPath = path.join(webRoot, "src/components/common/TurnstileWidget.tsx");
+
+  assert.ok(fs.existsSync(turnstileLibPath), "src/lib/turnstile.ts must exist");
+  assert.ok(fs.existsSync(turnstileWidgetPath), "src/components/common/TurnstileWidget.tsx must exist");
+
+  const turnstileCode = fs.readFileSync(turnstileLibPath, "utf8");
+  const widgetCode = fs.readFileSync(turnstileWidgetPath, "utf8");
+
+  // 1. Server-side verification service contracts
+  assert.ok(turnstileCode.includes("export function getClientIp"), "turnstile.ts must export getClientIp");
+  assert.ok(turnstileCode.includes("export async function verifyTurnstileToken"), "turnstile.ts must export verifyTurnstileToken");
+  assert.ok(turnstileCode.includes("cf-connecting-ip"), "getClientIp must prioritize cf-connecting-ip");
+  assert.ok(turnstileCode.includes("CLOUDFLARE_TURNSTILE_SECRET_KEY"), "verifyTurnstileToken must check CLOUDFLARE_TURNSTILE_SECRET_KEY");
+  assert.ok(turnstileCode.includes("isDevBypass"), "verifyTurnstileToken must support dev bypass for zero-friction local development");
+  assert.ok(turnstileCode.includes("https://challenges.cloudflare.com/turnstile/v0/siteverify"), "verifyTurnstileToken must target Cloudflare siteverify endpoint");
+
+  // 2. Client widget contracts
+  assert.ok(widgetCode.includes("'use client'"), "TurnstileWidget must be a client component");
+  assert.ok(widgetCode.includes("export const TurnstileWidget"), "TurnstileWidget must be exported");
+  assert.ok(widgetCode.includes("NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY"), "TurnstileWidget must reference NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY");
+  assert.ok(widgetCode.includes("challenges.cloudflare.com/turnstile/v0/api.js"), "TurnstileWidget must load official Cloudflare Turnstile API");
+  assert.ok(widgetCode.includes("isDevFallback"), "TurnstileWidget must provide local developer fallback");
+  assert.ok(widgetCode.includes("min-h-[65px]"), "TurnstileWidget must enforce min-height to eliminate Cumulative Layout Shift (CLS)");
+});
+
+
