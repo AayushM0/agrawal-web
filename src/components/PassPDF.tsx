@@ -1,5 +1,15 @@
 import React from "react";
-import { Document, Page, Text, View, StyleSheet, Image, Svg, Path } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image, Svg, Path, Font } from "@react-pdf/renderer";
+
+const devanagariFontSrc =
+  typeof window === "undefined"
+    ? "public/fonts/NotoSansDevanagari-Regular.ttf"
+    : "/fonts/NotoSansDevanagari-Regular.ttf";
+
+Font.register({
+  family: "NotoSansDevanagari",
+  src: devanagariFontSrc,
+});
 
 const styles = StyleSheet.create({
   page: {
@@ -238,6 +248,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   footerLeftText: {
+    fontFamily: "NotoSansDevanagari",
     fontSize: 7.5,
     color: "#fbbf24",
     fontWeight: "bold",
