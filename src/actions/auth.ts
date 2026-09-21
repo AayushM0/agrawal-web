@@ -124,11 +124,9 @@ export async function loginWithPassword(params: {
   const clientIp = getClientIp(reqHeaders);
 
   // Anti-Bot Protection (Cloudflare Turnstile)
-  if (turnstileToken || (process.env.NODE_ENV === "production" && process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY)) {
-    const turnstileCheck = await verifyTurnstileToken(turnstileToken, clientIp);
-    if (!turnstileCheck.success) {
-      return { success: false, error: turnstileCheck.error || "Anti-bot verification required. Please refresh and try again." };
-    }
+  const turnstileCheck = await verifyTurnstileToken(turnstileToken, clientIp);
+  if (!turnstileCheck.success) {
+    return { success: false, error: turnstileCheck.error || "Anti-bot verification required. Please refresh and try again." };
   }
 
   const clean = identifier.trim();
@@ -236,11 +234,9 @@ export async function requestPasswordReset(email: string, turnstileToken?: strin
   const clientIp = getClientIp(reqHeaders);
 
   // Anti-Bot Protection (Cloudflare Turnstile)
-  if (turnstileToken || (process.env.NODE_ENV === "production" && process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY)) {
-    const turnstileCheck = await verifyTurnstileToken(turnstileToken, clientIp);
-    if (!turnstileCheck.success) {
-      return { success: false, error: turnstileCheck.error || "Anti-bot verification required. Please refresh and try again.", message: "" };
-    }
+  const turnstileCheck = await verifyTurnstileToken(turnstileToken, clientIp);
+  if (!turnstileCheck.success) {
+    return { success: false, error: turnstileCheck.error || "Anti-bot verification required. Please refresh and try again.", message: "" };
   }
 
   // 1. Account existence check

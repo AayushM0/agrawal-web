@@ -8,7 +8,6 @@ import { gotras } from "@/data/gotras";
 import { Member } from "@/types/household";
 import { registerHousehold, checkContactRegistration } from "@/actions/register";
 import { checkContactAvailability } from "@/actions/claim";
-import { sendOtp, verifyOtp } from "@/actions/otp";
 import { getSession } from "@/actions/auth";
 import { saveRegistrationDraft } from "@/actions/draft";
 import LocationSelector from "@/components/LocationSelector";

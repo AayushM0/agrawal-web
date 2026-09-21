@@ -82,11 +82,9 @@ export async function sendOtp(input: SendOtpInput) {
   const clientIp = getClientIp(reqHeaders);
 
   // 1. Anti-Bot Challenge Verification (Cloudflare Turnstile)
-  if (input.turnstileToken || (process.env.NODE_ENV === "production" && process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY)) {
-    const turnstileCheck = await verifyTurnstileToken(input.turnstileToken, clientIp);
-    if (!turnstileCheck.success) {
-      return { success: false, error: turnstileCheck.error || "Anti-bot verification required. Please refresh and try again." };
-    }
+  const turnstileCheck = await verifyTurnstileToken(input.turnstileToken, clientIp);
+  if (!turnstileCheck.success) {
+    return { success: false, error: turnstileCheck.error || "Anti-bot verification required. Please refresh and try again." };
   }
 
   // 2. Strict 60-Second Cooldown (Prevents SMS/OTP toll fraud and rapid bill-bombing)

@@ -399,7 +399,7 @@ test("Seam 17: Cloudflare Turnstile server service and client widget adhere to c
 
   // 2. Client widget contracts
   assert.ok(widgetCode.includes("'use client'"), "TurnstileWidget must be a client component");
-  assert.ok(widgetCode.includes("export const TurnstileWidget"), "TurnstileWidget must be exported");
+  assert.ok(widgetCode.includes("export function TurnstileWidget"), "TurnstileWidget must be exported");
   assert.ok(widgetCode.includes("NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY"), "TurnstileWidget must reference NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY");
   assert.ok(widgetCode.includes("challenges.cloudflare.com/turnstile/v0/api.js"), "TurnstileWidget must load official Cloudflare Turnstile API");
   assert.ok(widgetCode.includes("isDevFallback"), "TurnstileWidget must provide local developer fallback");

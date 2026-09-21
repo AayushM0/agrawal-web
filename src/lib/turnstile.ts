@@ -24,23 +24,12 @@ interface CloudflareVerifyApiResponse {
  * Extracts real client IP address, prioritizing Cloudflare's authenticated proxy header.
  */
 export function getClientIp(headerList: { get(name: string): string | null }): string {
-  const cfIp = headerList.get("cf-connecting-ip");
-  if (cfIp && cfIp.trim()) {
-    return cfIp.trim();
-  }
-
-  const forwardedFor = headerList.get("x-forwarded-for");
-  if (forwardedFor && forwardedFor.trim()) {
-    const firstIp = forwardedFor.split(",")[0].trim();
-    if (firstIp) return firstIp;
-  }
-
-  const realIp = headerList.get("x-real-ip");
-  if (realIp && realIp.trim()) {
-    return realIp.trim();
-  }
-
-  return "127.0.0.1";
+  return (
+    headerList.get("cf-connecting-ip")?.trim() ||
+    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    headerList.get("x-real-ip")?.trim() ||
+    "127.0.0.1"
+  );
 }
 
 /**
@@ -87,9 +76,6 @@ export async function verifyTurnstileToken(
       formData.append("remoteip", remoteIp);
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
     const response = await fetch(
       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
       {
@@ -98,11 +84,9 @@ export async function verifyTurnstileToken(
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: formData.toString(),
-        signal: controller.signal,
+        signal: AbortSignal.timeout(4000),
       }
     );
-
-    clearTimeout(timeoutId);
 
     if (!response.ok) {
       return {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useImperativeHandle, forwardRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 declare global {
   interface Window {
@@ -23,10 +23,6 @@ declare global {
   }
 }
 
-export interface TurnstileRef {
-  reset: () => void;
-}
-
 export interface TurnstileWidgetProps {
   siteKey?: string;
   onVerify: (token: string) => void;
@@ -39,35 +35,21 @@ export interface TurnstileWidgetProps {
 
 const SCRIPT_ID = 'cf-turnstile-script';
 
-export const TurnstileWidget = forwardRef<TurnstileRef, TurnstileWidgetProps>(
-  (
-    {
-      siteKey,
-      onVerify,
-      onExpire,
-      onError,
-      theme = 'auto',
-      size = 'flexible',
-      className = '',
-    },
-    ref
-  ) => {
-    const containerRef = useRef<HTMLDivElement | null>(null);
-    const widgetIdRef = useRef<string | null>(null);
-    const [isDevFallback, setIsDevFallback] = useState(false);
+export function TurnstileWidget({
+  siteKey,
+  onVerify,
+  onExpire,
+  onError,
+  theme = 'auto',
+  size = 'flexible',
+  className = '',
+}: TurnstileWidgetProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const widgetIdRef = useRef<string | null>(null);
+  const [isDevFallback, setIsDevFallback] = useState(false);
 
-    const effectiveSiteKey =
-      siteKey || process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY;
-
-    useImperativeHandle(ref, () => ({
-      reset: () => {
-        if (widgetIdRef.current && window.turnstile) {
-          window.turnstile.reset(widgetIdRef.current);
-        } else if (isDevFallback) {
-          onVerify('dev-bypass-token');
-        }
-      },
-    }));
+  const effectiveSiteKey =
+    siteKey || process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY;
 
     useEffect(() => {
       // 1. If no site key is available, activate dev bypass
@@ -167,7 +149,4 @@ export const TurnstileWidget = forwardRef<TurnstileRef, TurnstileWidgetProps>(
         <div ref={containerRef} />
       </div>
     );
-  }
-);
-
-TurnstileWidget.displayName = 'TurnstileWidget';
+}

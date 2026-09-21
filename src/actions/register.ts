@@ -46,11 +46,9 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     // 0. Anti-Bot Verification (Cloudflare Turnstile)
     const reqHeaders = await headers();
     const clientIp = getClientIp(reqHeaders);
-    if (input.turnstileToken || (process.env.NODE_ENV === "production" && process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY)) {
-      const turnstileCheck = await verifyTurnstileToken(input.turnstileToken, clientIp);
-      if (!turnstileCheck.success) {
-        return { success: false, error: turnstileCheck.error || "Anti-bot verification required before registering." };
-      }
+    const turnstileCheck = await verifyTurnstileToken(input.turnstileToken, clientIp);
+    if (!turnstileCheck.success) {
+      return { success: false, error: turnstileCheck.error || "Anti-bot verification required before registering." };
     }
 
     // 1. Consent Validation
