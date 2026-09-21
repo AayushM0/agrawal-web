@@ -4,6 +4,7 @@ import { cookies, headers } from "next/headers";
 import crypto from "crypto";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { db } from "@/lib/db";
+import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 
 function getSecret() {
   if (!process.env.AUTH_SECRET) throw new Error("Missing AUTH_SECRET environment variable");
@@ -45,6 +46,7 @@ function verifyOtpChallenge(token: string) {
 export interface SendOtpInput {
   recipient: string;
   type?: string;
+  turnstileToken?: string;
 }
 
 // Simple in-memory rate limiter (resets on server restart)
@@ -75,12 +77,24 @@ export async function sendOtp(input: SendOtpInput) {
     return { success: false, error: "Please provide a valid mobile number or email address." };
   }
 
-  // Extract client IP address from request headers
+  // Extract client IP address with Cloudflare proxy header priority
   const reqHeaders = await headers();
-  const forwardedFor = reqHeaders.get("x-forwarded-for");
-  const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : reqHeaders.get("x-real-ip") || "127.0.0.1";
+  const clientIp = getClientIp(reqHeaders);
 
-  // 1. In-Memory Circuit Breaker (fast rejection)
+  // 1. Anti-Bot Challenge Verification (Cloudflare Turnstile)
+  if (input.turnstileToken || (process.env.NODE_ENV === "production" && process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY)) {
+    const turnstileCheck = await verifyTurnstileToken(input.turnstileToken, clientIp);
+    if (!turnstileCheck.success) {
+      return { success: false, error: turnstileCheck.error || "Anti-bot verification required. Please refresh and try again." };
+    }
+  }
+
+  // 2. Strict 60-Second Cooldown (Prevents SMS/OTP toll fraud and rapid bill-bombing)
+  if (!checkRateLimit(`cooldown_${normalized}`, 1, 60 * 1000)) {
+    return { success: false, error: "Please wait 60 seconds before requesting another verification code." };
+  }
+
+  // 3. In-Memory Circuit Breaker (fast rejection)
   if (!checkRateLimit(`send_${normalized}`, 3, 15 * 60 * 1000)) {
     return { success: false, error: "Too many OTP requests. Please wait 15 minutes before trying again." };
   }
@@ -88,7 +102,7 @@ export async function sendOtp(input: SendOtpInput) {
     return { success: false, error: "Too many OTP requests from your network. Please try again in 1 hour." };
   }
 
-  // 2. Persistent Database Rate Limiting (survives cold starts & stops Toll Fraud)
+  // 4. Persistent Database Rate Limiting (survives cold starts & stops Toll Fraud)
   const dbRateCheck = await db.checkOtpRateLimit(clientIp, normalized);
   if (!dbRateCheck.allowed) {
     return { success: false, error: dbRateCheck.error || "Rate limit exceeded. Please try again later." };

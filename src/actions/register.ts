@@ -1,5 +1,6 @@
 'use server';
 
+import { headers } from "next/headers";
 import { db } from "../lib/db";
 import type { Household, Member } from "../types/household";
 import { gotras } from "../data/gotras";
@@ -9,6 +10,7 @@ import { validatePassword, hashPassword } from "@/lib/auth-crypto";
 import { uploadMemberPhoto } from "@/lib/storage";
 import { markRegistrationDraftCompleted } from "./draft";
 import { maskAadhaar, hashGovtId } from "@/lib/privacy";
+import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 
 export interface RegisterHouseholdInput {
   headName: string;
@@ -27,6 +29,7 @@ export interface RegisterHouseholdInput {
   govtIdNumber?: string;
   members: Omit<Member, "id" | "verifiedBySelf" | "ownerLocked">[];
   consentAccepted: boolean;
+  turnstileToken?: string;
 }
 
 const VALID_RELATIONS = new Set([
@@ -40,10 +43,20 @@ const VALID_MARITAL = new Set(["married", "unmarried", "widowed", "divorced"]);
 
 export async function registerHousehold(input: RegisterHouseholdInput) {
   try {
+    // 0. Anti-Bot Verification (Cloudflare Turnstile)
+    const reqHeaders = await headers();
+    const clientIp = getClientIp(reqHeaders);
+    if (input.turnstileToken || (process.env.NODE_ENV === "production" && process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY)) {
+      const turnstileCheck = await verifyTurnstileToken(input.turnstileToken, clientIp);
+      if (!turnstileCheck.success) {
+        return { success: false, error: turnstileCheck.error || "Anti-bot verification required before registering." };
+      }
+    }
+
     // 1. Consent Validation
-  if (!input.consentAccepted) {
-    return { success: false, error: "Consent to Privacy Policy and Terms is required." };
-  }
+    if (!input.consentAccepted) {
+      return { success: false, error: "Consent to Privacy Policy and Terms is required." };
+    }
 
   // 1b. Password Complexity Validation (Optional during frictionless registration)
   let passwordHash: string | undefined = undefined;

@@ -16,6 +16,7 @@ import PhoneInputWithCountry from "@/components/PhoneInputWithCountry";
 import { calculateAge, maskPhone, maskEmail, maskGovtId } from "@/lib/privacy";
 import { optimizeImageForUpload } from "@/lib/image-optimizer";
 import { ALL_COUNTRIES, POPULAR_COUNTRIES } from "@/data/countries";
+import { TurnstileWidget } from "@/components/common/TurnstileWidget";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -25,6 +26,7 @@ export default function SignupPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [successCode, setSuccessCode] = useState("");
   const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   // Floating Toast Notification System
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "warning"; id: number } | null>(null);
@@ -759,6 +761,7 @@ export default function SignupPage() {
         govtIdNumber: !isIndia ? govtIdNumber.trim() : undefined,
         members: allMembersPayload,
         consentAccepted: consentGiven,
+        turnstileToken,
       });
 
       setIsSubmitting(false);
@@ -2039,6 +2042,14 @@ export default function SignupPage() {
                       I confirm that all information provided is accurate and complies with the community charter of the <strong>Maharaja Agrasen Foundation Limited Singapore</strong>. I consent to my family&apos;s inclusion in the global directory after verification.
                     </span>
                   </label>
+                </div>
+
+                {/* 4. Anti-Bot Verification (Cloudflare Turnstile) */}
+                <div className="pt-2">
+                  <TurnstileWidget
+                    onVerify={(token) => setTurnstileToken(token)}
+                    onExpire={() => setTurnstileToken("")}
+                  />
                 </div>
               </div>
 

@@ -404,6 +404,26 @@ test("Seam 17: Cloudflare Turnstile server service and client widget adhere to c
   assert.ok(widgetCode.includes("challenges.cloudflare.com/turnstile/v0/api.js"), "TurnstileWidget must load official Cloudflare Turnstile API");
   assert.ok(widgetCode.includes("isDevFallback"), "TurnstileWidget must provide local developer fallback");
   assert.ok(widgetCode.includes("min-h-[65px]"), "TurnstileWidget must enforce min-height to eliminate Cumulative Layout Shift (CLS)");
+
+  // 3. OTP bill-bombing protection & Turnstile gate
+  const otpCode = fs.readFileSync(path.join(webRoot, "src/actions/otp.ts"), "utf8");
+  assert.ok(otpCode.includes("verifyTurnstileToken"), "otp.ts must verify Turnstile token");
+  assert.ok(otpCode.includes("cooldown_"), "otp.ts must enforce 60s cooldown per recipient to block toll fraud");
+  assert.ok(otpCode.includes("turnstileToken"), "SendOtpInput must support turnstileToken");
+
+  // 4. Auth & Registration Turnstile gates
+  const authCode = fs.readFileSync(path.join(webRoot, "src/actions/auth.ts"), "utf8");
+  const registerCode = fs.readFileSync(path.join(webRoot, "src/actions/register.ts"), "utf8");
+  assert.ok(authCode.includes("verifyTurnstileToken"), "auth.ts must verify Turnstile token on password login");
+  assert.ok(registerCode.includes("verifyTurnstileToken"), "register.ts must verify Turnstile token on household registration");
+
+  // 5. Login & Signup form UI wiring
+  const loginPageCode = fs.readFileSync(path.join(webRoot, "src/app/login/page.tsx"), "utf8");
+  const signupPageCode = fs.readFileSync(path.join(webRoot, "src/app/signup/page.tsx"), "utf8");
+  assert.ok(loginPageCode.includes("TurnstileWidget"), "login/page.tsx must embed TurnstileWidget");
+  assert.ok(loginPageCode.includes("turnstileToken"), "login/page.tsx must manage turnstileToken state");
+  assert.ok(signupPageCode.includes("TurnstileWidget"), "signup/page.tsx must embed TurnstileWidget");
+  assert.ok(signupPageCode.includes("turnstileToken"), "signup/page.tsx must pass turnstileToken to registerHousehold");
 });
 
 

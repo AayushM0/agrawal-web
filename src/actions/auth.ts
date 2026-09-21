@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { verifyPassword, evaluateLockout, validatePassword, hashPassword } from "@/lib/auth-crypto";
 import { sendOtp, verifyOtp } from "@/actions/otp";
 import { getSession, createSession, clearSession, type SessionData } from "./session";
+import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 
 export { getSession, createSession, clearSession, type SessionData };
 
@@ -103,6 +104,7 @@ export async function checkLoginLockout(identifier: string, ip: string) {
 export async function loginWithPassword(params: {
   identifier: string;
   password: string;
+  turnstileToken?: string;
 }): Promise<{
   success: boolean;
   role?: "head" | "member";
@@ -113,14 +115,21 @@ export async function loginWithPassword(params: {
   contact?: string;
   error?: string;
 }> {
-  const { identifier, password } = params;
+  const { identifier, password, turnstileToken } = params;
   if (!identifier || !password) {
     return { success: false, error: "Please enter your email or mobile and password." };
   }
 
   const reqHeaders = await headers();
-  const forwardedFor = reqHeaders.get("x-forwarded-for");
-  const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : reqHeaders.get("x-real-ip") || "127.0.0.1";
+  const clientIp = getClientIp(reqHeaders);
+
+  // Anti-Bot Protection (Cloudflare Turnstile)
+  if (turnstileToken || (process.env.NODE_ENV === "production" && process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY)) {
+    const turnstileCheck = await verifyTurnstileToken(turnstileToken, clientIp);
+    if (!turnstileCheck.success) {
+      return { success: false, error: turnstileCheck.error || "Anti-bot verification required. Please refresh and try again." };
+    }
+  }
 
   const clean = identifier.trim();
   const isEmail = clean.includes("@");
@@ -217,10 +226,21 @@ export async function loginWithPassword(params: {
   }
 }
 
-export async function requestPasswordReset(email: string): Promise<{ success: boolean; message: string; error?: string }> {
+export async function requestPasswordReset(email: string, turnstileToken?: string): Promise<{ success: boolean; message: string; error?: string }> {
   const cleanEmail = email?.trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes("@") || cleanEmail.length < 5) {
     return { success: false, error: "Please enter a valid email address.", message: "" };
+  }
+
+  const reqHeaders = await headers();
+  const clientIp = getClientIp(reqHeaders);
+
+  // Anti-Bot Protection (Cloudflare Turnstile)
+  if (turnstileToken || (process.env.NODE_ENV === "production" && process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY)) {
+    const turnstileCheck = await verifyTurnstileToken(turnstileToken, clientIp);
+    if (!turnstileCheck.success) {
+      return { success: false, error: turnstileCheck.error || "Anti-bot verification required. Please refresh and try again.", message: "" };
+    }
   }
 
   // 1. Account existence check
@@ -230,7 +250,7 @@ export async function requestPasswordReset(email: string): Promise<{ success: bo
   // If account exists, send OTP via Resend
   if (member || household) {
     try {
-      const otpRes = await sendOtp({ recipient: cleanEmail, type: "email" });
+      const otpRes = await sendOtp({ recipient: cleanEmail, type: "email", turnstileToken });
       if (!otpRes.success) {
         console.warn("requestPasswordReset sendOtp warning:", otpRes.error);
       }

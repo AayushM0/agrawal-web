@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createSession } from "@/actions/session";
 import { verifyAdminPassword, loginWithPassword, activateAccountWithOtp } from "@/actions/auth";
 import { sendOtp } from "@/actions/otp";
+import { TurnstileWidget } from "@/components/common/TurnstileWidget";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [adminPassword, setAdminPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   // Activation fallback state
   const [isActivationMode, setIsActivationMode] = useState(false);
@@ -60,7 +62,7 @@ export default function LoginPage() {
     setErrorMessage("");
     setActivationInfo("");
     try {
-      const res = await sendOtp({ recipient: contact.trim() });
+      const res = await sendOtp({ recipient: contact.trim(), turnstileToken });
       if (res.success) {
         setOtpSent(true);
         setActivationInfo(res.message || "A 6-digit verification code has been dispatched.");
@@ -170,6 +172,7 @@ export default function LoginPage() {
     const loginRes = await loginWithPassword({
       identifier: contact.trim(),
       password,
+      turnstileToken,
     });
     setIsSubmitting(false);
 
@@ -524,6 +527,14 @@ export default function LoginPage() {
                   </div>
                 </div>
               )}
+
+              {/* Cloudflare Turnstile Anti-Bot Shield */}
+              <div className="pt-1">
+                <TurnstileWidget
+                  onVerify={(token) => setTurnstileToken(token)}
+                  onExpire={() => setTurnstileToken("")}
+                />
+              </div>
 
               {errorMessage && (
                 <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
