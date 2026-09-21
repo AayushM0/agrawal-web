@@ -246,6 +246,21 @@ async function ensureSchema(client: any) {
       CREATE INDEX IF NOT EXISTS idx_registration_drafts_incomplete ON registration_drafts(is_completed, updated_at DESC);
       CREATE INDEX IF NOT EXISTS idx_registration_drafts_email ON registration_drafts(email);
 
+      CREATE TABLE IF NOT EXISTS admin_audit_logs (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          admin_id TEXT NOT NULL,
+          admin_contact TEXT NOT NULL,
+          action TEXT NOT NULL,
+          target_type TEXT NOT NULL,
+          target_id TEXT NOT NULL,
+          details JSONB DEFAULT '{}'::jsonb,
+          ip_address TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_target ON admin_audit_logs(target_type, target_id);
+      CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at DESC);
+      ALTER TABLE admin_audit_logs ENABLE ROW LEVEL SECURITY;
+
       -- Enable RLS on all tables (Supabase advisor fix)
       ALTER TABLE households ENABLE ROW LEVEL SECURITY;
       ALTER TABLE members ENABLE ROW LEVEL SECURITY;
@@ -482,6 +497,35 @@ export const db = {
       return true;
     } catch (e) {
       throw e;
+    }
+  },
+
+  async recordAdminAuditLog(entry: {
+    adminId: string;
+    adminContact: string;
+    action: string;
+    targetType: string;
+    targetId: string;
+    details?: any;
+    ipAddress?: string;
+  }): Promise<void> {
+    if (!pool) return;
+    try {
+      await pool.query(
+        `INSERT INTO admin_audit_logs (admin_id, admin_contact, action, target_type, target_id, details, ip_address)
+         VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+        [
+          entry.adminId,
+          entry.adminContact,
+          entry.action,
+          entry.targetType,
+          entry.targetId,
+          JSON.stringify(entry.details || {}),
+          entry.ipAddress || null,
+        ]
+      );
+    } catch (e) {
+      console.warn("[DB] recordAdminAuditLog warning:", e);
     }
   },
 

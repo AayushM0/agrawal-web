@@ -426,4 +426,30 @@ test("Seam 17: Cloudflare Turnstile server service and client widget adhere to c
   assert.ok(signupPageCode.includes("turnstileToken"), "signup/page.tsx must pass turnstileToken to registerHousehold");
 });
 
+// --- SEAM 18: DPDP Act 2023 / PDPA Legal Compliance & Admin Audit Trail ---
+test("Seam 18: DPDP right to erasure purges storage photos and admin actions are logged", () => {
+  const storageLib = fs.readFileSync(path.join(webRoot, "src/lib/storage.ts"), "utf8");
+  const accountAction = fs.readFileSync(path.join(webRoot, "src/actions/account.ts"), "utf8");
+  const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+  const dbLib = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const moderateAction = fs.readFileSync(path.join(webRoot, "src/actions/moderate.ts"), "utf8");
+
+  // 1. Right to Erasure - physical photo purge
+  assert.ok(storageLib.includes("export async function deleteMemberPhoto"), "storage.ts must export deleteMemberPhoto");
+  assert.ok(accountAction.includes("deleteMemberPhoto"), "deleteHouseholdAccount must purge member photos from storage");
+
+  // 2. Admin Audit Log table and RLS
+  assert.ok(schemaSql.includes("CREATE TABLE IF NOT EXISTS admin_audit_logs"), "schema.sql must define admin_audit_logs table");
+  assert.ok(schemaSql.includes("ALTER TABLE admin_audit_logs ENABLE ROW LEVEL SECURITY"), "admin_audit_logs must have RLS enabled");
+  assert.ok(dbLib.includes("CREATE TABLE IF NOT EXISTS admin_audit_logs"), "db.ts ensureSchema must define admin_audit_logs table");
+  assert.ok(dbLib.includes("recordAdminAuditLog"), "db.ts must implement recordAdminAuditLog");
+
+  // 3. Admin audit logging in moderate actions
+  assert.ok(moderateAction.includes("recordAdminAuditLog"), "moderate.ts must record admin audit logs");
+  assert.ok(moderateAction.includes("APPROVE_HOUSEHOLD"), "moderate.ts must log APPROVE_HOUSEHOLD");
+  assert.ok(moderateAction.includes("REJECT_HOUSEHOLD"), "moderate.ts must log REJECT_HOUSEHOLD");
+  assert.ok(moderateAction.includes("APPROVE_ALL_HOUSEHOLDS"), "moderate.ts must log APPROVE_ALL_HOUSEHOLDS");
+});
+
+
 

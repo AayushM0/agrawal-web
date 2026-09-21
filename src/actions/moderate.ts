@@ -7,9 +7,20 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { PassPDF } from "@/components/PassPDF";
 import { getBaseUrl, createUnifiedPassData } from "@/lib/pass";
 import { sendTwilioSms } from "@/lib/telecom/twilio";
+import { headers } from "next/headers";
+import { getClientIp } from "@/lib/turnstile";
 import React from "react";
 
 const sendSMS = sendTwilioSms;
+
+async function getAdminIp(): Promise<string> {
+  try {
+    const h = await headers();
+    return getClientIp(h);
+  } catch {
+    return "127.0.0.1";
+  }
+}
 
 export async function sendWelcomeEmail(member: any, household: any, overrideEmail?: string): Promise<{ success: boolean; error?: any }> {
   const recipient = overrideEmail || member.email;
@@ -244,6 +255,17 @@ export async function approveHousehold(householdId: string) {
   const updated = await db.updateHouseholdStatus(householdId, "live");
   if (!updated) return { success: false, error: "Household not found." };
   
+  const ipAddress = await getAdminIp();
+  await db.recordAdminAuditLog({
+    adminId: session.userId || "admin",
+    adminContact: session.contact || "admin",
+    action: "APPROVE_HOUSEHOLD",
+    targetType: "household",
+    targetId: householdId,
+    details: { householdCode: updated.householdCode },
+    ipAddress,
+  });
+
   await notifyHouseholdMembers(householdId, updated);
   return { success: true, message: `Household ${updated.householdCode} is now LIVE in the directory.` };
 }
@@ -257,6 +279,17 @@ export async function approveAllHouseholds() {
   const pending = (await db.getHouseholds()).filter((h: any) => h.status === "pending_review");
   const count = await db.approveAllPendingHouseholds();
   
+  const ipAddress = await getAdminIp();
+  await db.recordAdminAuditLog({
+    adminId: session.userId || "admin",
+    adminContact: session.contact || "admin",
+    action: "APPROVE_ALL_HOUSEHOLDS",
+    targetType: "batch",
+    targetId: "all",
+    details: { count },
+    ipAddress,
+  });
+
   for (const h of pending) {
     const updated = await db.getHouseholdById(h.id);
     await notifyHouseholdMembers(h.id, updated || h);
@@ -279,6 +312,18 @@ export async function rejectHousehold(householdId: string, rejectionReason: stri
   }
   const updated = await db.updateHouseholdStatus(householdId, "rejected", rejectionReason.trim());
   if (!updated) return { success: false, error: "Household not found." };
+
+  const ipAddress = await getAdminIp();
+  await db.recordAdminAuditLog({
+    adminId: session.userId || "admin",
+    adminContact: session.contact || "admin",
+    action: "REJECT_HOUSEHOLD",
+    targetType: "household",
+    targetId: householdId,
+    details: { householdCode: updated.householdCode, reason: rejectionReason.trim() },
+    ipAddress,
+  });
+
   return {
     success: true,
     message: `Household ${updated.householdCode} has been rejected and retained for records.`,
@@ -309,6 +354,16 @@ export async function resolveMessageReport(params: {
   }
   try {
     await db.resolveMessageReport(params.reportId, params.action, params.notes);
+    const ipAddress = await getAdminIp();
+    await db.recordAdminAuditLog({
+      adminId: session.userId || "admin",
+      adminContact: session.contact || "admin",
+      action: `RESOLVE_REPORT_${params.action.toUpperCase()}`,
+      targetType: "message_report",
+      targetId: params.reportId,
+      details: { action: params.action, notes: params.notes },
+      ipAddress,
+    });
     return { success: true, message: `Report ${params.action} completed successfully.` };
   } catch (err: any) {
     return { success: false, error: err.message || "Failed to resolve report." };
@@ -347,6 +402,16 @@ export async function updateAdminInquiryStatus(params: {
     if (!ok) {
       return { success: false, error: "Inquiry not found." };
     }
+    const ipAddress = await getAdminIp();
+    await db.recordAdminAuditLog({
+      adminId: session.userId || "admin",
+      adminContact: session.contact || "admin",
+      action: `UPDATE_INQUIRY_STATUS`,
+      targetType: "support_inquiry",
+      targetId: params.ticketId,
+      details: { status: params.status, notes: params.notes },
+      ipAddress,
+    });
     return { success: true, message: `Inquiry status updated to ${params.status}.` };
   } catch (err: any) {
     return { success: false, error: err.message || "Failed to update inquiry status." };

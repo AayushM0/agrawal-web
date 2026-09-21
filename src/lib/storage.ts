@@ -129,6 +129,47 @@ export async function uploadMemberPhoto(
   }
 }
 
+/**
+ * Permanently removes an uploaded member photo from storage (Supabase or local disk).
+ * Used during account deletion to fulfill DPDP/PDPA Right to Erasure obligations.
+ */
+export async function deleteMemberPhoto(photoUrl?: string | null): Promise<boolean> {
+  if (!photoUrl || typeof photoUrl !== "string") return false;
+  const trimmed = photoUrl.trim();
+  if (!trimmed || trimmed.startsWith("data:")) return false;
+
+  try {
+    // 1. Local disk storage cleanup
+    if (trimmed.startsWith("/uploads/")) {
+      const filename = path.basename(trimmed);
+      const filePath = path.join(process.cwd(), "public", "uploads", filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      return true;
+    }
+
+    // 2. Supabase Storage cleanup
+    const client = getSupabaseClient();
+    if (client && trimmed.includes("/storage/v1/object/public/")) {
+      const parts = trimmed.split("/storage/v1/object/public/")[1];
+      if (parts) {
+        const slashIdx = parts.indexOf("/");
+        if (slashIdx > -1) {
+          const bucket = parts.substring(0, slashIdx);
+          const objectPath = parts.substring(slashIdx + 1);
+          await client.storage.from(bucket).remove([objectPath]);
+          return true;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[STORAGE] deleteMemberPhoto warning:", err);
+  }
+
+  return false;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Chat Attachment Helpers
 // ─────────────────────────────────────────────────────────────────────────────
