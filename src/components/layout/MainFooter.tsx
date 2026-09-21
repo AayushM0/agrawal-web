@@ -29,8 +29,12 @@ export default function MainFooter() {
                 </p>
               </div>
             </div>
+            <p className="text-xs sm:text-sm font-bold text-brand-primary font-devanagari tracking-wide">
+              अंतर्राष्ट्रीय अग्रवाल समाज फाउंडेशन
+            </p>
             <p className="text-xs text-body-text/80 leading-relaxed">
-              Connecting Agarwal families globally under one trusted, verified lineage directory. Free forever for every family.
+              Connecting Agarwal families globally under one trusted, verified lineage directory.{" "}
+              <strong className="font-extrabold text-brand-primary">Free forever for every family.</strong>
             </p>
           </div>
 
@@ -98,7 +102,7 @@ export default function MainFooter() {
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-body-muted">
           <p>© 2026 Maharaja Agrasen Foundation Limited Singapore. All rights reserved.</p>
           <p className="font-devanagari text-[11px] text-brand-primary font-bold">
-            अंतर्राष्ट्रीय अग्रवाल समाज फाउंडेशन • एक समाज • एक मंच • एक परिवार
+            एक समाज • एक मंच • एक परिवार
           </p>
         </div>
       </div>

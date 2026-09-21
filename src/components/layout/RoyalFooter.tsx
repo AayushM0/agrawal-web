@@ -12,7 +12,7 @@ export default function RoyalFooter() {
       <div className="max-w-7xl mx-auto px-4 pt-14 pb-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10 pb-12 border-b border-brand-accent/20">
           <div>
-            <div className="flex items-center gap-3.5 mb-4">
+            <div className="flex items-center gap-3.5 mb-2.5">
               <Image
                 src="/images/logo-transparent.png"
                 alt="Maharaja Agrasen Foundation Limited Singapore Logo"
@@ -27,8 +27,14 @@ export default function RoyalFooter() {
                 <p className="text-xs text-brand-gold font-semibold">One Community • One Platform • One Global Family</p>
               </div>
             </div>
-            <p className="text-xs leading-relaxed text-body-text/85 mb-4">
-              Our vision is to build a powerful and trusted Global Digital Platform for the Agarwal Community. Registration is completely FREE OF CHARGE.
+            <p className="text-sm sm:text-base font-bold text-brand-primary font-devanagari tracking-wide mb-3">
+              अंतर्राष्ट्रीय अग्रवाल समाज फाउंडेशन
+            </p>
+            <p className="text-xs leading-relaxed text-body-text/90 mb-3">
+              Our vision is to build a powerful and trusted Global Digital Platform for the Agarwal Community.{" "}
+              <strong className="font-extrabold text-brand-primary">
+                Registration is completely FREE OF CHARGE.
+              </strong>
             </p>
             <p className="text-xs font-bold text-brand-primary font-devanagari">
               धर्म • सेवा • संस्कार • शिक्षा • समाज उत्थान
@@ -120,7 +126,7 @@ export default function RoyalFooter() {
         </div>
 
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-body-muted">
-          <p>© 2026 Maharaja Agrasen Foundation Limited Singapore. All Rights Reserved. अंतर्राष्ट्रीय अग्रवाल समाज फाउंडेशन • एक समाज • एक मंच • एक परिवार</p>
+          <p>© 2026 Maharaja Agrasen Foundation Limited Singapore. All Rights Reserved. एक समाज • एक मंच • एक परिवार</p>
           <div className="flex flex-wrap gap-x-4 gap-y-2 font-medium justify-center sm:justify-end">
             <Link href="/privacy" className="hover:text-brand-primary transition-colors">Privacy Policy</Link>
             <Link href="/terms" className="hover:text-brand-primary transition-colors">Terms of Service</Link>
