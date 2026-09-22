@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node tests/seams.test.mjs",
+    "test": "node --test tests/seams.test.mjs tests/draft-autosave-and-serial-recycling.test.mjs",
     "db:up": "docker compose -f ../docker-compose.yml up -d",
     "db:down": "docker compose -f ../docker-compose.yml down",
     "db:status": "docker compose -f ../docker-compose.yml ps",
