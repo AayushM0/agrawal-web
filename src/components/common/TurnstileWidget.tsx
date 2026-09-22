@@ -67,7 +67,18 @@ export function TurnstileWidget({
   const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'verified' | 'error'>('loading');
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
 
-  const rawSiteKey = siteKey || process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY;
+  // Check if we are running on a Vercel preview domain (*.vercel.app) or localhost
+  // Cloudflare Turnstile disallows wildcard *.vercel.app in allowed domains.
+  // Using Cloudflare's official test key on preview URLs allows previews to pass verification seamlessly.
+  const isPreviewHost = typeof window !== 'undefined' && (
+    window.location.hostname.endsWith('.vercel.app') ||
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+  );
+
+  const rawSiteKey = isPreviewHost
+    ? '1x00000000000000000000AA'
+    : (siteKey || process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY);
   const effectiveSiteKey = rawSiteKey ? rawSiteKey.replace(/["']/g, '').trim() : undefined;
 
   const onVerifyRef = useRef(onVerify);

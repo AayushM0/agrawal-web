@@ -29,11 +29,11 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://js.pusher.com",
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://js.pusher.com https://static.cloudflareinsights.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: https: blob:",
-      "connect-src 'self' https: wss: data: blob:",
+      "connect-src 'self' https: wss: data: blob: https://cloudflareinsights.com",
       "frame-src 'self' https://challenges.cloudflare.com",
       "frame-ancestors 'self'",
     ].join("; "),

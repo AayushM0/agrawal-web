@@ -64,15 +64,20 @@ export async function verifyTurnstileToken(
     };
   }
 
-  // 3. Allow recognized test tokens in non-production
-  if (isDevOrTest && (token === "dev-bypass-token" || token === "cf-test-mock-token")) {
+  // 3. Allow recognized test tokens in non-production or preview deployments
+  const isPreviewOrDev = isDevOrTest || process.env.VERCEL_ENV === "preview";
+  if (isPreviewOrDev && (token === "dev-bypass-token" || token === "cf-test-mock-token" || token.startsWith("XXXX."))) {
     return { success: true, isDevBypass: true };
   }
 
   // 4. Verify against Cloudflare siteverify endpoint
   try {
+    const verifySecret = (isPreviewOrDev && token.startsWith("XXXX."))
+      ? "1x0000000000000000000000000000000AA"
+      : secretKey;
+
     const formData = new URLSearchParams();
-    formData.append("secret", secretKey);
+    formData.append("secret", verifySecret);
     formData.append("response", token.trim());
 
     const response = await fetch(

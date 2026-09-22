@@ -71,9 +71,10 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${poppins.variable} ${notoSansDevanagari.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="min-h-screen flex flex-col bg-canvas-page text-body-text antialiased font-sans overflow-x-hidden">
+      <body suppressHydrationWarning className="min-h-screen flex flex-col bg-canvas-page text-body-text antialiased font-sans overflow-x-hidden">
         <OfflineIndicator />
         <TopNavBar />
         <MainHeader initialSession={session} />
