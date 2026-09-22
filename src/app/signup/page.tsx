@@ -671,6 +671,15 @@ export default function SignupPage() {
       return;
     }
 
+    if (!turnstileToken) {
+      showToast("Please complete the security verification challenge below before submitting.", "error");
+      const turnstileElem = document.getElementById("turnstile-box");
+      if (turnstileElem) {
+        turnstileElem.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      return;
+    }
+
     setIsSubmitting(true);
 
     const effectiveHeadPhone = contactType === "phone" ? contactValue.trim() : headPhone.trim();
@@ -2044,7 +2053,7 @@ export default function SignupPage() {
                 </div>
 
                 {/* 4. Anti-Bot Verification (Cloudflare Turnstile) */}
-                <div className="pt-2">
+                <div id="turnstile-box" className="pt-2">
                   <TurnstileWidget
                     onVerify={(token) => setTurnstileToken(token)}
                     onExpire={() => setTurnstileToken("")}
@@ -2069,7 +2078,11 @@ export default function SignupPage() {
                     consentGiven && !isSubmitting ? "va-btn-join" : "bg-gray-400 cursor-not-allowed opacity-60"
                   }`}
                 >
-                  {isSubmitting ? "Submitting Registration..." : "Submit Household Registration ✓"}
+                  {isSubmitting
+                    ? "Submitting Registration..."
+                    : !turnstileToken
+                    ? "Complete Security Check Below ↓"
+                    : "Submit Household Registration ✓"}
                 </button>
               </div>
             </div>

@@ -168,6 +168,11 @@ export default function LoginPage() {
       return;
     }
 
+    if (!turnstileToken) {
+      setErrorMessage("Please complete the security verification challenge below before signing in.");
+      return;
+    }
+
     setIsSubmitting(true);
     const loginRes = await loginWithPassword({
       identifier: contact.trim(),

@@ -40,7 +40,8 @@ export async function verifyTurnstileToken(
   token: string | null | undefined,
   remoteIp?: string
 ): Promise<TurnstileVerifyResult> {
-  const secretKey = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY;
+  const rawSecret = process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY;
+  const secretKey = rawSecret ? rawSecret.replace(/["']/g, "").trim() : undefined;
   const isDevOrTest = process.env.NODE_ENV !== "production" || process.env.CI;
 
   // 1. Graceful Dev & Automated Test Bypass
