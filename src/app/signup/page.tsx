@@ -2070,11 +2070,6 @@ export default function SignupPage() {
                       <span>Security verification complete ✓</span>
                     </div>
                   )}
-                  {turnstileError && (
-                    <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs text-center font-medium">
-                      {turnstileError}
-                    </div>
-                  )}
                 </div>
               </div>
 

@@ -35,6 +35,23 @@ export interface TurnstileWidgetProps {
 
 const SCRIPT_ID = 'cf-turnstile-script';
 
+function getTurnstileErrorMessage(code: string): string {
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+  if (code === '110200') {
+    return `Domain not authorized (Cloudflare code 110200). Ensure "${currentHost}" is in Cloudflare Turnstile Allowed Domains.`;
+  }
+  if (code === '110100') {
+    return 'Invalid Turnstile site key (Cloudflare code 110100). Please check your key in Vercel.';
+  }
+  if (code === '300030') {
+    return 'Security challenge timed out (code 300030). Blocked by ad-blocker or network filter.';
+  }
+  if (code.includes('failed to load')) {
+    return 'Turnstile script failed to load from Cloudflare. Check your internet connection or ad-blocker.';
+  }
+  return `Security challenge failed (${code}).`;
+}
+
 export function TurnstileWidget({
   siteKey,
   onVerify,
@@ -48,6 +65,7 @@ export function TurnstileWidget({
   const widgetIdRef = useRef<string | null>(null);
   const [isDevFallback, setIsDevFallback] = useState(false);
   const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'verified' | 'error'>('loading');
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
 
   const rawSiteKey = siteKey || process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY;
   const effectiveSiteKey = rawSiteKey ? rawSiteKey.replace(/["']/g, '').trim() : undefined;
@@ -58,6 +76,45 @@ export function TurnstileWidget({
   onExpireRef.current = onExpire;
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+
+  const renderWidget = () => {
+    if (!containerRef.current || !window.turnstile || widgetIdRef.current || !effectiveSiteKey) {
+      return;
+    }
+
+    try {
+      widgetIdRef.current = window.turnstile.render(containerRef.current, {
+        sitekey: effectiveSiteKey,
+        callback: (token: string) => {
+          setLoadStatus('verified');
+          setErrorDetails(null);
+          onVerifyRef.current(token);
+        },
+        'expired-callback': () => {
+          setLoadStatus('ready');
+          onExpireRef.current?.();
+        },
+        'error-callback': (errorCode: string) => {
+          console.error('[TURNSTILE ERROR CODE]', errorCode);
+          setLoadStatus('error');
+          setErrorDetails(getTurnstileErrorMessage(String(errorCode)));
+          onErrorRef.current?.(errorCode);
+        },
+        theme,
+        size,
+      });
+      setLoadStatus('ready');
+    } catch (err) {
+      console.error('[TURNSTILE RENDER ERROR]', err);
+      if (process.env.NODE_ENV !== 'production') {
+        setLoadStatus('verified');
+        onVerifyRef.current('dev-bypass-token');
+      } else {
+        setLoadStatus('error');
+        setErrorDetails('Widget rendering encountered an unexpected exception.');
+      }
+    }
+  };
 
   useEffect(() => {
     // 1. If no site key is available, activate dev bypass
@@ -71,42 +128,6 @@ export function TurnstileWidget({
     }
 
     setIsDevFallback(false);
-
-    const renderWidget = () => {
-      if (!containerRef.current || !window.turnstile || widgetIdRef.current) {
-        return;
-      }
-
-      try {
-        widgetIdRef.current = window.turnstile.render(containerRef.current, {
-          sitekey: effectiveSiteKey,
-          callback: (token: string) => {
-            setLoadStatus('verified');
-            onVerifyRef.current(token);
-          },
-          'expired-callback': () => {
-            setLoadStatus('ready');
-            onExpireRef.current?.();
-          },
-          'error-callback': (errorCode: string) => {
-            console.error('[TURNSTILE ERROR CODE]', errorCode);
-            setLoadStatus('error');
-            onErrorRef.current?.(errorCode);
-          },
-          theme,
-          size,
-        });
-        setLoadStatus('ready');
-      } catch (err) {
-        console.error('[TURNSTILE RENDER ERROR]', err);
-        if (process.env.NODE_ENV !== 'production') {
-          setLoadStatus('verified');
-          onVerifyRef.current('dev-bypass-token');
-        } else {
-          setLoadStatus('error');
-        }
-      }
-    };
 
     // 2. Load script if not already present
     if (!document.getElementById(SCRIPT_ID)) {
@@ -122,6 +143,7 @@ export function TurnstileWidget({
       script.defer = true;
       script.onerror = () => {
         setLoadStatus('error');
+        setErrorDetails('Turnstile script failed to load from Cloudflare. Check your internet connection or ad-blocker.');
         onErrorRef.current?.('Turnstile script failed to load');
       };
       document.head.appendChild(script);
@@ -183,45 +205,25 @@ export function TurnstileWidget({
       )}
 
       {loadStatus === 'error' && (
-        <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-red-50 border border-red-200 text-center max-w-sm my-1">
+        <div className="flex flex-col items-center gap-1.5 p-3.5 rounded-xl bg-red-50 border border-red-200 text-center max-w-md my-1 animate-fadeIn">
           <span className="text-xs font-semibold text-red-700">Security check could not load</span>
-          <span className="text-[11px] text-body-muted">If you have an ad-blocker or private DNS enabled, please disable it for this site and retry.</span>
+          <span className="text-[11px] text-body-muted leading-relaxed">
+            {errorDetails || 'If you have an ad-blocker or private DNS enabled, please disable it for this site and retry.'}
+          </span>
           <button
             type="button"
             onClick={() => {
+              setErrorDetails(null);
               setLoadStatus('loading');
               if (window.turnstile && containerRef.current) {
                 try {
                   if (widgetIdRef.current) window.turnstile.remove(widgetIdRef.current);
                 } catch {}
                 widgetIdRef.current = null;
-                try {
-                  widgetIdRef.current = window.turnstile.render(containerRef.current, {
-                    sitekey: effectiveSiteKey || '',
-                    callback: (token: string) => {
-                      setLoadStatus('verified');
-                      onVerifyRef.current(token);
-                    },
-                    'expired-callback': () => {
-                      setLoadStatus('ready');
-                      onExpireRef.current?.();
-                    },
-                    'error-callback': (errorCode: string) => {
-                      console.error('[TURNSTILE RETRY ERROR]', errorCode);
-                      setLoadStatus('error');
-                      onErrorRef.current?.(errorCode);
-                    },
-                    theme,
-                    size,
-                  });
-                  setLoadStatus('ready');
-                } catch (e) {
-                  console.error('[TURNSTILE RETRY EXCEPTION]', e);
-                  setLoadStatus('error');
-                }
+                renderWidget();
               }
             }}
-            className="mt-1 px-3 py-1 bg-white border border-red-300 rounded-lg text-xs font-bold text-red-700 hover:bg-red-50 transition-all shadow-xs"
+            className="mt-1.5 px-4 py-1.5 bg-white border border-red-300 rounded-lg text-xs font-bold text-red-700 hover:bg-red-50 transition-all shadow-xs"
           >
             ↻ Retry Verification
           </button>

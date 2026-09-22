@@ -216,8 +216,9 @@ test("Seam 12: Directory search, getMemberById SQL, and CSP headers adhere to co
   // 1. SQL unambiguous column reference in getMemberById
   assert.ok(dbCode.includes('m.postal_code as "postalCode", m.state, m.full_address as "fullAddress"'), "getMemberById must qualify m.state to prevent ambiguous column collision");
 
-  // 2. CSP WASM & Blob allowance
+  // 2. CSP WASM, Blob & Turnstile Frame allowance
   assert.ok(nextConfigCode.includes("connect-src 'self' https: wss: data: blob:"), "next.config.ts must allow data: and blob: in connect-src");
+  assert.ok(nextConfigCode.includes("frame-src 'self' https://challenges.cloudflare.com"), "next.config.ts must permit challenges.cloudflare.com in frame-src");
 
   // 3. Directory search UI photo rendering
   assert.ok(directoryPageCode.includes("src={m.photoUrl}"), "Directory page must render img with m.photoUrl");
