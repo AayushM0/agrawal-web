@@ -319,9 +319,13 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
 
       let finalPhotoUrl = m.photoUrl?.trim() || undefined;
       if (finalPhotoUrl && finalPhotoUrl.startsWith("data:image/")) {
-        finalPhotoUrl = await uploadMemberPhoto(finalPhotoUrl, {
-          identifier: `reg_${idx === 0 ? "head" : `mem_${idx}`}_${Date.now()}`,
-        });
+        try {
+          finalPhotoUrl = await uploadMemberPhoto(finalPhotoUrl, {
+            identifier: `reg_${idx === 0 ? "head" : `mem_${idx}`}_${Date.now()}`,
+          });
+        } catch (photoErr) {
+          console.warn(`[REGISTER] Photo upload fallback for member #${idx + 1}:`, photoErr);
+        }
       }
 
       const rawMemberAadhaar = idx === 0 ? cleanAadhaar : (m.aadhaarNumber ? m.aadhaarNumber.replace(/[^0-9]/g, "") : undefined);
@@ -388,14 +392,32 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     members: structuredMembers,
   };
 
+  console.log("[REGISTER STEP 3] Creating household in DB for:", cleanHeadName, "Gotra:", canonicalGotra);
   const created = await db.createHousehold(newHousehold);
 
   // Find assigned serial number from created record
-  const headMember = await db.getMemberByContact(canonicalContact);
-  const primarySerial = headMember?.serialNo || created.members?.[0]?.serialNo || created.serialNo || householdCode;
+  let primarySerial = created.members?.[0]?.serialNo || created.serialNo || householdCode;
+  let resolvedHeadPhone = headPhone;
+  try {
+    const headMember = await db.getMemberByContact(canonicalContact);
+    if (headMember?.serialNo) {
+      primarySerial = headMember.serialNo;
+    }
+    if (headMember?.phone) {
+      resolvedHeadPhone = headMember.phone;
+    }
+  } catch (lookupErr) {
+    console.warn("[REGISTER] Post-registration head member lookup notice:", lookupErr);
+  }
 
   // Resolve and complete lead draft
-  await markRegistrationDraftCompleted(canonicalContact, headPhone || headMember?.phone);
+  try {
+    await markRegistrationDraftCompleted(canonicalContact, resolvedHeadPhone);
+  } catch (draftErr) {
+    console.warn("[REGISTER] Lead draft completion notice:", draftErr);
+  }
+
+  console.log("[REGISTER STEP 4] Registration completed successfully! Serial:", primarySerial);
 
   return {
     success: true,
@@ -404,7 +426,15 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     message: "Registration submitted successfully into community moderation queue.",
   };
   } catch (err: any) {
-    console.error("registerHousehold unexpected error:", err);
+    console.error("registerHousehold unexpected error:", {
+      message: err?.message,
+      code: err?.code,
+      detail: err?.detail,
+      constraint: err?.constraint,
+      table: err?.table,
+      column: err?.column,
+      stack: err?.stack,
+    });
     let errorMsg = "An unexpected error occurred while processing your registration. Please try again later.";
     if (err?.code === "23505") {
       if (err.detail?.includes("verified_contact") || err.constraint?.includes("verified_contact")) {
@@ -416,7 +446,13 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
       } else {
         errorMsg = "A duplicate record was detected in directory records. Please verify your details.";
       }
-    } else if (err?.message?.includes("Database not connected") || err?.code === "ECONNREFUSED" || err?.code === "ETIMEDOUT") {
+    } else if (
+      err?.message?.includes("Database not connected") ||
+      err?.code === "ECONNREFUSED" ||
+      err?.code === "ETIMEDOUT" ||
+      err?.message?.includes("timeout exceeded") ||
+      err?.message?.includes("Connection terminated")
+    ) {
       errorMsg = "The directory database service is temporarily unavailable. Please retry in a few moments.";
     }
 

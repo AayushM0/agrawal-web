@@ -33,11 +33,7 @@ if (!pool && process.env.DATABASE_URL) {
     });
     globalForPg.pgPool = pool;
 
-    const shouldAutoMigrate =
-      process.env.AUTO_MIGRATE_SCHEMA === "true" ||
-      process.env.NODE_ENV === "development";
-
-    if (!globalForPg.schemaEnsured && shouldAutoMigrate && process.env.NODE_ENV !== "test") {
+    if (!globalForPg.schemaEnsured && process.env.NODE_ENV !== "test") {
       pool.connect().then(async (client) => {
         try {
           await ensureSchema(client);
@@ -49,8 +45,6 @@ if (!pool && process.env.DATABASE_URL) {
       }).catch((err) => {
         console.warn("Schema migration connect skipped/deferred:", err?.message || err);
       });
-    } else {
-      globalForPg.schemaEnsured = true;
     }
   } catch (err) {
     console.error("Failed to initialize PG pool:", err);
@@ -669,10 +663,17 @@ export const db = {
     let client;
     try {
       client = await pool.connect();
+      // Ensure all required columns and tables exist BEFORE beginning the atomic transaction
+      if (!schemaEnsured || !globalForPg.schemaEnsured) {
+        try {
+          await ensureSchema(client);
+        } catch (schemaErr) {
+          console.warn("[DB] Pre-registration schema check notice:", schemaErr);
+        }
+      }
       await client.query("BEGIN");
       // Acquire exclusive transaction advisory lock to completely serialize concurrent family registrations
       await client.query("SELECT pg_advisory_xact_lock($1);", [REGISTRATION_CONCURRENCY_LOCK_ID]);
-      await ensureSchema(client);
       
       const serialNo = household.serialNo || (await generateNextHouseholdNo(client));
 

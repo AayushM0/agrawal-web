@@ -71,6 +71,8 @@ CREATE TABLE IF NOT EXISTS members (
     profession_title TEXT,
     profession_description TEXT,
     profession_category TEXT,
+    company_name TEXT,
+    anniversary_date TEXT,
     phone TEXT,
     email TEXT,
     father_name TEXT,
@@ -121,6 +123,8 @@ ALTER TABLE households ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
 
 ALTER TABLE members ADD COLUMN IF NOT EXISTS profession_title TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS profession_description TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS company_name TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS anniversary_date TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS postal_code TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS state TEXT;
 ALTER TABLE members ADD COLUMN IF NOT EXISTS full_address TEXT;
