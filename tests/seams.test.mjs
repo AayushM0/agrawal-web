@@ -456,5 +456,76 @@ test("Seam 18: DPDP right to erasure purges storage photos and admin actions are
   assert.ok(storageLib.includes('bucket === "member-photos"'), "deleteMemberPhoto must strictly pin deletion to member-photos bucket");
 });
 
+// --- SEAM 19: Registration Draft Auto-Save & Resumption Contract ---
+test("Seam 19: Registration draft schema, actions, and client auto-save adhere to contract", () => {
+  const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+  const dbLib = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const draftAction = fs.readFileSync(path.join(webRoot, "src/actions/draft.ts"), "utf8");
+  const signupPage = fs.readFileSync(path.join(webRoot, "src/app/signup/page.tsx"), "utf8");
+
+  // 1. Schema supports form_data JSONB
+  assert.ok(schemaSql.includes("form_data JSONB DEFAULT '{}'::jsonb"), "schema.sql must define form_data JSONB column");
+  assert.ok(dbLib.includes("form_data JSONB DEFAULT '{}'::jsonb"), "db.ts ensureSchema must add form_data column");
+
+  // 2. Draft action contracts
+  assert.ok(draftAction.includes("formData?: Record<string, any>"), "SaveDraftInput must support formData");
+  assert.ok(draftAction.includes("getRegistrationDraft"), "draft.ts must export getRegistrationDraft");
+  assert.ok(draftAction.includes("discardRegistrationDraft"), "draft.ts must export discardRegistrationDraft");
+
+  // 3. OWASP Password exclusion guard
+  assert.ok(draftAction.includes("delete safeData.password") || draftAction.includes("const { password, confirmPassword"), "draft.ts must strip password before saving");
+
+  // 4. Client auto-save & resumption banner
+  assert.ok(signupPage.includes("mafl_signup_draft_v1"), "signup page must persist to mafl_signup_draft_v1");
+  assert.ok(signupPage.includes("resumeDraft"), "signup page must manage resumeDraft state");
+  assert.ok(signupPage.includes("handleResumeDraft"), "signup page must provide handleResumeDraft");
+  assert.ok(signupPage.includes("handleDiscardDraft"), "signup page must provide handleDiscardDraft");
+  assert.ok(signupPage.includes("Unfinished Registration Found"), "signup page must render Unfinished Registration Found banner");
+  assert.ok(signupPage.includes('localStorage.removeItem("mafl_signup_draft_v1")'), "signup page must purge draft on success or discard");
+});
+
+// --- SEAM 20: Gap-Free Serial Number Recycling Engine Contract ---
+test("Seam 20: Rejection clears serial numbers and sequence generator reclaims gaps", () => {
+  const dbLib = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const moderateAction = fs.readFileSync(path.join(webRoot, "src/actions/moderate.ts"), "utf8");
+
+  // 1. Rejection resets serial numbers to NULL
+  assert.ok(
+    dbLib.includes("UPDATE households SET status = $1, rejection_reason = $2, serial_no = NULL") &&
+    dbLib.includes("UPDATE members SET serial_no = NULL WHERE household_id = $1"),
+    "db.ts updateHouseholdStatus must reset serial_no = NULL for both household and members on rejection"
+  );
+  assert.ok(moderateAction.includes("rejectHousehold"), "moderate.ts must implement rejectHousehold");
+
+  // 2. Gap detection logic in generateNextHouseholdNo & generateNextMemberSerialNo
+  assert.ok(
+    dbLib.includes("generate_series(bounds.start_num, bounds.max_num) s(n)") &&
+    dbLib.includes("WHERE NOT EXISTS (SELECT 1 FROM existing_nums e WHERE e.num = s.n)"),
+    "db.ts sequence generators must use gap-filling generate_series NOT EXISTS query"
+  );
+});
+
+// --- SEAM 21: Rejection Lifecycle Resolution & Resubmission Contract ---
+test("Seam 21: Status-aware checkContactRegistration and resubmitHousehold allow seamless resubmission", () => {
+  const registerAction = fs.readFileSync(path.join(webRoot, "src/actions/register.ts"), "utf8");
+  const dbLib = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const signupPage = fs.readFileSync(path.join(webRoot, "src/app/signup/page.tsx"), "utf8");
+
+  // 1. checkContactRegistration detects rejected status and returns canResubmit
+  assert.ok(registerAction.includes('existing.status === "rejected"'), "checkContactRegistration must detect rejected household");
+  assert.ok(registerAction.includes("canResubmit: true"), "checkContactRegistration must return canResubmit: true");
+  assert.ok(registerAction.includes("previousHousehold:"), "checkContactRegistration must return previousHousehold payload");
+
+  // 2. registerHousehold calls resubmitHousehold for rejected records
+  assert.ok(registerAction.includes("isRejectedResubmission"), "registerHousehold must check isRejectedResubmission");
+  assert.ok(registerAction.includes("db.resubmitHousehold"), "registerHousehold must invoke db.resubmitHousehold");
+  assert.ok(dbLib.includes("async resubmitHousehold"), "db.ts must implement resubmitHousehold");
+
+  // 3. Signup UI displays rejection reason and restores prior inputs
+  assert.ok(signupPage.includes("rejectionNotice"), "signup page must manage rejectionNotice state");
+  assert.ok(signupPage.includes("Updating Previously Rejected Application"), "signup page must render rejection notice banner");
+  assert.ok(signupPage.includes("Moderator Feedback:"), "signup page must display moderator feedback reason");
+});
+
 
 

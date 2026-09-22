@@ -9,7 +9,7 @@ import { Member } from "@/types/household";
 import { registerHousehold, checkContactRegistration } from "@/actions/register";
 import { checkContactAvailability } from "@/actions/claim";
 import { getSession } from "@/actions/auth";
-import { saveRegistrationDraft } from "@/actions/draft";
+import { saveRegistrationDraft, discardRegistrationDraft } from "@/actions/draft";
 import LocationSelector from "@/components/LocationSelector";
 import PhoneInputWithCountry from "@/components/PhoneInputWithCountry";
 import { calculateAge, maskPhone, maskEmail, maskGovtId } from "@/lib/privacy";
@@ -77,6 +77,71 @@ export default function SignupPage() {
   const [otpMessage, setOtpMessage] = useState("");
   const [otpError, setOtpError] = useState("");
   const [alreadyRegisteredInfo, setAlreadyRegisteredInfo] = useState<{ isRegistered: boolean; householdCode?: string; headName?: string } | null>(null);
+  const [resumeDraft, setResumeDraft] = useState<any | null>(null);
+  const [rejectionNotice, setRejectionNotice] = useState<{ reason?: string; headName?: string; householdCode?: string } | null>(null);
+
+  // Check for unfinished local registration draft on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const savedRaw = localStorage.getItem("mafl_signup_draft_v1");
+        if (savedRaw) {
+          const parsed = JSON.parse(savedRaw);
+          if (parsed && parsed.step >= 2 && (parsed.headName || parsed.contactValue || parsed.nativePlace)) {
+            setResumeDraft(parsed);
+          }
+        }
+      } catch (err) {
+        console.warn("[DRAFT RETRIEVAL NOTICE]", err);
+      }
+    }
+  }, []);
+
+  const handleResumeDraft = () => {
+    if (!resumeDraft) return;
+    if (resumeDraft.contactType) setContactType(resumeDraft.contactType);
+    if (resumeDraft.contactValue) setContactValue(resumeDraft.contactValue);
+    if (resumeDraft.headEmail) setHeadEmail(resumeDraft.headEmail);
+    if (resumeDraft.headPhone) setHeadPhone(resumeDraft.headPhone);
+    if (resumeDraft.phoneDialCode) setPhoneDialCode(resumeDraft.phoneDialCode);
+    if (resumeDraft.headName) setHeadName(resumeDraft.headName);
+    if (resumeDraft.headFatherName) setHeadFatherName(resumeDraft.headFatherName);
+    if (resumeDraft.headPhotoUrl) setHeadPhotoUrl(resumeDraft.headPhotoUrl);
+    if (resumeDraft.headDob) setHeadDob(resumeDraft.headDob);
+    if (resumeDraft.headGender) setHeadGender(resumeDraft.headGender);
+    if (resumeDraft.headMaritalStatus) setHeadMaritalStatus(resumeDraft.headMaritalStatus);
+    if (resumeDraft.headProfessionTitle) setHeadProfessionTitle(resumeDraft.headProfessionTitle);
+    if (resumeDraft.headProfessionDescription) setHeadProfessionDescription(resumeDraft.headProfessionDescription);
+    if (resumeDraft.gotra) setGotra(resumeDraft.gotra);
+    if (resumeDraft.nativePlace) setNativePlace(resumeDraft.nativePlace);
+    if (resumeDraft.country) setCountry(resumeDraft.country);
+    if (resumeDraft.postalCode) setPostalCode(resumeDraft.postalCode);
+    if (resumeDraft.state) setState(resumeDraft.state);
+    if (resumeDraft.city) setCity(resumeDraft.city);
+    if (resumeDraft.fullAddress) setFullAddress(resumeDraft.fullAddress);
+    if (resumeDraft.aadhaarNumber) setAadhaarNumber(resumeDraft.aadhaarNumber);
+    if (resumeDraft.panNumber) setPanNumber(resumeDraft.panNumber);
+    if (resumeDraft.passportNumber) setPassportNumber(resumeDraft.passportNumber);
+    if (resumeDraft.govtIdNumber) setGovtIdNumber(resumeDraft.govtIdNumber);
+    if (Array.isArray(resumeDraft.additionalMembers)) setAdditionalMembers(resumeDraft.additionalMembers);
+
+    const targetStep = Math.min(Math.max(resumeDraft.step || 2, 2), 4);
+    setStep(targetStep);
+    setResumeDraft(null);
+    showToast(`Resumed unfinished application for ${resumeDraft.headName || "family"} at Step ${targetStep}!`, "success");
+  };
+
+  const handleDiscardDraft = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("mafl_signup_draft_v1");
+    }
+    const cleanContact = contactValue.trim();
+    if (cleanContact) {
+      discardRegistrationDraft(cleanContact).catch(() => {});
+    }
+    setResumeDraft(null);
+    showToast("Unfinished draft cleared. Starting fresh.", "warning");
+  };
 
   // Live password complexity indicators
   const hasMinLength = password.length >= 8;
@@ -138,6 +203,97 @@ export default function SignupPage() {
 
   // Step 4: Consent State
   const [consentGiven, setConsentGiven] = useState(false);
+
+  // Auto-Save Effect: Debounced local storage and server JSONB synchronization
+  useEffect(() => {
+    if (step < 2 || isSuccess) return;
+
+    const timer = setTimeout(() => {
+      try {
+        const draftPayload = {
+          step,
+          contactType,
+          contactValue,
+          headEmail,
+          headPhone,
+          phoneDialCode,
+          headName,
+          headFatherName,
+          headPhotoUrl,
+          headDob,
+          headGender,
+          headMaritalStatus,
+          headProfessionTitle,
+          headProfessionDescription,
+          gotra,
+          nativePlace,
+          country,
+          postalCode,
+          state,
+          city,
+          fullAddress,
+          aadhaarNumber,
+          panNumber,
+          passportNumber,
+          govtIdNumber,
+          additionalMembers,
+          savedAt: Date.now(),
+        };
+
+        if (typeof window !== "undefined") {
+          localStorage.setItem("mafl_signup_draft_v1", JSON.stringify(draftPayload));
+        }
+
+        const cleanContact = contactValue.trim();
+        const isEmail = cleanContact.includes("@");
+        const effectiveEmail = isEmail ? cleanContact : headEmail.trim();
+        const effectivePhone = !isEmail ? cleanContact : headPhone.trim();
+
+        if (effectiveEmail && effectivePhone) {
+          saveRegistrationDraft({
+            email: effectiveEmail,
+            phone: effectivePhone,
+            phoneDialCode,
+            headName: headName.trim() || undefined,
+            currentStep: step,
+            formData: draftPayload,
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.warn("[DRAFT AUTO-SAVE NOTICE]", err);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [
+    step,
+    isSuccess,
+    contactType,
+    contactValue,
+    headEmail,
+    headPhone,
+    phoneDialCode,
+    headName,
+    headFatherName,
+    headPhotoUrl,
+    headDob,
+    headGender,
+    headMaritalStatus,
+    headProfessionTitle,
+    headProfessionDescription,
+    gotra,
+    nativePlace,
+    country,
+    postalCode,
+    state,
+    city,
+    fullAddress,
+    aadhaarNumber,
+    panNumber,
+    passportNumber,
+    govtIdNumber,
+    additionalMembers,
+  ]);
 
   const handleContactBlur = async (field: "email" | "phone") => {
     if (field === "email") {
@@ -305,9 +461,66 @@ export default function SignupPage() {
 
       setIsSendingOtp(false);
 
+      // Check if either is a rejected application eligible for resubmission
+      const rejectedConflict = (emailRes as any).canResubmit ? emailRes : ((phoneRes as any).canResubmit ? phoneRes : null);
+      if (rejectedConflict && (rejectedConflict as any).previousHousehold) {
+        const prev = (rejectedConflict as any).previousHousehold;
+        setRejectionNotice({
+          reason: (rejectedConflict as any).rejectionReason || "Application needs correction.",
+          headName: prev.headName,
+          householdCode: (rejectedConflict as any).householdCode,
+        });
+
+        // Hydrate from previous submission
+        if (prev.headName) setHeadName(prev.headName);
+        if (prev.nativePlace) setNativePlace(prev.nativePlace);
+        if (prev.gotra) setGotra(prev.gotra);
+        if (prev.country) setCountry(prev.country);
+        if (prev.postalCode) setPostalCode(prev.postalCode);
+        if (prev.state) setState(prev.state);
+        if (prev.city) setCity(prev.city);
+        if (prev.fullAddress) setFullAddress(prev.fullAddress);
+        if (prev.aadhaarNumber) setAadhaarNumber(prev.aadhaarNumber);
+        if (prev.panNumber) setPanNumber(prev.panNumber);
+        if (prev.passportNumber) setPassportNumber(prev.passportNumber);
+        if (prev.govtIdNumber) setGovtIdNumber(prev.govtIdNumber);
+
+        // Find head member in previous members
+        if (Array.isArray(prev.members) && prev.members.length > 0) {
+          const headM = prev.members.find((m: any) => m.relationToHead === "self") || prev.members[0];
+          if (headM.fatherName) setHeadFatherName(headM.fatherName);
+          if (headM.dob) setHeadDob(headM.dob);
+          if (headM.gender) setHeadGender(headM.gender);
+          if (headM.maritalStatus) setHeadMaritalStatus(headM.maritalStatus);
+          if (headM.professionTitle) setHeadProfessionTitle(headM.professionTitle);
+          if (headM.professionDescription) setHeadProfessionDescription(headM.professionDescription);
+          if (headM.photoUrl) setHeadPhotoUrl(headM.photoUrl);
+
+          const otherM = prev.members.filter((m: any) => m.relationToHead !== "self");
+          if (otherM.length > 0) {
+            setAdditionalMembers(otherM);
+          }
+        }
+
+        setHeadEmail(cleanEmail);
+        showToast("Previous submission restored! Please review details and resubmit.", "warning");
+        setStep(2);
+        return;
+      }
+
       if (emailRes.isRegistered || phoneRes.isRegistered) {
         const conflict = emailRes.isRegistered ? emailRes : phoneRes;
         setAlreadyRegisteredInfo(conflict);
+        if ((conflict as any).isPending) {
+          const msg = "Your application is already submitted and under review by community moderators. You can track its status.";
+          setOtpError(msg);
+          showToast(msg, "warning");
+          setTimeout(() => {
+            router.push(`/pending-approval?ref=${encodeURIComponent((conflict as any).householdCode || "")}`);
+          }, 2000);
+          return;
+        }
+
         const msg = emailRes.isRegistered
           ? "This email is already registered! Redirecting to Member Login..."
           : "This phone number is already registered! Redirecting to Member Login...";
@@ -775,6 +988,9 @@ export default function SignupPage() {
 
       setIsSubmitting(false);
       if (res.success) {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("mafl_signup_draft_v1");
+        }
         setSuccessCode(res.serialNo || res.householdCode || "MAFL-000-000-001");
         setIsSuccess(true);
       } else {
@@ -898,6 +1114,62 @@ export default function SignupPage() {
             Official Lineage Registry • 18 Gotras • Privacy-Protected Contacts
           </p>
         </div>
+
+        {/* Unfinished Draft Resumption Banner */}
+        {resumeDraft && step === 1 && (
+          <div className="bg-amber-50 border-2 border-amber-300/80 rounded-2xl p-4 sm:p-5 mb-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl sm:text-3xl shrink-0">📝</span>
+              <div>
+                <h4 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+                  Unfinished Registration Found
+                  <span className="text-[10px] uppercase font-extrabold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                    Step {resumeDraft.step || 2} of 4
+                  </span>
+                </h4>
+                <p className="text-xs text-amber-800 mt-1">
+                  We found saved details for {resumeDraft.headName ? <strong>{resumeDraft.headName}</strong> : "your family"}. Would you like to resume where you left off or start fresh?
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+              <button
+                type="button"
+                onClick={handleResumeDraft}
+                className="flex-1 sm:flex-none px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow transition"
+              >
+                Resume Application →
+              </button>
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className="px-3 py-2 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 text-xs font-semibold rounded-xl transition"
+              >
+                Start Fresh
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Rejection Resubmission Banner */}
+        {rejectionNotice && (
+          <div className="bg-amber-50 border-2 border-amber-400 rounded-2xl p-4 sm:p-5 mb-6 shadow-sm flex items-start gap-3 animate-in fade-in duration-300">
+            <span className="text-2xl shrink-0">⚠️</span>
+            <div className="flex-1">
+              <h4 className="text-sm font-bold text-amber-950">
+                Updating Previously Rejected Application
+              </h4>
+              <p className="text-xs text-amber-900 mt-1">
+                Your previous application was not approved by moderators. We have restored your previous information so you can make the required corrections and resubmit.
+              </p>
+              {rejectionNotice.reason && (
+                <div className="mt-2 text-xs bg-amber-100/80 border border-amber-300 rounded-lg p-2.5 text-amber-900 font-medium">
+                  <strong>Moderator Feedback:</strong> {rejectionNotice.reason}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Dynamic 4-Step Progress Bar */}
         <WizardProgressBar currentStep={step} totalSteps={4} />

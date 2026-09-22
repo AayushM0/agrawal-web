@@ -98,12 +98,16 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     return { success: false, error: "A valid verified mobile number or email address is required." };
   }
 
-  // 5. Unique Contact Check (Prevent duplicate households)
+  // 5. Unique Contact Check (Prevent duplicate households, allow rejected resubmission)
   const existing = await db.getHouseholdByContact(canonicalContact);
-  if (existing) {
+  const isRejectedResubmission = Boolean(existing && existing.status === "rejected");
+  if (existing && !isRejectedResubmission) {
+    const errorMsg = existing.status === "pending_review"
+      ? "Your registration is already under review by community moderators. You can track your status."
+      : "A household registration already exists under this verified contact number or email. Please log in.";
     return {
       success: false,
-      error: "A household registration already exists under this verified contact number or email.",
+      error: errorMsg,
     };
   }
 
@@ -392,8 +396,14 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     members: structuredMembers,
   };
 
-  console.log("[REGISTER STEP 3] Creating household in DB for:", cleanHeadName, "Gotra:", canonicalGotra);
-  const created = await db.createHousehold(newHousehold);
+  console.log("[REGISTER STEP 3] Processing household in DB for:", cleanHeadName, "Gotra:", canonicalGotra);
+  let created: Household;
+  if (isRejectedResubmission && existing) {
+    console.log("[REGISTER] Re-submitting rejected household:", existing.id);
+    created = await db.resubmitHousehold(existing.id, newHousehold);
+  } else {
+    created = await db.createHousehold(newHousehold);
+  }
 
   // Find assigned serial number from created record
   let primarySerial = created.members?.[0]?.serialNo || created.serialNo || householdCode;
@@ -473,6 +483,62 @@ export async function checkContactRegistration(contact: string, excludeMemberId?
     ? normalizePhoneNumber(clean) 
     : clean.toLowerCase();
 
+  // First inspect household by contact to check lifecycle status (rejected vs live vs pending)
+  const existing = await db.getHouseholdByContact(canonicalContact);
+  if (existing) {
+    const headMember = existing.members?.find((m: any) => m.relationToHead === "self") || existing.members?.[0];
+    const primarySerial = headMember?.serialNo || existing.serialNo || existing.householdCode;
+
+    if (existing.status === "rejected") {
+      return {
+        isRegistered: false,
+        canResubmit: true,
+        status: "rejected" as const,
+        rejectionReason: existing.rejectionReason,
+        headName: existing.headName,
+        householdCode: primarySerial,
+        previousHousehold: {
+          id: existing.id,
+          headName: existing.headName,
+          nativePlace: existing.nativePlace,
+          gotra: existing.gotra,
+          country: existing.country,
+          postalCode: existing.postalCode,
+          state: existing.state,
+          city: existing.city,
+          fullAddress: existing.fullAddress,
+          aadhaarNumber: existing.aadhaarNumber,
+          panNumber: existing.panNumber,
+          passportNumber: existing.passportNumber,
+          govtIdNumber: existing.govtIdNumber,
+          members: existing.members,
+        },
+      };
+    }
+
+    if (existing.status === "pending_review") {
+      return {
+        isRegistered: true,
+        isPending: true,
+        status: "pending_review" as const,
+        householdCode: primarySerial,
+        headName: existing.headName,
+        type: "head" as const,
+        conflict: { exists: true, type: "head" as const, name: existing.headName, householdCode: primarySerial },
+      };
+    }
+
+    return {
+      isRegistered: true,
+      isLive: true,
+      status: "live" as const,
+      householdCode: primarySerial,
+      headName: existing.headName,
+      type: "head" as const,
+      conflict: { exists: true, type: "head" as const, name: existing.headName, householdCode: primarySerial },
+    };
+  }
+
   const existsResult = await db.checkContactExists(canonicalContact, excludeMemberId);
   if (existsResult.exists) {
     return {
@@ -484,18 +550,6 @@ export async function checkContactRegistration(contact: string, excludeMemberId?
     };
   }
 
-  const existing = await db.getHouseholdByContact(canonicalContact);
-  if (existing) {
-    const headMember = existing.members?.find((m: any) => m.relationToHead === "self") || existing.members?.[0];
-    const primarySerial = headMember?.serialNo || existing.serialNo || existing.householdCode;
-    return {
-      isRegistered: true,
-      householdCode: primarySerial,
-      headName: existing.headName,
-      type: "head" as const,
-      conflict: { exists: true, type: "head" as const, name: existing.headName, householdCode: primarySerial },
-    };
-  }
   return { isRegistered: false };
 }
 

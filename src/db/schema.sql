@@ -246,9 +246,11 @@ CREATE TABLE IF NOT EXISTS registration_drafts (
     head_name TEXT,
     current_step INT NOT NULL DEFAULT 2,
     is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+    form_data JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE registration_drafts ADD COLUMN IF NOT EXISTS form_data JSONB DEFAULT '{}'::jsonb;
 CREATE INDEX IF NOT EXISTS idx_registration_drafts_incomplete ON registration_drafts(is_completed, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_registration_drafts_email ON registration_drafts(email);
 

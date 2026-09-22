@@ -234,9 +234,11 @@ async function ensureSchema(client: any) {
           head_name TEXT,
           current_step INT NOT NULL DEFAULT 2,
           is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+          form_data JSONB DEFAULT '{}'::jsonb,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE registration_drafts ADD COLUMN IF NOT EXISTS form_data JSONB DEFAULT '{}'::jsonb;
       CREATE INDEX IF NOT EXISTS idx_registration_drafts_incomplete ON registration_drafts(is_completed, updated_at DESC);
       CREATE INDEX IF NOT EXISTS idx_registration_drafts_email ON registration_drafts(email);
 
@@ -353,12 +355,26 @@ const REGISTRATION_CONCURRENCY_LOCK_ID = 2026090601;
 
 async function generateNextHouseholdNo(client: any): Promise<string> {
   try {
-    const maxRes = await client.query(
-      "SELECT COALESCE(MAX(NULLIF(regexp_replace(serial_no, '[^0-9]', '', 'g'), '')::bigint), 0) as max_val, COUNT(*) as count FROM households WHERE serial_no LIKE 'HHN-%';"
-    );
-    const maxVal = parseInt(maxRes.rows[0]?.max_val || "0", 10);
-    const countVal = parseInt(maxRes.rows[0]?.count || "0", 10);
-    let count = Math.max(maxVal, countVal) + 1;
+    const gapRes = await client.query(`
+      WITH existing_nums AS (
+        SELECT NULLIF(regexp_replace(serial_no, '[^0-9]', '', 'g'), '')::bigint AS num
+        FROM households
+        WHERE serial_no LIKE 'HHN-%'
+          AND NULLIF(regexp_replace(serial_no, '[^0-9]', '', 'g'), '')::bigint < 10000000
+      ),
+      bounds AS (
+        SELECT 1 AS start_num, LEAST(COALESCE(MAX(num), 0) + 1, 10000000)::bigint AS max_num FROM existing_nums
+      ),
+      gaps AS (
+        SELECT s.n AS next_num
+        FROM bounds, generate_series(bounds.start_num, bounds.max_num) s(n)
+        WHERE NOT EXISTS (SELECT 1 FROM existing_nums e WHERE e.num = s.n)
+        ORDER BY s.n ASC
+        LIMIT 1
+      )
+      SELECT COALESCE((SELECT next_num FROM gaps), 1)::bigint AS next_serial;
+    `);
+    let count = parseInt(gapRes.rows[0]?.next_serial || "1", 10);
     let candidate = "";
     let isUnique = false;
     while (!isUnique) {
@@ -377,7 +393,8 @@ async function generateNextHouseholdNo(client: any): Promise<string> {
       }
     }
     return candidate;
-  } catch {
+  } catch (e) {
+    console.warn("[DB] generateNextHouseholdNo fallback notice:", e);
     const rand = Math.floor(100000000 + Math.random() * 900000000).toString();
     return `HHN-${rand.slice(0, 3)}-${rand.slice(3, 6)}-${rand.slice(6, 9)}`;
   }
@@ -385,12 +402,26 @@ async function generateNextHouseholdNo(client: any): Promise<string> {
 
 async function generateNextMemberSerialNo(client: any): Promise<string> {
   try {
-    const maxRes = await client.query(
-      "SELECT COALESCE(MAX(NULLIF(regexp_replace(serial_no, '[^0-9]', '', 'g'), '')::bigint), 0) as max_val, COUNT(*) as count FROM members WHERE serial_no LIKE 'MAFL-%';"
-    );
-    const maxVal = parseInt(maxRes.rows[0]?.max_val || "0", 10);
-    const countVal = parseInt(maxRes.rows[0]?.count || "0", 10);
-    let count = Math.max(maxVal, countVal) + 1;
+    const gapRes = await client.query(`
+      WITH existing_nums AS (
+        SELECT NULLIF(regexp_replace(serial_no, '[^0-9]', '', 'g'), '')::bigint AS num
+        FROM members
+        WHERE serial_no LIKE 'MAFL-%'
+          AND NULLIF(regexp_replace(serial_no, '[^0-9]', '', 'g'), '')::bigint < 10000000
+      ),
+      bounds AS (
+        SELECT 1 AS start_num, LEAST(COALESCE(MAX(num), 0) + 1, 10000000)::bigint AS max_num FROM existing_nums
+      ),
+      gaps AS (
+        SELECT s.n AS next_num
+        FROM bounds, generate_series(bounds.start_num, bounds.max_num) s(n)
+        WHERE NOT EXISTS (SELECT 1 FROM existing_nums e WHERE e.num = s.n)
+        ORDER BY s.n ASC
+        LIMIT 1
+      )
+      SELECT COALESCE((SELECT next_num FROM gaps), 1)::bigint AS next_serial;
+    `);
+    let count = parseInt(gapRes.rows[0]?.next_serial || "1", 10);
     let candidate = "";
     let isUnique = false;
     while (!isUnique) {
@@ -409,7 +440,8 @@ async function generateNextMemberSerialNo(client: any): Promise<string> {
       }
     }
     return candidate;
-  } catch {
+  } catch (e) {
+    console.warn("[DB] generateNextMemberSerialNo fallback notice:", e);
     const rand = Math.floor(100000000 + Math.random() * 900000000).toString();
     return `MAFL-${rand.slice(0, 3)}-${rand.slice(3, 6)}-${rand.slice(6, 9)}`;
   }
@@ -1214,10 +1246,23 @@ export const db = {
   async updateHouseholdStatus(id: string, status: "live" | "rejected" | "pending_review", rejectionReason?: string): Promise<Household | null> {
     if (!pool) throw new Error("Database not connected");
     try {
-      const res = await pool.query(
-        "UPDATE households SET status = $1, rejection_reason = $2 WHERE id = $3 RETURNING *;",
-        [status, rejectionReason || null, id]
-      );
+      let res;
+      if (status === "rejected") {
+        // Clear serial numbers on rejection so they are released and can be recycled gap-free
+        res = await pool.query(
+          "UPDATE households SET status = $1, rejection_reason = $2, serial_no = NULL WHERE id = $3 RETURNING *;",
+          [status, rejectionReason || null, id]
+        );
+        await pool.query(
+          "UPDATE members SET serial_no = NULL WHERE household_id = $1;",
+          [id]
+        );
+      } else {
+        res = await pool.query(
+          "UPDATE households SET status = $1, rejection_reason = $2 WHERE id = $3 RETURNING *;",
+          [status, rejectionReason || null, id]
+        );
+      }
       if (res.rows.length === 0) return null;
       const h = res.rows[0];
       return {
@@ -1245,6 +1290,157 @@ export const db = {
       };
     } catch (e) {
       throw e;
+    }
+  },
+
+  async resubmitHousehold(householdId: string, household: Household): Promise<Household> {
+    if (!pool) return household;
+
+    let client;
+    try {
+      client = await pool.connect();
+      if (!schemaEnsured || !globalForPg.schemaEnsured) {
+        try {
+          await ensureSchema(client);
+        } catch (schemaErr) {
+          console.warn("[DB] Pre-registration schema check notice:", schemaErr);
+        }
+      }
+      await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock($1);", [REGISTRATION_CONCURRENCY_LOCK_ID]);
+
+      const serialNo = await generateNextHouseholdNo(client);
+
+      const updateHQuery = `
+        UPDATE households SET
+          serial_no = $1,
+          head_name = $2,
+          native_place = $3,
+          gotra = $4,
+          country = $5,
+          postal_code = $6,
+          state = $7,
+          city = $8,
+          full_address = $9,
+          aadhaar_number = $10,
+          aadhaar_hash = $11,
+          pan_number = $12,
+          passport_number = $13,
+          govt_id_number = $14,
+          status = 'pending_review',
+          rejection_reason = NULL,
+          consent_accepted_at = $15,
+          password_hash = COALESCE($16, password_hash)
+        WHERE id = $17
+        RETURNING id, serial_no, household_code;
+      `;
+      const hRes = await client.query(updateHQuery, [
+        serialNo,
+        household.headName,
+        household.nativePlace,
+        household.gotra,
+        household.country || "India",
+        household.postalCode || null,
+        household.state || null,
+        household.city || null,
+        household.fullAddress || null,
+        household.aadhaarNumber || null,
+        household.aadhaarHash || null,
+        household.panNumber || null,
+        household.passportNumber || null,
+        household.govtIdNumber || null,
+        household.consentAcceptedAt || new Date().toISOString(),
+        household.passwordHash || null,
+        householdId,
+      ]);
+      if (hRes.rows.length === 0) {
+        throw new Error(`Household ${householdId} not found for resubmission.`);
+      }
+      const actualSerialNo = hRes.rows[0].serial_no || serialNo;
+      const householdCode = hRes.rows[0].household_code || household.householdCode;
+
+      // Delete previous members and insert updated members
+      await client.query("DELETE FROM members WHERE household_id = $1;", [householdId]);
+
+      const createdMembers: Member[] = [];
+      for (const m of household.members) {
+        const safeDob = sanitizeDate(m.dob);
+        const safeRel = sanitizeRelation(m.relationToHead);
+        const mSerialNo = await generateNextMemberSerialNo(client);
+
+        const insertMQuery = `
+          INSERT INTO members (
+            id, household_id, full_name, relation_to_head, dob, gender, marital_status,
+            current_city, current_country, postal_code, state, full_address,
+            profession_freetext, profession_title, profession_description,
+            company_name, anniversary_date,
+            phone, email, father_name, photo_url, bio,
+            aadhaar_number, aadhaar_hash, pan_number, passport_number, govt_id_number,
+            visibility_contact, visibility_dob, visibility_photo, verified_by_self, owner_locked,
+            password_hash, serial_no
+          ) VALUES (
+            gen_random_uuid(), $1, $2, $3, $4, $5, $6,
+            $7, $8, $9, $10, $11,
+            $12, $13, $14,
+            $15, $16,
+            $17, $18, $19, $20, $21,
+            $22, $23, $24, $25, $26,
+            $27, $28, $29, $30, $31,
+            $32, $33
+          )
+          RETURNING id, serial_no;
+        `;
+        const mRes = await client.query(insertMQuery, [
+          householdId,
+          m.fullName,
+          safeRel,
+          safeDob,
+          m.gender || "Male",
+          m.maritalStatus || "Unmarried",
+          m.currentCity || household.city || household.nativePlace,
+          m.currentCountry || household.country || "India",
+          m.postalCode || household.postalCode || null,
+          m.state || household.state || null,
+          m.fullAddress || household.fullAddress || null,
+          m.profession || "Not specified",
+          m.professionTitle || m.profession || null,
+          m.professionDescription || null,
+          m.companyName || null,
+          m.anniversaryDate || null,
+          m.phone || null,
+          m.email || null,
+          m.fatherName || null,
+          m.photoUrl || null,
+          m.bio || null,
+          m.aadhaarNumber || (m.relationToHead === "self" ? household.aadhaarNumber : null),
+          m.aadhaarHash || (m.relationToHead === "self" ? household.aadhaarHash : null),
+          m.panNumber || (m.relationToHead === "self" ? household.panNumber : null),
+          m.passportNumber || (m.relationToHead === "self" ? household.passportNumber : null),
+          m.govtIdNumber || (m.relationToHead === "self" ? household.govtIdNumber : null),
+          m.visibility?.contactInfo || "hidden",
+          m.visibility?.dob || "hidden",
+          m.visibility?.photo || "public_to_members",
+          m.verifiedBySelf || false,
+          m.ownerLocked || false,
+          m.passwordHash || (safeRel === "self" ? household.passwordHash : null) || null,
+          mSerialNo,
+        ]);
+        createdMembers.push({
+          ...m,
+          id: mRes.rows[0].id,
+          serialNo: mRes.rows[0].serial_no,
+        });
+      }
+
+      await client.query("COMMIT");
+      return { ...household, id: householdId, householdCode, serialNo: actualSerialNo, members: createdMembers };
+    } catch (e) {
+      if (client) {
+        try { await client.query("ROLLBACK"); } catch {}
+      }
+      throw e;
+    } finally {
+      if (client) client.release();
     }
   },
 
@@ -2581,6 +2777,7 @@ export const db = {
     phoneDialCode?: string;
     headName?: string;
     currentStep?: number;
+    formData?: Record<string, any>;
   }): Promise<boolean> {
     if (!pool) return false;
     try {
@@ -2589,22 +2786,71 @@ export const db = {
       const dialCode = data.phoneDialCode?.trim() || "+91";
       const headName = data.headName?.trim() || null;
       const step = data.currentStep || 2;
+      const safeFormData = data.formData ? JSON.stringify(data.formData) : "{}";
 
       await pool.query(
-        `INSERT INTO registration_drafts (email, phone, phone_dial_code, head_name, current_step, is_completed, updated_at)
-         VALUES ($1, $2, $3, $4, $5, FALSE, NOW())
+        `INSERT INTO registration_drafts (email, phone, phone_dial_code, head_name, current_step, is_completed, form_data, updated_at)
+         VALUES ($1, $2, $3, $4, $5, FALSE, $6::jsonb, NOW())
          ON CONFLICT (email) DO UPDATE SET
            phone = EXCLUDED.phone,
            phone_dial_code = EXCLUDED.phone_dial_code,
            head_name = COALESCE(EXCLUDED.head_name, registration_drafts.head_name),
            current_step = EXCLUDED.current_step,
+           form_data = CASE WHEN $6::jsonb = '{}'::jsonb THEN registration_drafts.form_data ELSE $6::jsonb END,
            updated_at = NOW()
          WHERE registration_drafts.is_completed = FALSE;`,
-        [cleanEmail, cleanPhone, dialCode, headName, step]
+        [cleanEmail, cleanPhone, dialCode, headName, step, safeFormData]
       );
       return true;
     } catch (err) {
       console.warn("Save registration draft non-fatal notice:", err);
+      return false;
+    }
+  },
+
+  async getRegistrationDraft(contact: string): Promise<{
+    hasDraft: boolean;
+    step?: number;
+    headName?: string | null;
+    formData?: Record<string, any>;
+  }> {
+    if (!pool || !contact) return { hasDraft: false };
+    try {
+      const clean = contact.trim().toLowerCase();
+      const res = await pool.query(
+        `SELECT current_step as "currentStep", head_name as "headName", form_data as "formData"
+         FROM registration_drafts
+         WHERE (LOWER(email) = $1 OR phone = $1) AND is_completed = FALSE
+         ORDER BY updated_at DESC
+         LIMIT 1;`,
+        [clean]
+      );
+      if (res.rows.length === 0) return { hasDraft: false };
+      const r = res.rows[0];
+      return {
+        hasDraft: true,
+        step: r.currentStep,
+        headName: r.headName,
+        formData: typeof r.formData === "string" ? JSON.parse(r.formData) : (r.formData || {}),
+      };
+    } catch (err) {
+      console.warn("Get registration draft notice:", err);
+      return { hasDraft: false };
+    }
+  },
+
+  async discardRegistrationDraft(contact: string): Promise<boolean> {
+    if (!pool || !contact) return false;
+    try {
+      const clean = contact.trim().toLowerCase();
+      await pool.query(
+        `DELETE FROM registration_drafts 
+         WHERE (LOWER(email) = $1 OR phone = $1) AND is_completed = FALSE;`,
+        [clean]
+      );
+      return true;
+    } catch (err) {
+      console.warn("Discard registration draft notice:", err);
       return false;
     }
   },
