@@ -49,9 +49,10 @@ export async function verifyTurnstileToken(
     if (isDevOrTest) {
       return { success: true, isDevBypass: true };
     }
+    console.error("[TURNSTILE CONFIG ERROR] Secret key is not configured in production environment.");
     return {
       success: false,
-      error: "Turnstile secret key is not configured in production.",
+      error: "Security verification could not be completed. Please try again later.",
     };
   }
 
@@ -59,7 +60,7 @@ export async function verifyTurnstileToken(
   if (!token || typeof token !== "string" || !token.trim()) {
     return {
       success: false,
-      error: "Missing Turnstile anti-bot token. Please complete the verification challenge.",
+      error: "Please complete the security verification challenge before continuing.",
     };
   }
 
@@ -73,9 +74,6 @@ export async function verifyTurnstileToken(
     const formData = new URLSearchParams();
     formData.append("secret", secretKey);
     formData.append("response", token.trim());
-    if (remoteIp && remoteIp !== "127.0.0.1") {
-      formData.append("remoteip", remoteIp);
-    }
 
     const response = await fetch(
       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
@@ -90,19 +88,20 @@ export async function verifyTurnstileToken(
     );
 
     if (!response.ok) {
+      console.error(`[TURNSTILE HTTP ERROR] Cloudflare siteverify returned HTTP ${response.status}`);
       return {
         success: false,
-        error: `Turnstile verification service responded with status ${response.status}`,
+        error: "Security verification service is temporarily unavailable. Please try again.",
       };
     }
 
     const data = (await response.json()) as CloudflareVerifyApiResponse;
 
     if (!data.success) {
-      const errorMsg = data["error-codes"]?.join(", ") || "Turnstile validation failed";
+      console.error("[TURNSTILE VERIFY ERROR] Cloudflare error codes:", data["error-codes"]);
       return {
         success: false,
-        error: `Bot verification failed: ${errorMsg}`,
+        error: "Security verification failed. Please refresh the challenge and try again.",
       };
     }
 
@@ -112,17 +111,17 @@ export async function verifyTurnstileToken(
       challengeTs: data.challenge_ts,
     };
   } catch (err: unknown) {
+    console.error("[TURNSTILE UNEXPECTED EXCEPTION]", err);
     if (err instanceof Error && err.name === "AbortError") {
-      // In case of external timeout, log warning and allow graceful handling or strict fail
       return {
         success: false,
-        error: "Turnstile challenge verification timed out. Please try again.",
+        error: "Security verification timed out. Please try again.",
       };
     }
 
     return {
       success: false,
-      error: "Unable to verify bot challenge. Please try again.",
+      error: "Unable to verify security challenge. Please try again.",
     };
   }
 }

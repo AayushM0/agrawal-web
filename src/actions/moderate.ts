@@ -339,7 +339,8 @@ export async function getMessageReports() {
     const reports = await db.getMessageReports();
     return { success: true, reports };
   } catch (err: any) {
-    return { success: false, error: err.message, reports: [] };
+    console.error("getMessageReports error:", err);
+    return { success: false, error: "Failed to load message reports. Please try again.", reports: [] };
   }
 }
 
@@ -366,7 +367,8 @@ export async function resolveMessageReport(params: {
     });
     return { success: true, message: `Report ${params.action} completed successfully.` };
   } catch (err: any) {
-    return { success: false, error: err.message || "Failed to resolve report." };
+    console.error("resolveMessageReport error:", err);
+    return { success: false, error: "Failed to resolve report. Please try again." };
   }
 }
 
@@ -379,7 +381,8 @@ export async function getAdminSupportInquiries() {
     const inquiries = await db.getSupportInquiries();
     return { success: true, inquiries };
   } catch (err: any) {
-    return { success: false, error: err.message || "Failed to fetch inquiries.", inquiries: [] };
+    console.error("getAdminSupportInquiries error:", err);
+    return { success: false, error: "Failed to fetch inquiries. Please try again.", inquiries: [] };
   }
 }
 
@@ -414,7 +417,8 @@ export async function updateAdminInquiryStatus(params: {
     });
     return { success: true, message: `Inquiry status updated to ${params.status}.` };
   } catch (err: any) {
-    return { success: false, error: err.message || "Failed to update inquiry status." };
+    console.error("updateAdminInquiryStatus error:", err);
+    return { success: false, error: "Failed to update inquiry status. Please try again." };
   }
 }
 

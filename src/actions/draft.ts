@@ -34,7 +34,8 @@ export async function saveRegistrationDraft(input: SaveDraftInput) {
     });
     return { success: ok };
   } catch (err: any) {
-    return { success: false, error: err?.message || "Failed to save draft" };
+    console.error("saveRegistrationDraft error:", err);
+    return { success: false, error: "Failed to save draft. Please try again." };
   }
 }
 
@@ -43,7 +44,8 @@ export async function markRegistrationDraftCompleted(email: string, phone?: stri
     if (!email) return { success: false };
     const ok = await db.markRegistrationDraftCompleted(email, phone);
     return { success: ok };
-  } catch {
+  } catch (err) {
+    console.error("markRegistrationDraftCompleted error:", err);
     return { success: false };
   }
 }
@@ -57,6 +59,7 @@ export async function getIncompleteRegistrations() {
     const drafts = await db.getIncompleteRegistrations();
     return { success: true, drafts };
   } catch (err: any) {
-    return { success: false, error: err?.message || "Failed to fetch incomplete registrations" };
+    console.error("getIncompleteRegistrations error:", err);
+    return { success: false, error: "Failed to fetch incomplete registrations. Please try again." };
   }
 }

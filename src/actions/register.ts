@@ -405,7 +405,7 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
   };
   } catch (err: any) {
     console.error("registerHousehold unexpected error:", err);
-    let errorMsg = "Registration failed due to a server error. Please try again.";
+    let errorMsg = "An unexpected error occurred while processing your registration. Please try again later.";
     if (err?.code === "23505") {
       if (err.detail?.includes("verified_contact") || err.constraint?.includes("verified_contact")) {
         errorMsg = "A household registration already exists under this verified contact number or email.";
@@ -418,8 +418,6 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
       }
     } else if (err?.message?.includes("Database not connected") || err?.code === "ECONNREFUSED" || err?.code === "ETIMEDOUT") {
       errorMsg = "The directory database service is temporarily unavailable. Please retry in a few moments.";
-    } else if (err?.message) {
-      errorMsg = err.message;
     }
 
     return {

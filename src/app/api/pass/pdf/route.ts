@@ -78,7 +78,7 @@ export async function GET(request: Request) {
   } catch (err: any) {
     console.error("[PDF GENERATION ROUTE ERROR]", err);
     return NextResponse.json(
-      { error: err?.message || "Failed to generate PDF pass." },
+      { error: "Failed to generate ID pass. Please try again." },
       { status: 500 }
     );
   }

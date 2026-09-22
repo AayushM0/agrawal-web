@@ -45,48 +45,53 @@ export async function createClaimInvite(memberId: string) {
 }
 
 export async function getClaimMemberDetails(token: string) {
-  const memberId = parseMemberIdFromToken(token);
-  if (!memberId) {
-    return { success: false, error: "Invalid claim token format." };
-  }
+  try {
+    const memberId = parseMemberIdFromToken(token);
+    if (!memberId) {
+      return { success: false, error: "Invalid claim token format." };
+    }
 
-  const member = await db.getMemberById(memberId);
-  if (!member) {
-    return { success: false, error: "Member profile not found for this invite link." };
-  }
+    const member = await db.getMemberById(memberId);
+    if (!member) {
+      return { success: false, error: "Member profile not found for this invite link." };
+    }
 
-  const hasIndividualContact = Boolean((member.phone && member.phone.trim()) || (member.email && member.email.trim()));
-  if (!hasIndividualContact) {
+    const hasIndividualContact = Boolean((member.phone && member.phone.trim()) || (member.email && member.email.trim()));
+    if (!hasIndividualContact) {
+      return {
+        success: false,
+        error: "This family member profile is managed directly under the Head of Household and does not require separate claiming.",
+      };
+    }
+
+    if (member.ownerLocked || member.verifiedBySelf) {
+      return {
+        success: false,
+        error: "This profile has already been verified and claimed.",
+      };
+    }
+
     return {
-      success: false,
-      error: "This family member profile is managed directly under the Head of Household and does not require separate claiming.",
+      success: true,
+      member: {
+        id: member.id,
+        fullName: member.fullName,
+        relationToHead: member.relationToHead,
+        fatherName: member.fatherName,
+        householdCode: member.householdCode,
+        gotra: member.gotra,
+        currentCity: member.currentCity,
+        alreadyClaimed: !!member.ownerLocked,
+        maskedPhone: member.phone ? maskPhone(member.phone) : null,
+        maskedEmail: member.email ? maskEmail(member.email) : null,
+        hasRegisteredEmail: Boolean(member.email && member.email.trim()),
+        hasRegisteredPhone: Boolean(member.phone && member.phone.trim()),
+      },
     };
+  } catch (err: any) {
+    console.error("getClaimMemberDetails error:", err);
+    return { success: false, error: "Unable to retrieve claim details. Please try again." };
   }
-
-  if (member.ownerLocked || member.verifiedBySelf) {
-    return {
-      success: false,
-      error: "This profile has already been verified and claimed.",
-    };
-  }
-
-  return {
-    success: true,
-    member: {
-      id: member.id,
-      fullName: member.fullName,
-      relationToHead: member.relationToHead,
-      fatherName: member.fatherName,
-      householdCode: member.householdCode,
-      gotra: member.gotra,
-      currentCity: member.currentCity,
-      alreadyClaimed: !!member.ownerLocked,
-      maskedPhone: member.phone ? maskPhone(member.phone) : null,
-      maskedEmail: member.email ? maskEmail(member.email) : null,
-      hasRegisteredEmail: Boolean(member.email && member.email.trim()),
-      hasRegisteredPhone: Boolean(member.phone && member.phone.trim()),
-    },
-  };
 }
 
 export async function checkContactAvailability(contact: string, excludeMemberId?: string) {
@@ -107,86 +112,91 @@ export interface VerifyMemberClaimInput {
 }
 
 export async function verifyMemberClaim(input: VerifyMemberClaimInput | string) {
-  // Support both legacy string memberId and rich VerifyMemberClaimInput object
-  let token = typeof input === "string" ? input : input.token;
-  let contact = typeof input === "object" ? input.contact : "";
-  let otp = typeof input === "object" ? input.otp : "";
+  try {
+    // Support both legacy string memberId and rich VerifyMemberClaimInput object
+    let token = typeof input === "string" ? input : input.token;
+    let contact = typeof input === "object" ? input.contact : "";
+    let otp = typeof input === "object" ? input.otp : "";
 
-  const memberId = parseMemberIdFromToken(token);
-  if (!memberId) {
-    return { success: false, error: "Invalid claim token." };
-  }
+    const memberId = parseMemberIdFromToken(token);
+    if (!memberId) {
+      return { success: false, error: "Invalid claim token." };
+    }
 
-  const member = await db.getMemberById(memberId);
-  if (!member) {
-    return { success: false, error: "Member profile not found." };
-  }
+    const member = await db.getMemberById(memberId);
+    if (!member) {
+      return { success: false, error: "Member profile not found." };
+    }
 
-  const hasIndividualContact = Boolean((member.phone && member.phone.trim()) || (member.email && member.email.trim()));
-  if (!hasIndividualContact) {
-    return {
-      success: false,
-      error: "This family member profile is managed directly under the Head of Household and does not require separate claiming.",
-    };
-  }
-
-  if (member.ownerLocked || member.verifiedBySelf) {
-    return { success: false, error: "This profile has already been claimed and locked." };
-  }
-
-  if (!contact || !contact.trim() || !otp || !otp.trim()) {
-    return { success: false, error: "Contact verification and 6-digit OTP passcode are required." };
-  }
-
-  const isPhone = !contact.includes("@");
-  const canonicalContact = isPhone ? normalizePhoneNumber(contact) : contact.trim().toLowerCase();
-
-  // 1. If member had registered email, contact MUST match that email
-  if (member.email && member.email.trim()) {
-    if (canonicalContact !== member.email.trim().toLowerCase()) {
+    const hasIndividualContact = Boolean((member.phone && member.phone.trim()) || (member.email && member.email.trim()));
+    if (!hasIndividualContact) {
       return {
         success: false,
-        error: "This profile can only be claimed using the registered email address associated with it.",
+        error: "This family member profile is managed directly under the Head of Household and does not require separate claiming.",
       };
     }
-  }
 
-  // 2. Check duplicate across other households/members
-  const checkDup = await db.checkContactExists(canonicalContact, memberId);
-  if (checkDup.exists) {
-    return {
-      success: false,
-      error: `This ${isPhone ? "mobile number" : "email"} is already registered in the directory (${checkDup.name ? `associated with ${checkDup.name}` : `#${checkDup.householdCode}`}).`,
-    };
-  }
+    if (member.ownerLocked || member.verifiedBySelf) {
+      return { success: false, error: "This profile has already been claimed and locked." };
+    }
 
-  // 4. Verify OTP cryptographically
-  const otpRes = await verifyOtp({ recipient: canonicalContact, otp });
-  if (!otpRes.success) {
-    return { success: false, error: otpRes.error || "Invalid OTP verification passcode." };
-  }
+    if (!contact || !contact.trim() || !otp || !otp.trim()) {
+      return { success: false, error: "Contact verification and 6-digit OTP passcode are required." };
+    }
 
-  const updated = await db.claimMember(memberId, {
-    phone: isPhone && canonicalContact ? canonicalContact : undefined,
-    email: !isPhone && canonicalContact ? canonicalContact : undefined,
-  });
+    const isPhone = !contact.includes("@");
+    const canonicalContact = isPhone ? normalizePhoneNumber(contact) : contact.trim().toLowerCase();
 
-  if (!updated) {
-    return { success: false, error: "Failed to update member claim status." };
-  }
+    // 1. If member had registered email, contact MUST match that email
+    if (member.email && member.email.trim()) {
+      if (canonicalContact !== member.email.trim().toLowerCase()) {
+        return {
+          success: false,
+          error: "This profile can only be claimed using the registered email address associated with it.",
+        };
+      }
+    }
 
-  // Establish user session for the newly claimed member
-  if (canonicalContact) {
-    await createSession({
-      userId: memberId,
-      role: "head",
-      contact: canonicalContact,
-      householdStatus: member.householdStatus || "live",
+    // 2. Check duplicate across other households/members
+    const checkDup = await db.checkContactExists(canonicalContact, memberId);
+    if (checkDup.exists) {
+      return {
+        success: false,
+        error: `This ${isPhone ? "mobile number" : "email"} is already registered in the directory (${checkDup.name ? `associated with ${checkDup.name}` : `#${checkDup.householdCode}`}).`,
+      };
+    }
+
+    // 4. Verify OTP cryptographically
+    const otpRes = await verifyOtp({ recipient: canonicalContact, otp });
+    if (!otpRes.success) {
+      return { success: false, error: otpRes.error || "Invalid OTP verification passcode." };
+    }
+
+    const updated = await db.claimMember(memberId, {
+      phone: isPhone && canonicalContact ? canonicalContact : undefined,
+      email: !isPhone && canonicalContact ? canonicalContact : undefined,
     });
-  }
 
-  return {
-    success: true,
-    message: "Member profile successfully claimed and locked for independent management.",
-  };
+    if (!updated) {
+      return { success: false, error: "Failed to update member claim status." };
+    }
+
+    // Establish user session for the newly claimed member
+    if (canonicalContact) {
+      await createSession({
+        userId: memberId,
+        role: "head",
+        contact: canonicalContact,
+        householdStatus: member.householdStatus || "live",
+      });
+    }
+
+    return {
+      success: true,
+      message: "Member profile successfully claimed and locked for independent management.",
+    };
+  } catch (err: any) {
+    console.error("verifyMemberClaim error:", err);
+    return { success: false, error: "An unexpected error occurred during verification. Please try again." };
+  }
 }

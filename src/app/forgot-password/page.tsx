@@ -47,16 +47,22 @@ export default function ForgotPasswordPage() {
       return;
     }
 
-    setIsSubmitting(true);
-    const res = await requestPasswordReset(cleanEmail);
-    setIsSubmitting(false);
+    try {
+      setIsSubmitting(true);
+      const res = await requestPasswordReset(cleanEmail);
+      setIsSubmitting(false);
 
-    if (res.success) {
-      setInfoMessage(res.message);
-      setResendCooldown(60); // 60-second cooldown
-      setStep(2);
-    } else {
-      setErrorMessage(res.error || "Failed to send reset code. Please try again.");
+      if (res.success) {
+        setInfoMessage(res.message);
+        setResendCooldown(60); // 60-second cooldown
+        setStep(2);
+      } else {
+        setErrorMessage(res.error || "Failed to send reset code. Please try again.");
+      }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      console.error("handleRequestReset error:", err);
+      setErrorMessage("An unexpected error occurred. Please try again.");
     }
   };
 
@@ -75,21 +81,27 @@ export default function ForgotPasswordPage() {
       return;
     }
 
-    setIsSubmitting(true);
-    const res = await resetPasswordWithOtp({
-      email: email.trim().toLowerCase(),
-      otp: otp.trim(),
-      newPassword,
-    });
-    setIsSubmitting(false);
+    try {
+      setIsSubmitting(true);
+      const res = await resetPasswordWithOtp({
+        email: email.trim().toLowerCase(),
+        otp: otp.trim(),
+        newPassword,
+      });
+      setIsSubmitting(false);
 
-    if (res.success) {
-      setInfoMessage("Password reset successfully! Redirecting to your dashboard...");
-      setTimeout(() => {
-        router.push("/dashboard");
-      }, 1200);
-    } else {
-      setErrorMessage(res.error || "Failed to reset password. Please check your verification code.");
+      if (res.success) {
+        setInfoMessage("Password reset successfully! Redirecting to your dashboard...");
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 1200);
+      } else {
+        setErrorMessage(res.error || "Failed to reset password. Please check your verification code.");
+      }
+    } catch (err: any) {
+      setIsSubmitting(false);
+      console.error("handleResetPassword error:", err);
+      setErrorMessage("An unexpected error occurred while resetting your password. Please try again.");
     }
   };
 

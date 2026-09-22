@@ -162,7 +162,7 @@ export async function getEligibleHouseholdMembers(): Promise<{
     };
   } catch (err: any) {
     console.error("[ACTION ERROR] getEligibleHouseholdMembers:", err);
-    return { success: false, error: err?.message || "Failed to load eligible family members." };
+    return { success: false, error: "Failed to load eligible family members. Please try again." };
   }
 }
 
@@ -375,7 +375,7 @@ export async function createMatrimonialProfile(input: CreateMatrimonialProfileIn
     return { success: true, profileId: profile.id };
   } catch (err: any) {
     console.error("[ACTION ERROR] createMatrimonialProfile:", err);
-    return { success: false, error: err?.message || "Failed to create matrimonial profile." };
+    return { success: false, error: "Failed to create matrimonial profile. Please try again." };
   }
 }
 
@@ -555,7 +555,7 @@ export async function updateMatrimonialProfileStatus(
     return { success: Boolean(updated) };
   } catch (err: any) {
     console.error("[ACTION ERROR] updateMatrimonialProfileStatus:", err);
-    return { success: false, error: err?.message || "Failed to update profile status" };
+    return { success: false, error: "Failed to update profile status. Please try again." };
   }
 }
 
@@ -580,6 +580,6 @@ export async function deleteMatrimonialProfile(id: string): Promise<{ success: b
     return { success: res };
   } catch (err: any) {
     console.error("[ACTION ERROR] deleteMatrimonialProfile:", err);
-    return { success: false, error: err?.message || "Failed to delete matrimonial profile" };
+    return { success: false, error: "Failed to delete matrimonial profile. Please try again." };
   }
 }

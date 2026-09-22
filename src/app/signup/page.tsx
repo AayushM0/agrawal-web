@@ -26,6 +26,7 @@ export default function SignupPage() {
   const [successCode, setSuccessCode] = useState("");
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileError, setTurnstileError] = useState<string | null>(null);
 
   // Floating Toast Notification System
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" | "warning"; id: number } | null>(null);
@@ -782,13 +783,11 @@ export default function SignupPage() {
       }
     } catch (err: any) {
       setIsSubmitting(false);
-      console.error("Submission error:", err);
+      console.error("Registration submission error:", err);
       const isPayloadSize = err?.message?.includes("Body exceeded") || err?.message?.includes("payload");
       const message = isPayloadSize
         ? "Uploaded photographs exceed server limits. Please upload smaller photos or retry."
-        : (err?.message && !err.message.includes("Server Components render")
-            ? err.message
-            : "Registration submission error. Please check your network connection and try again.");
+        : "An error occurred while submitting your registration. Please try again.";
       showToast(message, "error");
     }
   };
@@ -2055,9 +2054,27 @@ export default function SignupPage() {
                 {/* 4. Anti-Bot Verification (Cloudflare Turnstile) */}
                 <div id="turnstile-box" className="pt-2">
                   <TurnstileWidget
-                    onVerify={(token) => setTurnstileToken(token)}
+                    onVerify={(token) => {
+                      setTurnstileToken(token);
+                      setTurnstileError(null);
+                    }}
                     onExpire={() => setTurnstileToken("")}
+                    onError={(err) => {
+                      console.error("Turnstile challenge error:", err);
+                      setTurnstileError("Security challenge could not be loaded. Please disable ad-blockers or reload.");
+                    }}
                   />
+                  {turnstileToken && (
+                    <div className="mt-2 flex items-center justify-center gap-2 py-1.5 px-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold animate-fadeIn">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Security verification complete ✓</span>
+                    </div>
+                  )}
+                  {turnstileError && (
+                    <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs text-center font-medium">
+                      {turnstileError}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2073,9 +2090,9 @@ export default function SignupPage() {
                 <button
                   type="button"
                   onClick={handleFinalSubmit}
-                  disabled={!consentGiven || isSubmitting}
+                  disabled={!consentGiven || isSubmitting || !turnstileToken}
                   className={`w-full sm:w-auto px-8 py-3 rounded-full text-xs font-bold text-white transition-all shadow-goldCta ${
-                    consentGiven && !isSubmitting ? "va-btn-join" : "bg-gray-400 cursor-not-allowed opacity-60"
+                    consentGiven && !isSubmitting && turnstileToken ? "va-btn-join" : "bg-gray-400 cursor-not-allowed opacity-60"
                   }`}
                 >
                   {isSubmitting

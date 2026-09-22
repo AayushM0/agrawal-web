@@ -102,16 +102,22 @@ function ClaimContent() {
       // Proceed if network check fails
     }
 
-    const res = await sendOtp({
-      recipient: cleanEmail,
-      type: "email",
-    });
-    setIsSendingOtp(false);
-    if (res.success) {
-      setOtpSent(true);
-      setOtpMessage(res.message || `Verification passcode sent successfully to ${cleanEmail}.`);
-    } else {
-      setErrorMessage(res.error || "Failed to dispatch verification OTP.");
+    try {
+      const res = await sendOtp({
+        recipient: cleanEmail,
+        type: "email",
+      });
+      setIsSendingOtp(false);
+      if (res.success) {
+        setOtpSent(true);
+        setOtpMessage(res.message || `Verification passcode sent successfully to ${cleanEmail}.`);
+      } else {
+        setErrorMessage(res.error || "Failed to dispatch verification OTP.");
+      }
+    } catch (err: any) {
+      setIsSendingOtp(false);
+      console.error("handleSendOtp error:", err);
+      setErrorMessage("An unexpected error occurred while sending verification code. Please try again.");
     }
   };
 
@@ -130,20 +136,26 @@ function ClaimContent() {
       return;
     }
 
-    setIsVerifying(true);
-    setErrorMessage("");
+    try {
+      setIsVerifying(true);
+      setErrorMessage("");
 
-    const res = await verifyMemberClaim({
-      token: claimToken.trim(),
-      contact: contactValue.trim(),
-      otp: otp.trim(),
-    });
-    setIsVerifying(false);
+      const res = await verifyMemberClaim({
+        token: claimToken.trim(),
+        contact: contactValue.trim(),
+        otp: otp.trim(),
+      });
+      setIsVerifying(false);
 
-    if (res.success) {
-      setIsClaimed(true);
-    } else {
-      setErrorMessage(res.error || "Failed to claim profile. Please check the passcode and token.");
+      if (res.success) {
+        setIsClaimed(true);
+      } else {
+        setErrorMessage(res.error || "Failed to claim profile. Please check the passcode and token.");
+      }
+    } catch (err: any) {
+      setIsVerifying(false);
+      console.error("handleClaim error:", err);
+      setErrorMessage("An unexpected error occurred while claiming your profile. Please try again.");
     }
   };
 

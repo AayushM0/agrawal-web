@@ -52,13 +52,20 @@ export function TurnstileWidget({
   const rawSiteKey = siteKey || process.env.NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY;
   const effectiveSiteKey = rawSiteKey ? rawSiteKey.replace(/["']/g, '').trim() : undefined;
 
+  const onVerifyRef = useRef(onVerify);
+  onVerifyRef.current = onVerify;
+  const onExpireRef = useRef(onExpire);
+  onExpireRef.current = onExpire;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
   useEffect(() => {
     // 1. If no site key is available, activate dev bypass
     if (!effectiveSiteKey) {
       setIsDevFallback(true);
       setLoadStatus('verified');
       const timer = setTimeout(() => {
-        onVerify('dev-bypass-token');
+        onVerifyRef.current('dev-bypass-token');
       }, 100);
       return () => clearTimeout(timer);
     }
@@ -75,24 +82,26 @@ export function TurnstileWidget({
           sitekey: effectiveSiteKey,
           callback: (token: string) => {
             setLoadStatus('verified');
-            onVerify(token);
+            onVerifyRef.current(token);
           },
           'expired-callback': () => {
             setLoadStatus('ready');
-            onExpire?.();
+            onExpireRef.current?.();
           },
           'error-callback': (errorCode: string) => {
+            console.error('[TURNSTILE ERROR CODE]', errorCode);
             setLoadStatus('error');
-            onError?.(errorCode);
+            onErrorRef.current?.(errorCode);
           },
           theme,
           size,
         });
         setLoadStatus('ready');
-      } catch {
+      } catch (err) {
+        console.error('[TURNSTILE RENDER ERROR]', err);
         if (process.env.NODE_ENV !== 'production') {
           setLoadStatus('verified');
-          onVerify('dev-bypass-token');
+          onVerifyRef.current('dev-bypass-token');
         } else {
           setLoadStatus('error');
         }
@@ -113,7 +122,7 @@ export function TurnstileWidget({
       script.defer = true;
       script.onerror = () => {
         setLoadStatus('error');
-        onError?.('Turnstile script failed to load');
+        onErrorRef.current?.('Turnstile script failed to load');
       };
       document.head.appendChild(script);
     } else if (window.turnstile) {
@@ -144,7 +153,7 @@ export function TurnstileWidget({
         widgetIdRef.current = null;
       }
     };
-  }, [effectiveSiteKey, theme, size, onVerify, onExpire, onError]);
+  }, [effectiveSiteKey, theme, size]);
 
   if (isDevFallback) {
     return (
@@ -186,17 +195,30 @@ export function TurnstileWidget({
                   if (widgetIdRef.current) window.turnstile.remove(widgetIdRef.current);
                 } catch {}
                 widgetIdRef.current = null;
-                window.turnstile.render(containerRef.current, {
-                  sitekey: effectiveSiteKey || '',
-                  callback: (token: string) => {
-                    setLoadStatus('verified');
-                    onVerify(token);
-                  },
-                  'expired-callback': onExpire,
-                  'error-callback': onError,
-                  theme,
-                  size,
-                });
+                try {
+                  widgetIdRef.current = window.turnstile.render(containerRef.current, {
+                    sitekey: effectiveSiteKey || '',
+                    callback: (token: string) => {
+                      setLoadStatus('verified');
+                      onVerifyRef.current(token);
+                    },
+                    'expired-callback': () => {
+                      setLoadStatus('ready');
+                      onExpireRef.current?.();
+                    },
+                    'error-callback': (errorCode: string) => {
+                      console.error('[TURNSTILE RETRY ERROR]', errorCode);
+                      setLoadStatus('error');
+                      onErrorRef.current?.(errorCode);
+                    },
+                    theme,
+                    size,
+                  });
+                  setLoadStatus('ready');
+                } catch (e) {
+                  console.error('[TURNSTILE RETRY EXCEPTION]', e);
+                  setLoadStatus('error');
+                }
               }
             }}
             className="mt-1 px-3 py-1 bg-white border border-red-300 rounded-lg text-xs font-bold text-red-700 hover:bg-red-50 transition-all shadow-xs"

@@ -70,7 +70,8 @@ export default function LoginPage() {
         setErrorMessage(res.error || "Failed to dispatch verification code.");
       }
     } catch (err: any) {
-      setErrorMessage(err.message || "An unexpected error occurred while sending OTP.");
+      console.error("Login sendOtp error:", err);
+      setErrorMessage("An unexpected error occurred while sending OTP. Please try again.");
     } finally {
       setIsSendingOtp(false);
     }
@@ -120,7 +121,8 @@ export default function LoginPage() {
         router.push("/dashboard");
       }, 850);
     } catch (err: any) {
-      setErrorMessage(err.message || "An unexpected error occurred during activation.");
+      console.error("Login activation error:", err);
+      setErrorMessage("An unexpected error occurred during activation. Please try again.");
     } finally {
       setIsActivating(false);
     }
@@ -173,35 +175,41 @@ export default function LoginPage() {
       return;
     }
 
-    setIsSubmitting(true);
-    const loginRes = await loginWithPassword({
-      identifier: contact.trim(),
-      password,
-      turnstileToken,
-    });
-    setIsSubmitting(false);
+    try {
+      setIsSubmitting(true);
+      const loginRes = await loginWithPassword({
+        identifier: contact.trim(),
+        password,
+        turnstileToken,
+      });
+      setIsSubmitting(false);
 
-    if (loginRes.isPendingApproval) {
-      const refParam = encodeURIComponent(loginRes.householdCode || contact.trim());
-      router.push(`/pending-approval?ref=${refParam}`);
-      return;
-    }
-
-    if (loginRes.needsActivation) {
-      setIsActivationMode(true);
-      if (loginRes.contact) {
-        setContact(loginRes.contact);
+      if (loginRes.isPendingApproval) {
+        const refParam = encodeURIComponent(loginRes.householdCode || contact.trim());
+        router.push(`/pending-approval?ref=${refParam}`);
+        return;
       }
-      setErrorMessage(loginRes.error || "Account activation required. Please verify with OTP and create your password.");
-      return;
-    }
 
-    if (!loginRes.success) {
-      setErrorMessage(loginRes.error || "Invalid email or password.");
-      return;
-    }
+      if (loginRes.needsActivation) {
+        setIsActivationMode(true);
+        if (loginRes.contact) {
+          setContact(loginRes.contact);
+        }
+        setErrorMessage(loginRes.error || "Account activation required. Please verify with OTP and create your password.");
+        return;
+      }
 
-    router.push("/dashboard");
+      if (!loginRes.success) {
+        setErrorMessage(loginRes.error || "Invalid email or password.");
+        return;
+      }
+
+      router.push("/dashboard");
+    } catch (err: any) {
+      setIsSubmitting(false);
+      console.error("Login submission error:", err);
+      setErrorMessage("An unexpected error occurred during login. Please try again.");
+    }
   };
 
   return (
@@ -539,6 +547,12 @@ export default function LoginPage() {
                   onVerify={(token) => setTurnstileToken(token)}
                   onExpire={() => setTurnstileToken("")}
                 />
+                {turnstileToken && role !== "admin" && (
+                  <div className="mt-1 flex items-center justify-center gap-2 py-1 px-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>Security verification complete ✓</span>
+                  </div>
+                )}
               </div>
 
               {errorMessage && (
@@ -549,11 +563,17 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3 rounded-full text-xs font-bold text-white va-btn-join shadow-goldCta transition-all mt-2"
+                disabled={isSubmitting || (role !== "admin" && !turnstileToken)}
+                className={`w-full py-3 rounded-full text-xs font-bold text-white transition-all shadow-goldCta mt-2 ${
+                  isSubmitting || (role !== "admin" && !turnstileToken)
+                    ? "bg-gray-400 cursor-not-allowed opacity-60"
+                    : "va-btn-join"
+                }`}
               >
                 {isSubmitting
                   ? "Verifying Credentials..."
+                  : role !== "admin" && !turnstileToken
+                  ? "Complete Security Check Below ↓"
                   : role === "admin"
                   ? "Unlock Admin Moderation Portal →"
                   : "Sign In to Household Dashboard →"}

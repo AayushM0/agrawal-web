@@ -208,7 +208,7 @@ export async function sendMessage(params: {
     };
   } catch (err: any) {
     console.error("sendMessage error:", err);
-    return { success: false, error: err.message || "Failed to send message." };
+    return { success: false, error: "Failed to send message. Please try again." };
   }
 }
 
@@ -233,7 +233,7 @@ export async function getConversations(): Promise<{
     return { success: true, active, requests };
   } catch (err: any) {
     console.error("getConversations error:", err);
-    return { success: false, error: err.message || "Failed to fetch conversations." };
+    return { success: false, error: "Failed to fetch conversations. Please try again." };
   }
 }
 
@@ -275,7 +275,7 @@ export async function getMessages(conversationId: string, limit = 50, offset = 0
     return { success: true, messages, conversation };
   } catch (err: any) {
     console.error("getMessages error:", err);
-    return { success: false, error: err.message || "Failed to fetch messages." };
+    return { success: false, error: "Failed to fetch messages. Please try again." };
   }
 }
 
@@ -337,7 +337,7 @@ export async function respondToRequest(params: {
     return { success: true };
   } catch (err: any) {
     console.error("respondToRequest error:", err);
-    return { success: false, error: err.message || "Failed to update request." };
+    return { success: false, error: "Failed to update request. Please try again." };
   }
 }
 
@@ -392,7 +392,7 @@ export async function reportConversation(params: {
     return { success: true, reportId: report.id };
   } catch (err: any) {
     console.error("reportConversation error:", err);
-    return { success: false, error: err.message || "Failed to submit report." };
+    return { success: false, error: "Failed to submit report. Please try again." };
   }
 }
 
@@ -441,6 +441,6 @@ export async function getAttachmentSignedUrl(
     return { success: true, url };
   } catch (err: any) {
     console.error("getAttachmentSignedUrl error:", err);
-    return { success: false, error: err.message || "Failed to generate attachment URL." };
+    return { success: false, error: "Failed to load attachment. Please try again." };
   }
 }

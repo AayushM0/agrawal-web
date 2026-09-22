@@ -271,9 +271,10 @@ export async function addHouseholdMember(input: AddMemberInput): Promise<{
       message: `${input.fullName.trim()} has been added to your household records successfully!`,
     };
   } catch (err: any) {
+    console.error("addFamilyMemberToHousehold error:", err);
     return {
       success: false,
-      error: err.message || "Failed to add family member to household.",
+      error: "An unexpected error occurred while adding the family member. Please try again later.",
     };
   }
 }

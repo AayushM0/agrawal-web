@@ -92,7 +92,7 @@ export async function loginWithVerifiedContact(contact: string): Promise<{ succe
     return { success: true, role: effectiveRole };
   } catch (err: any) {
     console.error("loginWithVerifiedContact error:", err);
-    return { success: false, role: "head", error: err.message || "Failed to establish login session." };
+    return { success: false, role: "head", error: "An unexpected error occurred while establishing your session. Please try again." };
   }
 }
 
@@ -270,80 +270,88 @@ export async function resetPasswordWithOtp(params: {
   otp: string;
   newPassword: string;
 }): Promise<{ success: boolean; error?: string; message?: string }> {
-  const { email, otp, newPassword } = params;
-  const cleanEmail = email?.trim().toLowerCase();
+  try {
+    const { email, otp, newPassword } = params;
+    const cleanEmail = email?.trim().toLowerCase();
 
-  if (!cleanEmail || !cleanEmail.includes("@")) {
-    return { success: false, error: "A valid email address is required." };
-  }
-
-  // 1. Validate password complexity
-  const passCheck = validatePassword(newPassword);
-  if (!passCheck.valid) {
-    return { success: false, error: passCheck.error || "Password does not meet complexity requirements." };
-  }
-
-  // 2. Verify OTP code (verifies 10-min HMAC challenge and invalidates cookie)
-  const verifyRes = await verifyOtp({ recipient: cleanEmail, otp: otp?.trim() });
-  if (!verifyRes.success) {
-    return { success: false, error: verifyRes.error || "Invalid or expired verification code." };
-  }
-
-  // 3. Resolve user account
-  const member = await db.getMemberByContact(cleanEmail);
-  const householdDirect = await db.getHouseholdByContact(cleanEmail);
-
-  if (!member && !householdDirect) {
-    return { success: false, error: "No registered account found matching this email." };
-  }
-
-  const household = householdDirect || (member?.householdId ? await db.getHouseholdById(member.householdId) : null);
-  const effectiveStatus = household?.status || member?.householdStatus || "live";
-
-  if (effectiveStatus === "pending_review") {
-    return {
-      success: false,
-      error: "Activation Pending: Your family registration is awaiting administrative verification before account credentials can be updated.",
-    };
-  }
-
-  if (effectiveStatus === "rejected") {
-    return {
-      success: false,
-      error: "This registration application was not approved by the administrator.",
-    };
-  }
-
-  // 4. Hash new password (cost factor 12)
-  const newHash = await hashPassword(newPassword);
-
-  // 5. Update database records
-  if (household) {
-    await db.updatePasswordHash("household", household.id, newHash);
-  }
-  if (member) {
-    await db.updatePasswordHash("member", member.id, newHash);
-    // Only update household credential if the member is the designated household head
-    if (member.householdId && member.relationToHead === "self") {
-      await db.updatePasswordHash("household", member.householdId, newHash);
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      return { success: false, error: "A valid email address is required." };
     }
+
+    // 1. Validate password complexity
+    const passCheck = validatePassword(newPassword);
+    if (!passCheck.valid) {
+      return { success: false, error: passCheck.error || "Password does not meet complexity requirements." };
+    }
+
+    // 2. Verify OTP code (verifies 10-min HMAC challenge and invalidates cookie)
+    const verifyRes = await verifyOtp({ recipient: cleanEmail, otp: otp?.trim() });
+    if (!verifyRes.success) {
+      return { success: false, error: verifyRes.error || "Invalid or expired verification code." };
+    }
+
+    // 3. Resolve user account
+    const member = await db.getMemberByContact(cleanEmail);
+    const householdDirect = await db.getHouseholdByContact(cleanEmail);
+
+    if (!member && !householdDirect) {
+      return { success: false, error: "No registered account found matching this email." };
+    }
+
+    const household = householdDirect || (member?.householdId ? await db.getHouseholdById(member.householdId) : null);
+    const effectiveStatus = household?.status || member?.householdStatus || "live";
+
+    if (effectiveStatus === "pending_review") {
+      return {
+        success: false,
+        error: "Activation Pending: Your family registration is awaiting administrative verification before account credentials can be updated.",
+      };
+    }
+
+    if (effectiveStatus === "rejected") {
+      return {
+        success: false,
+        error: "This registration application was not approved by the administrator.",
+      };
+    }
+
+    // 4. Hash new password (cost factor 12)
+    const newHash = await hashPassword(newPassword);
+
+    // 5. Update database records
+    if (household) {
+      await db.updatePasswordHash("household", household.id, newHash);
+    }
+    if (member) {
+      await db.updatePasswordHash("member", member.id, newHash);
+      // Only update household credential if the member is the designated household head
+      if (member.householdId && member.relationToHead === "self") {
+        await db.updatePasswordHash("household", member.householdId, newHash);
+      }
+    }
+
+    // 6. Establish fresh session automatically
+    const effectiveUserId = member?.id || household?.id;
+    const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
+
+    await createSession({
+      userId: String(effectiveUserId),
+      role: effectiveRole,
+      contact: cleanEmail,
+      householdStatus: effectiveStatus,
+    });
+
+    return {
+      success: true,
+      message: "Your password has been successfully reset. You are now logged in.",
+    };
+  } catch (err: any) {
+    console.error("resetPasswordWithOtp error:", err);
+    return {
+      success: false,
+      error: "An unexpected error occurred while resetting your password. Please try again.",
+    };
   }
-
-  // 6. Establish fresh session automatically
-  const effectiveUserId = member?.id || household?.id;
-  const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
-
-  await createSession({
-    userId: String(effectiveUserId),
-    role: effectiveRole,
-    contact: cleanEmail,
-    householdStatus: effectiveStatus,
-  });
-
-  return {
-    success: true,
-    message: "Your password has been successfully reset. You are now logged in.",
-  };
 }
 
 export async function activateAccountWithOtp(params: {
@@ -351,84 +359,92 @@ export async function activateAccountWithOtp(params: {
   otp: string;
   newPassword: string;
 }): Promise<{ success: boolean; error?: string; message?: string }> {
-  const { otp, newPassword } = params;
-  const currentSession = await getSession();
-  const rawContact = params.contact || currentSession?.contact;
+  try {
+    const { otp, newPassword } = params;
+    const currentSession = await getSession();
+    const rawContact = params.contact || currentSession?.contact;
 
-  if (!rawContact || rawContact.trim().length < 5) {
-    return { success: false, error: "Valid email address or mobile number required for activation." };
-  }
-
-  const clean = rawContact.trim();
-  const isEmail = clean.includes("@");
-  const canonicalContact = isEmail ? clean.toLowerCase() : normalizePhoneNumber(clean);
-
-  // 1. Validate password complexity
-  const passCheck = validatePassword(newPassword);
-  if (!passCheck.valid) {
-    return { success: false, error: passCheck.error || "Password does not meet complexity requirements." };
-  }
-
-  // 2. Verify OTP challenge
-  const verifyRes = await verifyOtp({ recipient: canonicalContact, otp: otp?.trim() });
-  if (!verifyRes.success) {
-    return { success: false, error: verifyRes.error || "Invalid or expired verification code." };
-  }
-
-  // 3. Resolve user account
-  const member = await db.getMemberByContact(canonicalContact);
-  const householdDirect = await db.getHouseholdByContact(canonicalContact);
-
-  if (!member && !householdDirect) {
-    return { success: false, error: "No registered account found matching this contact." };
-  }
-
-  const household = householdDirect || (member?.householdId ? await db.getHouseholdById(member.householdId) : null);
-  const effectiveStatus = household?.status || member?.householdStatus || "live";
-
-  if (effectiveStatus === "pending_review") {
-    return {
-      success: false,
-      error: "Activation Pending: Your family registration is currently awaiting administrative verification and approval. Account activation is locked until your application is approved.",
-    };
-  }
-
-  if (effectiveStatus === "rejected") {
-    return {
-      success: false,
-      error: "This registration application was not approved by the administrator.",
-    };
-  }
-
-  // 4. Hash new password (cost factor 12)
-  const newHash = await hashPassword(newPassword);
-
-  // 5. Update database records
-  if (household) {
-    await db.updatePasswordHash("household", household.id, newHash);
-  }
-  if (member) {
-    await db.updatePasswordHash("member", member.id, newHash);
-    if (member.householdId && member.relationToHead === "self") {
-      await db.updatePasswordHash("household", member.householdId, newHash);
+    if (!rawContact || rawContact.trim().length < 5) {
+      return { success: false, error: "Valid email address or mobile number required for activation." };
     }
+
+    const clean = rawContact.trim();
+    const isEmail = clean.includes("@");
+    const canonicalContact = isEmail ? clean.toLowerCase() : normalizePhoneNumber(clean);
+
+    // 1. Validate password complexity
+    const passCheck = validatePassword(newPassword);
+    if (!passCheck.valid) {
+      return { success: false, error: passCheck.error || "Password does not meet complexity requirements." };
+    }
+
+    // 2. Verify OTP challenge
+    const verifyRes = await verifyOtp({ recipient: canonicalContact, otp: otp?.trim() });
+    if (!verifyRes.success) {
+      return { success: false, error: verifyRes.error || "Invalid or expired verification code." };
+    }
+
+    // 3. Resolve user account
+    const member = await db.getMemberByContact(canonicalContact);
+    const householdDirect = await db.getHouseholdByContact(canonicalContact);
+
+    if (!member && !householdDirect) {
+      return { success: false, error: "No registered account found matching this contact." };
+    }
+
+    const household = householdDirect || (member?.householdId ? await db.getHouseholdById(member.householdId) : null);
+    const effectiveStatus = household?.status || member?.householdStatus || "live";
+
+    if (effectiveStatus === "pending_review") {
+      return {
+        success: false,
+        error: "Activation Pending: Your family registration is currently awaiting administrative verification and approval. Account activation is locked until your application is approved.",
+      };
+    }
+
+    if (effectiveStatus === "rejected") {
+      return {
+        success: false,
+        error: "This registration application was not approved by the administrator.",
+      };
+    }
+
+    // 4. Hash new password (cost factor 12)
+    const newHash = await hashPassword(newPassword);
+
+    // 5. Update database records
+    if (household) {
+      await db.updatePasswordHash("household", household.id, newHash);
+    }
+    if (member) {
+      await db.updatePasswordHash("member", member.id, newHash);
+      if (member.householdId && member.relationToHead === "self") {
+        await db.updatePasswordHash("household", member.householdId, newHash);
+      }
+    }
+
+    // 6. Issue upgraded session with isActivated: true and hasPassword: true
+    const effectiveUserId = member?.id || household?.id;
+    const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
+
+    await createSession({
+      userId: String(effectiveUserId),
+      role: effectiveRole,
+      contact: canonicalContact,
+      householdStatus: effectiveStatus,
+      isActivated: true,
+      hasPassword: true,
+    });
+
+    return {
+      success: true,
+      message: "Your account has been successfully verified and password activated.",
+    };
+  } catch (err: any) {
+    console.error("activateAccountWithOtp error:", err);
+    return {
+      success: false,
+      error: "An unexpected error occurred during account activation. Please try again.",
+    };
   }
-
-  // 6. Issue upgraded session with isActivated: true and hasPassword: true
-  const effectiveUserId = member?.id || household?.id;
-  const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
-
-  await createSession({
-    userId: String(effectiveUserId),
-    role: effectiveRole,
-    contact: canonicalContact,
-    householdStatus: effectiveStatus,
-    isActivated: true,
-    hasPassword: true,
-  });
-
-  return {
-    success: true,
-    message: "Your account has been successfully verified and password activated.",
-  };
 }
