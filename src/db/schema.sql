@@ -221,6 +221,14 @@ CREATE TABLE IF NOT EXISTS admin_login_attempts (
 );
 CREATE INDEX IF NOT EXISTS idx_admin_login_ip_created ON admin_login_attempts(ip_address, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS action_rate_limits (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key VARCHAR(255) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_action_rate_limits ON action_rate_limits (key, action, created_at DESC);
+
 -- 8. Support Inquiries Table (Secretariat Desk)
 CREATE TABLE IF NOT EXISTS support_inquiries (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -269,6 +277,73 @@ CREATE TABLE IF NOT EXISTS admin_audit_logs (
 CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_target ON admin_audit_logs(target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at DESC);
 
+-- 9b. Matrimonial Profiles Table
+CREATE TABLE IF NOT EXISTS matrimonial_profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    member_id UUID NOT NULL UNIQUE REFERENCES members(id) ON DELETE CASCADE,
+    created_by_user_id TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'active',
+    gender VARCHAR(10) NOT NULL CHECK (gender IN ('male', 'female')),
+    full_name VARCHAR(150) NOT NULL,
+    created_for VARCHAR(50) NOT NULL DEFAULT 'Self',
+    marital_status VARCHAR(50) NOT NULL DEFAULT 'Never Married',
+    dob DATE NOT NULL,
+    place_of_birth VARCHAR(150),
+    height_cm INT,
+    height_display VARCHAR(30),
+    weight_build VARCHAR(50),
+    complexion VARCHAR(50),
+    blood_group VARCHAR(10),
+    mother_tongue VARCHAR(50) DEFAULT 'Hindi',
+    languages_spoken TEXT[],
+    diet VARCHAR(50) DEFAULT 'Vegetarian',
+    smoke_drink VARCHAR(50) DEFAULT 'Non-Smoker / Non-Drinker',
+    physical_status VARCHAR(100) DEFAULT 'Normal',
+    about_me TEXT,
+    gotra VARCHAR(50) NOT NULL,
+    highest_education VARCHAR(100) NOT NULL,
+    degree_name VARCHAR(150),
+    college_name VARCHAR(150),
+    schooling_honors TEXT,
+    employment_sector VARCHAR(80) NOT NULL,
+    occupation_title VARCHAR(150) NOT NULL,
+    company_name VARCHAR(150),
+    annual_income VARCHAR(50),
+    work_city VARCHAR(100),
+    work_country VARCHAR(80) DEFAULT 'India',
+    willing_to_relocate VARCHAR(50) DEFAULT 'Yes',
+    father_name VARCHAR(150) NOT NULL,
+    father_member_id UUID REFERENCES members(id) ON DELETE SET NULL,
+    father_occupation VARCHAR(100),
+    mother_name VARCHAR(150) NOT NULL,
+    mother_member_id UUID REFERENCES members(id) ON DELETE SET NULL,
+    mother_occupation VARCHAR(100),
+    linked_siblings JSONB DEFAULT '[]',
+    native_place VARCHAR(150) NOT NULL,
+    family_location VARCHAR(150) NOT NULL,
+    family_type VARCHAR(30) DEFAULT 'Nuclear',
+    family_values VARCHAR(30) DEFAULT 'Traditional',
+    family_financial_status VARCHAR(50) DEFAULT 'Upper Middle Class',
+    about_family TEXT,
+    custom_fields JSONB DEFAULT '[]',
+    photos JSONB DEFAULT '[]',
+    partner_preferences JSONB DEFAULT '{}',
+    contact_person VARCHAR(150) NOT NULL,
+    contact_relation VARCHAR(50) NOT NULL,
+    contact_phone VARCHAR(50) NOT NULL,
+    secondary_phone VARCHAR(50),
+    contact_email VARCHAR(100),
+    residential_address TEXT,
+    referenced_by VARCHAR(150),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_matrimonial_profiles_member ON matrimonial_profiles(member_id);
+CREATE INDEX IF NOT EXISTS idx_matrimonial_profiles_gender_status ON matrimonial_profiles(gender, status);
+CREATE INDEX IF NOT EXISTS idx_matrimonial_profiles_household ON matrimonial_profiles(household_id);
+ALTER TABLE matrimonial_profiles ADD COLUMN IF NOT EXISTS referenced_by VARCHAR(150);
+
 -- 10. Row-Level Security (RLS) Configuration (Supabase Hardening)
 -- Enable RLS on all tables to prevent public anonymous REST API data exfiltration
 ALTER TABLE households ENABLE ROW LEVEL SECURITY;
@@ -279,9 +354,11 @@ ALTER TABLE message_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE otp_rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_login_attempts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE action_rate_limits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE support_inquiries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE registration_drafts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE matrimonial_profiles ENABLE ROW LEVEL SECURITY;
 
 -- Households, Members, Message Reports, Rate Limits, and Admin Attempts have NO policies defined.
 -- In PostgreSQL, this default deny-all state blocks all public anon/authenticated REST/GraphQL operations.

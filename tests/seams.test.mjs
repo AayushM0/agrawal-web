@@ -526,6 +526,36 @@ test("Seam 21: Status-aware checkContactRegistration and resubmitHousehold allow
   assert.ok(signupPage.includes("Updating Previously Rejected Application"), "signup page must render rejection notice banner");
   assert.ok(signupPage.includes("Moderator Feedback:"), "signup page must display moderator feedback reason");
 });
+// --- SEAM 22: Supabase PostgREST Row-Level Security (RLS) Complete Coverage ---
+test("Seam 22: Complete RLS hardening across all application tables in schema.sql and db.ts", () => {
+  const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+  const dbLib = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
 
+  const expectedTables = [
+    "households",
+    "members",
+    "conversations",
+    "messages",
+    "message_reports",
+    "otp_rate_limits",
+    "admin_login_attempts",
+    "login_attempts",
+    "action_rate_limits",
+    "support_inquiries",
+    "registration_drafts",
+    "admin_audit_logs",
+    "matrimonial_profiles",
+  ];
 
+  for (const table of expectedTables) {
+    assert.ok(
+      schemaSql.includes(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;`),
+      `schema.sql must enable RLS for ${table}`
+    );
+    assert.ok(
+      dbLib.includes(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;`),
+      `db.ts must enable RLS for ${table}`
+    );
+  }
+});
 

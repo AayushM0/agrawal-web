@@ -266,6 +266,7 @@ async function ensureSchema(client: any) {
       ALTER TABLE otp_rate_limits ENABLE ROW LEVEL SECURITY;
       ALTER TABLE admin_login_attempts ENABLE ROW LEVEL SECURITY;
       ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE action_rate_limits ENABLE ROW LEVEL SECURITY;
       ALTER TABLE support_inquiries ENABLE ROW LEVEL SECURITY;
       ALTER TABLE registration_drafts ENABLE ROW LEVEL SECURITY;
 
