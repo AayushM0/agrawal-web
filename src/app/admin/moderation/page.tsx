@@ -11,6 +11,10 @@ import {
   resolveMessageReport,
   getAdminSupportInquiries,
   updateAdminInquiryStatus,
+  resendHouseholdPassAction,
+  getEmailQueueStatusAction,
+  retryFailedEmailsAction,
+  drainEmailQueueAction,
 } from "@/actions/moderate";
 import { getIncompleteRegistrations } from "@/actions/draft";
 import { Household } from "@/types/household";
@@ -20,20 +24,34 @@ export default function ModerationQueuePage() {
   const [reports, setReports] = useState<any[]>([]);
   const [inquiries, setInquiries] = useState<any[]>([]);
   const [drafts, setDrafts] = useState<any[]>([]);
-  const [filter, setFilter] = useState<"pending" | "all" | "rejected" | "reports" | "inquiries" | "incomplete">("pending");
+  const [filter, setFilter] = useState<"pending" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue">("pending");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isApprovingAll, setIsApprovingAll] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [queueStats, setQueueStats] = useState<any>(null);
+  const [queueLogs, setQueueLogs] = useState<any[]>([]);
+  const [isDraining, setIsDraining] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const loadQueueStats = async () => {
+    const qRes = await getEmailQueueStatusAction();
+    if (qRes.success) {
+      setQueueStats(qRes.stats || null);
+      setQueueLogs(qRes.recentLogs || []);
+    }
+  };
 
   const loadQueue = async () => {
     setIsLoading(true);
-    const [data, repRes, inqRes, draftRes] = await Promise.all([
+    const [data, repRes, inqRes, draftRes, qRes] = await Promise.all([
       getModerationHouseholds(),
       getMessageReports(),
       getAdminSupportInquiries(),
       getIncompleteRegistrations(),
+      getEmailQueueStatusAction(),
     ]);
     setHouseholds(data);
     if (repRes.success) {
@@ -44,6 +62,10 @@ export default function ModerationQueuePage() {
     }
     if (draftRes.success) {
       setDrafts(draftRes.drafts || []);
+    }
+    if (qRes.success) {
+      setQueueStats(qRes.stats || null);
+      setQueueLogs(qRes.recentLogs || []);
     }
     setIsLoading(false);
   };
@@ -122,6 +144,48 @@ export default function ModerationQueuePage() {
     } else {
       setStatusMessage(res.error || "Failed to update inquiry status.");
       setTimeout(() => setStatusMessage(""), 3000);
+    }
+  };
+
+  const handleResendPasses = async (householdId: string) => {
+    setResendingId(householdId);
+    const res = await resendHouseholdPassAction(householdId);
+    setResendingId(null);
+    if (res.success) {
+      setStatusMessage(res.message || "Official ID passes enqueued.");
+      setTimeout(() => setStatusMessage(""), 4000);
+      loadQueueStats();
+    } else {
+      setStatusMessage(res.error || "Failed to resend passes.");
+      setTimeout(() => setStatusMessage(""), 4000);
+    }
+  };
+
+  const handleDrainQueue = async () => {
+    setIsDraining(true);
+    const res = await drainEmailQueueAction(10);
+    setIsDraining(false);
+    if (res.success) {
+      setStatusMessage(`✓ Processed ${res.processed ?? 0} emails (${res.succeeded ?? 0} sent, ${res.failed ?? 0} failed). ${res.remainingPending ?? 0} pending.`);
+      setTimeout(() => setStatusMessage(""), 4000);
+      loadQueueStats();
+    } else {
+      setStatusMessage(res.error || "Failed to process queue.");
+      setTimeout(() => setStatusMessage(""), 4000);
+    }
+  };
+
+  const handleRetryFailedEmails = async () => {
+    setIsRetrying(true);
+    const res = await retryFailedEmailsAction();
+    setIsRetrying(false);
+    if (res.success) {
+      setStatusMessage(res.message || `Reset ${res.resetCount} emails.`);
+      setTimeout(() => setStatusMessage(""), 4000);
+      loadQueueStats();
+    } else {
+      setStatusMessage(res.error || "Failed to retry emails.");
+      setTimeout(() => setStatusMessage(""), 4000);
     }
   };
 
@@ -223,6 +287,29 @@ export default function ModerationQueuePage() {
                 }`}
               >
                 📝 Incomplete Signups ({drafts.length})
+              </button>
+              <button
+                onClick={() => {
+                  setFilter("queue");
+                  loadQueueStats();
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  filter === "queue"
+                    ? "bg-brand-primary text-white"
+                    : "text-body-muted hover:text-brand-primary"
+                }`}
+              >
+                <span>📬 Email Queue</span>
+                {queueStats && queueStats.failed > 0 && (
+                  <span className="px-1.5 py-0.5 bg-red-600 text-white rounded-full text-[10px] font-bold">
+                    {queueStats.failed}
+                  </span>
+                )}
+                {queueStats && queueStats.pending > 0 && (
+                  <span className="px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded-full text-[10px] font-bold">
+                    {queueStats.pending}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -481,6 +568,132 @@ export default function ModerationQueuePage() {
               ))}
             </div>
           )
+        ) : filter === "queue" ? (
+          <div className="space-y-6">
+            {/* Queue Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-4 bg-white border border-brand-accent/30 rounded-2xl shadow-xs">
+                <span className="text-[11px] font-bold text-body-muted uppercase tracking-wider block">Total Enqueued</span>
+                <span className="text-2xl font-black text-brand-primary">{queueStats?.total ?? 0}</span>
+              </div>
+              <div className="p-4 bg-white border border-emerald-200 rounded-2xl shadow-xs">
+                <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">Delivered (Sent)</span>
+                <span className="text-2xl font-black text-emerald-700">{queueStats?.sent ?? 0}</span>
+              </div>
+              <div className="p-4 bg-white border border-amber-200 rounded-2xl shadow-xs">
+                <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">Pending / Queued</span>
+                <span className="text-2xl font-black text-amber-700">{(queueStats?.pending ?? 0) + (queueStats?.processing ?? 0)}</span>
+              </div>
+              <div className="p-4 bg-white border border-red-200 rounded-2xl shadow-xs">
+                <span className="text-[11px] font-bold text-red-800 uppercase tracking-wider block">Delivery Failed</span>
+                <span className="text-2xl font-black text-red-700">{queueStats?.failed ?? 0}</span>
+              </div>
+            </div>
+
+            {/* Queue Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-brand-accent/30 shadow-xs">
+              <div>
+                <h3 className="text-sm font-black text-brand-primary">Outbound Email Engine</h3>
+                <p className="text-xs text-body-muted">Paced delivery at safe rate limit over IPv4 with automatic retry on Resend rate limits.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleDrainQueue}
+                  disabled={isDraining}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary/90 shadow-xs transition flex items-center gap-1.5"
+                >
+                  <span>⚡</span>
+                  <span>{isDraining ? "Processing..." : "Drain Pending Now"}</span>
+                </button>
+                {queueStats && queueStats.failed > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleRetryFailedEmails}
+                    disabled={isRetrying}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 shadow-xs transition flex items-center gap-1.5"
+                  >
+                    <span>🔄</span>
+                    <span>{isRetrying ? "Resetting..." : `Retry Failed (${queueStats.failed})`}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={loadQueueStats}
+                  className="px-3 py-2 rounded-xl text-xs font-bold text-body-muted hover:bg-canvas-warm border border-brand-accent/30 transition"
+                  title="Refresh Queue Logs"
+                >
+                  🔄
+                </button>
+              </div>
+            </div>
+
+            {/* Queue Logs Table */}
+            <div className="bg-white border-2 border-brand-accent/30 rounded-3xl overflow-hidden shadow-warm">
+              <div className="p-4 bg-canvas-warm/40 border-b border-brand-accent/20">
+                <h3 className="text-xs font-black uppercase tracking-wider text-brand-primary">Recent Email Activity Logs</h3>
+              </div>
+              {queueLogs.length === 0 ? (
+                <div className="p-8 text-center text-xs text-body-muted">No email queue logs recorded yet.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-canvas-warm/80 border-b border-brand-accent/30 text-body-heading font-bold">
+                        <th className="py-2.5 px-3">Recipient</th>
+                        <th className="py-2.5 px-3">Subject</th>
+                        <th className="py-2.5 px-3">Status</th>
+                        <th className="py-2.5 px-3">Attempts</th>
+                        <th className="py-2.5 px-3">Resend ID / Error</th>
+                        <th className="py-2.5 px-3">Created</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-accent/15 text-body-text">
+                      {queueLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-amber-50/40 transition">
+                          <td className="py-2.5 px-3 font-mono font-medium text-brand-primary">
+                            <div>{log.recipientEmail}</div>
+                            {log.recipientName && <div className="text-[10px] text-body-muted font-sans">{log.recipientName}</div>}
+                          </td>
+                          <td className="py-2.5 px-3 max-w-[200px] truncate" title={log.subject}>
+                            {log.subject}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              log.status === "sent"
+                                ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                : log.status === "failed"
+                                ? "bg-red-100 text-red-800 border border-red-300"
+                                : log.status === "processing"
+                                ? "bg-blue-100 text-blue-800 border border-blue-300 animate-pulse"
+                                : "bg-amber-100 text-amber-800 border border-amber-300"
+                            }`}>
+                              {log.status}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-[11px]">
+                            {log.attempts || 0}
+                          </td>
+                          <td className="py-2.5 px-3 max-w-[220px] font-mono text-[11px] truncate">
+                            {log.resendId ? (
+                              <span className="text-emerald-700" title={log.resendId}>{log.resendId}</span>
+                            ) : log.lastError ? (
+                              <span className="text-red-700" title={log.lastError}>{log.lastError}</span>
+                            ) : (
+                              <span className="text-body-muted italic">Scheduled</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-body-muted text-[10px] whitespace-nowrap">
+                            {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
         ) : filteredHouseholds.length === 0 ? (
           <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">
             <p className="text-sm font-bold text-brand-primary mb-1">
@@ -546,9 +759,20 @@ export default function ModerationQueuePage() {
                     )}
 
                     {h.status === "live" && (
-                      <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                        ✓ Approved (Live)
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                          ✓ Approved (Live)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleResendPasses(h.id)}
+                          disabled={resendingId === h.id}
+                          className="px-3.5 py-1.5 rounded-full text-xs font-bold text-brand-primary bg-amber-50 hover:bg-amber-100 border border-brand-accent/40 shadow-xs transition-all flex items-center gap-1.5"
+                        >
+                          <span>✉️</span>
+                          <span>{resendingId === h.id ? "Enqueuing..." : "Resend ID Passes"}</span>
+                        </button>
+                      </div>
                     )}
 
                     {h.status === "rejected" && (

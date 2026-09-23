@@ -1,5 +1,108 @@
+import dns from "node:dns";
+
+// Enforce IPv4 DNS resolution for all Node.js Undici fetch requests
+// Prevents Cloudflare IPv6 timeouts (UND_ERR_CONNECT_TIMEOUT) on systems with incomplete IPv6 routing.
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch (_) {}
+
+let lastDispatchTimestamp = 0;
+const MIN_DISPATCH_INTERVAL_MS = 650;
+
+/** Enforce minimum 650ms gap between outbound emails to strictly comply with Resend 2 req/sec rate limit */
+export async function waitForRateLimitPacing(): Promise<void> {
+  const now = Date.now();
+  const elapsed = now - lastDispatchTimestamp;
+  if (elapsed < MIN_DISPATCH_INTERVAL_MS) {
+    await new Promise((resolve) => setTimeout(resolve, MIN_DISPATCH_INTERVAL_MS - elapsed));
+  }
+  lastDispatchTimestamp = Date.now();
+}
+
+export interface ResendEmailPayload {
+  to: string | string[];
+  subject: string;
+  html: string;
+  text?: string;
+  from?: string;
+  replyTo?: string;
+  attachments?: Array<{
+    filename: string;
+    content: string; // base64
+  }>;
+}
+
+export interface DispatchResendEmailResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+  statusCode?: number;
+  retryable?: boolean;
+}
+
+/**
+ * Centrally managed Resend email dispatcher with IPv4 DNS, rate-limit pacing, and timeout guard.
+ */
+export async function dispatchResendEmail(payload: ResendEmailPayload): Promise<DispatchResendEmailResult> {
+  if (!process.env.RESEND_API_KEY) {
+    return { success: false, error: "RESEND_API_KEY not configured", retryable: false };
+  }
+
+  await waitForRateLimitPacing();
+
+  try {
+    const from =
+      payload.from ||
+      process.env.RESEND_FROM_EMAIL ||
+      "Maharaja Agrasen Foundation <verify@maharajaagrasenfoundation.com>";
+
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({
+        from,
+        to: payload.to,
+        subject: payload.subject,
+        html: payload.html,
+        text: payload.text,
+        reply_to: payload.replyTo,
+        attachments: payload.attachments,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const statusCode = res.status;
+      const isRetryable = statusCode === 429 || statusCode >= 500;
+      return {
+        success: false,
+        statusCode,
+        error: data?.message || `Resend API error (${statusCode})`,
+        retryable: isRetryable,
+      };
+    }
+
+    return {
+      success: true,
+      messageId: data?.id,
+      statusCode: res.status,
+    };
+  } catch (err: any) {
+    const isTimeout = err?.name === "TimeoutError" || err?.name === "AbortError";
+    return {
+      success: false,
+      error: isTimeout ? "Resend request timed out after 15s" : err?.message || "Network error sending email",
+      retryable: true,
+    };
+  }
+}
+
 /** HTML-escape user content before interpolating into email HTML to prevent injection. */
-function escHtml(s: string): string {
+export function escHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -110,25 +213,16 @@ export async function sendMessageRequestNotificationEmail(input: SendMessageRequ
       </html>
     `;
 
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL || "Maharaja Agrasen Foundation <verify@maharajaagrasenfoundation.com>",
-        to: cleanEmail,
-        subject: `New Message Request from ${senderName} on Maharaja Agrasen Foundation`,
-        text: `Namaste ${recipientName},\n\nYou have received a new connection request from ${senderName}${senderMeta ? ` (${senderMeta})` : ""}.\n\nMessage preview:\n"${cleanPreview}"\n\nLog in to your dashboard to view and respond:\n${chatUrl}\n\nYour contact details remain strictly hidden until you choose to accept.`,
-        html: emailHtml,
-      }),
+    const result = await dispatchResendEmail({
+      to: cleanEmail,
+      subject: `New Message Request from ${senderName} on Maharaja Agrasen Foundation`,
+      text: `Namaste ${recipientName},\n\nYou have received a new connection request from ${senderName}${senderMeta ? ` (${senderMeta})` : ""}.\n\nMessage preview:\n"${cleanPreview}"\n\nLog in to your dashboard to view and respond:\n${chatUrl}\n\nYour contact details remain strictly hidden until you choose to accept.`,
+      html: emailHtml,
     });
 
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      console.warn("[RESEND EMAIL WARNING] Unable to dispatch message request notification:", errData);
-      return { success: false, error: "Failed to dispatch via Resend API" };
+    if (!result.success) {
+      console.warn("[RESEND EMAIL WARNING] Unable to dispatch message request notification:", result.error);
+      return { success: false, error: result.error || "Failed to dispatch via Resend API" };
     }
 
     return { success: true };

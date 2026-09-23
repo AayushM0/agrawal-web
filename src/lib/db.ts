@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import type { Household, Member } from "../types/household";
 import type { SupportInquiry, CreateInquiryInput, InquiryStatus } from "../types/support";
 import type { MatrimonialProfile, MatrimonyFilter } from "../types/matrimony";
+import type { EmailQueueItem, EnqueueEmailInput, EmailQueueStats } from "../types/email-queue";
 
 const globalForPg = globalThis as unknown as {
   pgPool?: Pool;
@@ -256,6 +257,29 @@ async function ensureSchema(client: any) {
       CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_target ON admin_audit_logs(target_type, target_id);
       CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at DESC);
       ALTER TABLE admin_audit_logs ENABLE ROW LEVEL SECURITY;
+
+      CREATE TABLE IF NOT EXISTS email_queue (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          recipient_email TEXT NOT NULL,
+          recipient_name TEXT,
+          subject TEXT NOT NULL,
+          html_body TEXT NOT NULL,
+          text_body TEXT,
+          attachments JSONB,
+          metadata JSONB DEFAULT '{}'::jsonb,
+          status VARCHAR(20) NOT NULL DEFAULT 'pending',
+          attempts INT NOT NULL DEFAULT 0,
+          max_attempts INT NOT NULL DEFAULT 3,
+          last_error TEXT,
+          resend_id TEXT,
+          scheduled_for TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          sent_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_email_queue_status_sched ON email_queue(status, scheduled_for, created_at);
+      CREATE INDEX IF NOT EXISTS idx_email_queue_created ON email_queue(created_at DESC);
+      ALTER TABLE email_queue ENABLE ROW LEVEL SECURITY;
 
       -- Enable RLS on all tables (Supabase advisor fix)
       ALTER TABLE households ENABLE ROW LEVEL SECURITY;
@@ -2902,6 +2926,181 @@ export const db = {
       createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
       updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
     }));
+  },
+
+  async enqueueEmail(job: EnqueueEmailInput): Promise<string | null> {
+    if (!pool) return null;
+    try {
+      const cleanEmail = job.recipientEmail.trim().toLowerCase();
+      const cleanName = job.recipientName?.trim() || null;
+      const scheduledFor = job.scheduledFor ? job.scheduledFor.toISOString() : new Date().toISOString();
+      const attachments = job.attachments ? JSON.stringify(job.attachments) : null;
+      const metadata = JSON.stringify(job.metadata || {});
+
+      const res = await pool.query(
+        `INSERT INTO email_queue (recipient_email, recipient_name, subject, html_body, text_body, attachments, metadata, scheduled_for)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id;`,
+        [cleanEmail, cleanName, job.subject, job.htmlBody, job.textBody || null, attachments, metadata, scheduledFor]
+      );
+      return res.rows[0]?.id || null;
+    } catch (err) {
+      console.error("[DB] Failed to enqueue email:", err);
+      return null;
+    }
+  },
+
+  async claimNextEmailJob(): Promise<EmailQueueItem | null> {
+    if (!pool) return null;
+    try {
+      const res = await pool.query(
+        `UPDATE email_queue
+         SET status = 'processing', updated_at = NOW()
+         WHERE id = (
+           SELECT id FROM email_queue
+           WHERE status = 'pending' AND scheduled_for <= NOW()
+           ORDER BY scheduled_for ASC, created_at ASC
+           LIMIT 1
+           FOR UPDATE SKIP LOCKED
+         )
+         RETURNING id, recipient_email as "recipientEmail", recipient_name as "recipientName",
+                   subject, html_body as "htmlBody", text_body as "textBody",
+                   attachments, metadata, status, attempts, max_attempts as "maxAttempts",
+                   last_error as "lastError", resend_id as "resendId",
+                   scheduled_for as "scheduledFor", sent_at as "sentAt",
+                   created_at as "createdAt", updated_at as "updatedAt";`
+      );
+      if (res.rows.length === 0) return null;
+      const r = res.rows[0];
+      return {
+        ...r,
+        attachments: typeof r.attachments === "string" ? JSON.parse(r.attachments) : r.attachments,
+        metadata: typeof r.metadata === "string" ? JSON.parse(r.metadata) : (r.metadata || {}),
+      };
+    } catch (err) {
+      console.error("[DB] claimNextEmailJob notice:", err);
+      return null;
+    }
+  },
+
+  async markEmailSent(id: string, resendId: string): Promise<boolean> {
+    if (!pool) return false;
+    try {
+      await pool.query(
+        `UPDATE email_queue
+         SET status = 'sent', resend_id = $2, sent_at = NOW(), updated_at = NOW()
+         WHERE id = $1;`,
+        [id, resendId]
+      );
+      return true;
+    } catch (err) {
+      console.error("[DB] markEmailSent error:", err);
+      return false;
+    }
+  },
+
+  async markEmailFailed(id: string, error: string, isTerminal = false): Promise<boolean> {
+    if (!pool) return false;
+    try {
+      if (isTerminal) {
+        await pool.query(
+          `UPDATE email_queue
+           SET status = 'failed', last_error = $2, attempts = attempts + 1, updated_at = NOW()
+           WHERE id = $1;`,
+          [id, error]
+        );
+      } else {
+        await pool.query(
+          `UPDATE email_queue
+           SET attempts = attempts + 1,
+               last_error = $2,
+               status = CASE WHEN attempts + 1 >= max_attempts THEN 'failed' ELSE 'pending' END,
+               scheduled_for = CASE WHEN attempts + 1 >= max_attempts THEN scheduled_for ELSE NOW() + (INTERVAL '2 seconds' * (attempts + 1)) END,
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [id, error]
+        );
+      }
+      return true;
+    } catch (err) {
+      console.error("[DB] markEmailFailed error:", err);
+      return false;
+    }
+  },
+
+  async getEmailQueueStats(): Promise<EmailQueueStats> {
+    if (!pool) return { pending: 0, processing: 0, sent: 0, failed: 0, total: 0 };
+    try {
+      const res = await pool.query(
+        `SELECT 
+           COUNT(*) FILTER (WHERE status = 'pending') as pending,
+           COUNT(*) FILTER (WHERE status = 'processing') as processing,
+           COUNT(*) FILTER (WHERE status = 'sent') as sent,
+           COUNT(*) FILTER (WHERE status = 'failed') as failed,
+           COUNT(*) as total
+         FROM email_queue;`
+      );
+      const row = res.rows[0];
+      return {
+        pending: parseInt(row.pending || "0", 10),
+        processing: parseInt(row.processing || "0", 10),
+        sent: parseInt(row.sent || "0", 10),
+        failed: parseInt(row.failed || "0", 10),
+        total: parseInt(row.total || "0", 10),
+      };
+    } catch (err) {
+      console.error("[DB] getEmailQueueStats error:", err);
+      return { pending: 0, processing: 0, sent: 0, failed: 0, total: 0 };
+    }
+  },
+
+  async getRecentEmailQueueLogs(limit = 50): Promise<Array<Partial<EmailQueueItem>>> {
+    if (!pool) return [];
+    try {
+      const res = await pool.query(
+        `SELECT id, recipient_email as "recipientEmail", recipient_name as "recipientName",
+                subject, status, attempts, last_error as "lastError", resend_id as "resendId",
+                created_at as "createdAt", sent_at as "sentAt"
+         FROM email_queue
+         ORDER BY created_at DESC
+         LIMIT $1;`,
+        [limit]
+      );
+      return res.rows.map((r: any) => ({
+        id: String(r.id),
+        recipientEmail: r.recipientEmail,
+        recipientName: r.recipientName,
+        subject: r.subject,
+        status: r.status,
+        attempts: r.attempts,
+        lastError: r.lastError,
+        resendId: r.resendId,
+        createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+        sentAt: r.sentAt instanceof Date ? r.sentAt.toISOString() : r.sentAt ? String(r.sentAt) : null,
+      }));
+    } catch (err) {
+      console.error("[DB] getRecentEmailQueueLogs error:", err);
+      return [];
+    }
+  },
+
+  async retryFailedEmailQueueItems(): Promise<number> {
+    if (!pool) return 0;
+    try {
+      const res = await pool.query(
+        `WITH reset_items AS (
+           UPDATE email_queue
+           SET status = 'pending', attempts = 0, scheduled_for = NOW(), updated_at = NOW()
+           WHERE status = 'failed'
+           RETURNING id
+         )
+         SELECT count(*) as count FROM reset_items;`
+      );
+      return parseInt(res.rows[0]?.count || "0", 10);
+    } catch (err) {
+      console.error("[DB] retryFailedEmailQueueItems error:", err);
+      return 0;
+    }
   },
 };
 

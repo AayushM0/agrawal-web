@@ -344,6 +344,29 @@ CREATE INDEX IF NOT EXISTS idx_matrimonial_profiles_gender_status ON matrimonial
 CREATE INDEX IF NOT EXISTS idx_matrimonial_profiles_household ON matrimonial_profiles(household_id);
 ALTER TABLE matrimonial_profiles ADD COLUMN IF NOT EXISTS referenced_by VARCHAR(150);
 
+-- 9c. Outbound Email Queue (Rate-Limit Pacing, Retry Backoff & Audit)
+CREATE TABLE IF NOT EXISTS email_queue (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    recipient_email TEXT NOT NULL,
+    recipient_name TEXT,
+    subject TEXT NOT NULL,
+    html_body TEXT NOT NULL,
+    text_body TEXT,
+    attachments JSONB,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    attempts INT NOT NULL DEFAULT 0,
+    max_attempts INT NOT NULL DEFAULT 3,
+    last_error TEXT,
+    resend_id TEXT,
+    scheduled_for TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    sent_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_email_queue_status_sched ON email_queue(status, scheduled_for, created_at);
+CREATE INDEX IF NOT EXISTS idx_email_queue_created ON email_queue(created_at DESC);
+
 -- 10. Row-Level Security (RLS) Configuration (Supabase Hardening)
 -- Enable RLS on all tables to prevent public anonymous REST API data exfiltration
 ALTER TABLE households ENABLE ROW LEVEL SECURITY;
@@ -359,6 +382,7 @@ ALTER TABLE support_inquiries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE registration_drafts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matrimonial_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_queue ENABLE ROW LEVEL SECURITY;
 
 -- Households, Members, Message Reports, Rate Limits, and Admin Attempts have NO policies defined.
 -- In PostgreSQL, this default deny-all state blocks all public anon/authenticated REST/GraphQL operations.

@@ -545,6 +545,7 @@ test("Seam 22: Complete RLS hardening across all application tables in schema.sq
     "registration_drafts",
     "admin_audit_logs",
     "matrimonial_profiles",
+    "email_queue",
   ];
 
   for (const table of expectedTables) {
@@ -557,5 +558,50 @@ test("Seam 22: Complete RLS hardening across all application tables in schema.sq
       `db.ts must enable RLS for ${table}`
     );
   }
+});
+
+// --- SEAM 23: Outbound Email Queue System, IPv4 DNS Resolution & Rate-Limit Pacing ---
+test("Seam 23: Outbound email queue system, Undici IPv4 DNS resolution, and rate-limit pacing adhere to contracts", () => {
+  const emailLib = fs.readFileSync(path.join(webRoot, "src/lib/email.ts"), "utf8");
+  const emailQueueLib = fs.readFileSync(path.join(webRoot, "src/lib/email-queue.ts"), "utf8");
+  const dbLib = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const moderateActions = fs.readFileSync(path.join(webRoot, "src/actions/moderate.ts"), "utf8");
+  const drainRoute = fs.readFileSync(path.join(webRoot, "src/app/api/admin/email-queue/drain/route.ts"), "utf8");
+
+  // 1. IPv4 DNS enforcement against Undici IPv6 connect timeout
+  assert.ok(
+    emailLib.includes(`dns.setDefaultResultOrder("ipv4first")`),
+    "src/lib/email.ts must set setDefaultResultOrder('ipv4first')"
+  );
+
+  // 2. Dispatcher and rate limiter exports
+  assert.ok(emailLib.includes("export async function waitForRateLimitPacing"), "src/lib/email.ts must export waitForRateLimitPacing");
+  assert.ok(emailLib.includes("export async function dispatchResendEmail"), "src/lib/email.ts must export dispatchResendEmail");
+
+  // 3. Email queue worker engine
+  assert.ok(emailQueueLib.includes("export async function enqueueEmail"), "src/lib/email-queue.ts must export enqueueEmail");
+  assert.ok(emailQueueLib.includes("export async function drainEmailQueue"), "src/lib/email-queue.ts must export drainEmailQueue");
+
+  // 4. PostgreSQL concurrency safety via FOR UPDATE SKIP LOCKED
+  assert.ok(
+    dbLib.includes("FOR UPDATE SKIP LOCKED"),
+    "src/lib/db.ts claimNextEmailJob must use FOR UPDATE SKIP LOCKED for atomic job leasing"
+  );
+  assert.ok(dbLib.includes("enqueueEmail("), "src/lib/db.ts must implement enqueueEmail");
+  assert.ok(dbLib.includes("markEmailSent("), "src/lib/db.ts must implement markEmailSent");
+  assert.ok(dbLib.includes("markEmailFailed("), "src/lib/db.ts must implement markEmailFailed");
+  assert.ok(dbLib.includes("getEmailQueueStats("), "src/lib/db.ts must implement getEmailQueueStats");
+  assert.ok(dbLib.includes("retryFailedEmailQueueItems("), "src/lib/db.ts must implement retryFailedEmailQueueItems");
+
+  // 5. Moderation admin server actions and RBAC guards
+  assert.ok(moderateActions.includes("export async function resendHouseholdPassAction"), "moderate.ts must export resendHouseholdPassAction");
+  assert.ok(moderateActions.includes("export async function getEmailQueueStatusAction"), "moderate.ts must export getEmailQueueStatusAction");
+  assert.ok(moderateActions.includes("export async function retryFailedEmailsAction"), "moderate.ts must export retryFailedEmailsAction");
+  assert.ok(moderateActions.includes("export async function drainEmailQueueAction"), "moderate.ts must export drainEmailQueueAction");
+
+  // 6. Admin API endpoint RBAC and drain connection
+  assert.ok(drainRoute.includes("export async function POST"), "email-queue/drain/route.ts must export POST");
+  assert.ok(drainRoute.includes(`session?.role !== "admin"`), "email-queue/drain/route.ts must enforce admin privileges");
+  assert.ok(drainRoute.includes("drainEmailQueue"), "email-queue/drain/route.ts must call drainEmailQueue");
 });
 
