@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
 import {
   approveHousehold,
   approveAllHouseholds,
@@ -168,16 +167,12 @@ export default function ModerationQueuePage() {
     const res = await resendHouseholdPassAction(householdId);
     setResendingId(null);
     if (res.success) {
-      if (res.errors && res.errors.length > 0) {
-        const warnMsg = `Pass generation warning: ${res.errors.map((e) => `${e.memberName}: ${e.error}`).join("; ")}`;
-        setHouseholds((prev) =>
-          prev.map((h) => (h.id === householdId ? { ...h, lastError: warnMsg } : h))
-        );
-      } else {
-        setHouseholds((prev) =>
-          prev.map((h) => (h.id === householdId ? { ...h, lastError: undefined } : h))
-        );
-      }
+      const lastError = res.errors?.length
+        ? `Pass generation warning: ${res.errors.map((e) => `${e.memberName}: ${e.error}`).join("; ")}`
+        : undefined;
+      setHouseholds((prev) =>
+        prev.map((h) => (h.id === householdId ? { ...h, lastError } : h))
+      );
       setStatusMessage(res.message || "Official ID passes enqueued.");
       setTimeout(() => setStatusMessage(""), 4000);
       loadQueueStats();
@@ -225,6 +220,10 @@ export default function ModerationQueuePage() {
     if (filter === "rejected") return h.status === "rejected";
     return true;
   });
+
+  const displayedQueueLogs = showOnlyFailedEmails
+    ? queueLogs.filter((log) => log.status === "failed")
+    : queueLogs;
 
   return (
     <main className="py-12 bg-canvas-page">
@@ -691,110 +690,100 @@ export default function ModerationQueuePage() {
                   </button>
                 )}
               </div>
-              {(() => {
-                const logsToRender = showOnlyFailedEmails
-                  ? queueLogs.filter((log) => log.status === "failed")
-                  : queueLogs;
-
-                if (logsToRender.length === 0) {
-                  return (
-                    <div className="p-8 text-center text-xs text-body-muted">
-                      {showOnlyFailedEmails
-                        ? "No delivery failures recorded in the queue."
-                        : "No email queue logs recorded yet."}
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[800px] text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-canvas-warm/80 border-b border-brand-accent/30 text-body-heading font-bold">
-                          <th className="py-2.5 px-3 min-w-[160px]">Recipient</th>
-                          <th className="py-2.5 px-3 min-w-[160px]">Subject</th>
-                          <th className="py-2.5 px-3 min-w-[90px]">Status</th>
-                          <th className="py-2.5 px-3 min-w-[70px]">Attempts</th>
-                          <th className="py-2.5 px-3 min-w-[130px]">Resend ID</th>
-                          <th className="py-2.5 px-3 min-w-[240px]">Error Diagnostics</th>
-                          <th className="py-2.5 px-3 min-w-[100px]">Created</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-brand-accent/15 text-body-text">
-                        {logsToRender.map((log) => (
-                          <tr key={log.id} className="hover:bg-amber-50/40 transition">
-                            <td className="py-2.5 px-3 font-mono font-medium text-brand-primary">
-                              <div>{log.recipientEmail}</div>
-                              {log.recipientName && (
-                                <div className="text-[10px] text-body-muted font-sans">{log.recipientName}</div>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 max-w-[200px] truncate" title={log.subject}>
-                              {log.subject}
-                            </td>
-                            <td className="py-2.5 px-3">
-                              <span
-                                className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                  log.status === "sent"
-                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                                    : log.status === "failed"
-                                    ? "bg-red-100 text-red-800 border border-red-300"
-                                    : log.status === "processing"
-                                    ? "bg-blue-100 text-blue-800 border border-blue-300 animate-pulse"
-                                    : "bg-amber-100 text-amber-800 border border-amber-300"
-                                }`}
-                              >
-                                {log.status}
+              {displayedQueueLogs.length === 0 ? (
+                <div className="p-8 text-center text-xs text-body-muted">
+                  {showOnlyFailedEmails
+                    ? "No delivery failures recorded in the queue."
+                    : "No email queue logs recorded yet."}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[800px] text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-canvas-warm/80 border-b border-brand-accent/30 text-body-heading font-bold">
+                        <th className="py-2.5 px-3 min-w-[160px]">Recipient</th>
+                        <th className="py-2.5 px-3 min-w-[160px]">Subject</th>
+                        <th className="py-2.5 px-3 min-w-[90px]">Status</th>
+                        <th className="py-2.5 px-3 min-w-[70px]">Attempts</th>
+                        <th className="py-2.5 px-3 min-w-[130px]">Resend ID</th>
+                        <th className="py-2.5 px-3 min-w-[240px]">Error Diagnostics</th>
+                        <th className="py-2.5 px-3 min-w-[100px]">Created</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-accent/15 text-body-text">
+                      {displayedQueueLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-amber-50/40 transition">
+                          <td className="py-2.5 px-3 font-mono font-medium text-brand-primary">
+                            <div>{log.recipientEmail}</div>
+                            {log.recipientName && (
+                              <div className="text-[10px] text-body-muted font-sans">{log.recipientName}</div>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 max-w-[200px] truncate" title={log.subject}>
+                            {log.subject}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                log.status === "sent"
+                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                  : log.status === "failed"
+                                  ? "bg-red-100 text-red-800 border border-red-300"
+                                  : log.status === "processing"
+                                  ? "bg-blue-100 text-blue-800 border border-blue-300 animate-pulse"
+                                  : "bg-amber-100 text-amber-800 border border-amber-300"
+                              }`}
+                            >
+                              {log.status}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-[11px]">
+                            {log.attempts || 0}
+                          </td>
+                          <td className="py-2.5 px-3 max-w-[140px] font-mono text-[11px] truncate">
+                            {log.resendId ? (
+                              <span className="text-emerald-700" title={log.resendId}>
+                                {log.resendId}
                               </span>
-                            </td>
-                            <td className="py-2.5 px-3 font-mono text-[11px]">
-                              {log.attempts || 0}
-                            </td>
-                            <td className="py-2.5 px-3 max-w-[140px] font-mono text-[11px] truncate">
-                              {log.resendId ? (
-                                <span className="text-emerald-700" title={log.resendId}>
-                                  {log.resendId}
-                                </span>
-                              ) : (
-                                <span className="text-body-muted italic">—</span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-[11px]">
-                              {log.lastError ? (
-                                <div className="space-y-1.5 max-w-[280px]">
-                                  <div className="p-2 rounded-xl bg-red-50 border border-red-200 text-red-800 font-mono text-[11px] whitespace-pre-wrap break-words leading-tight">
-                                    {log.lastError}
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCopyError(log.lastError)}
-                                    className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-red-700 hover:text-red-900 bg-white border border-red-200 hover:bg-red-50 shadow-2xs transition inline-flex items-center gap-1 min-h-[24px]"
-                                    title="Copy Error Details"
-                                  >
-                                    <span>📋</span>
-                                    <span>{copiedError === log.lastError ? "Copied!" : "Copy Details"}</span>
-                                  </button>
+                            ) : (
+                              <span className="text-body-muted italic">—</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-[11px]">
+                            {log.lastError ? (
+                              <div className="space-y-1.5 max-w-[280px]">
+                                <div className="p-2 rounded-xl bg-red-50 border border-red-200 text-red-800 font-mono text-[11px] whitespace-pre-wrap break-words leading-tight">
+                                  {log.lastError}
                                 </div>
-                              ) : log.status === "sent" ? (
-                                <span className="text-emerald-700 font-medium text-[11px]">✓ Delivered cleanly</span>
-                              ) : (
-                                <span className="text-body-muted italic text-[11px]">No errors reported</span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-body-muted text-[10px] whitespace-nowrap">
-                              {new Date(log.createdAt).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                second: "2-digit",
-                              })}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyError(log.lastError)}
+                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-red-700 hover:text-red-900 bg-white border border-red-200 hover:bg-red-50 shadow-2xs transition inline-flex items-center gap-1 min-h-[24px]"
+                                  title="Copy Error Details"
+                                >
+                                  <span>📋</span>
+                                  <span>{copiedError === log.lastError ? "Copied!" : "Copy Details"}</span>
+                                </button>
+                              </div>
+                            ) : log.status === "sent" ? (
+                              <span className="text-emerald-700 font-medium text-[11px]">✓ Delivered cleanly</span>
+                            ) : (
+                              <span className="text-body-muted italic text-[11px]">No errors reported</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-body-muted text-[10px] whitespace-nowrap">
+                            {new Date(log.createdAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                            })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         ) : filteredHouseholds.length === 0 ? (

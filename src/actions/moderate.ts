@@ -13,7 +13,6 @@ import { enqueueEmail, drainEmailQueue } from "@/lib/email-queue";
 import { dispatchResendEmail, escHtml } from "@/lib/email";
 import React from "react";
 
-const sendSMS = sendTwilioSms;
 
 async function getAdminIp(): Promise<string> {
   try {
@@ -138,10 +137,9 @@ export async function notifyHouseholdMembers(
   );
 
   // If any generation errors occurred, record a structured audit log
-  const session = await getSession();
-  const ipAddress = await getAdminIp();
-
   if (generationErrors.length > 0) {
+    const session = await getSession();
+    const ipAddress = await getAdminIp();
     await db.recordAdminAuditLog({
       adminId: session?.userId || "system",
       adminContact: session?.contact || "system",
@@ -159,9 +157,7 @@ export async function notifyHouseholdMembers(
   // 2. Identify primary email destination (Head email or verified household email)
   const primaryEmail =
     headMember?.email ||
-    (household.verifiedContact && household.verifiedContact.includes("@")
-      ? household.verifiedContact
-      : null);
+    (household.verifiedContact?.includes("@") ? household.verifiedContact : null);
 
   let enqueuedCount = 0;
 
@@ -259,15 +255,13 @@ export async function notifyHouseholdMembers(
   // 5. Send SMS to household and member contacts in parallel
   const primaryPhone =
     headMember?.phone ||
-    (household.verifiedContact && !household.verifiedContact.includes("@")
-      ? household.verifiedContact
-      : null);
+    (!household.verifiedContact?.includes("@") ? household.verifiedContact : null);
 
   const notificationsToAwait: Promise<any>[] = [];
 
   if (primaryPhone) {
     notificationsToAwait.push(
-      sendSMS(
+      sendTwilioSms(
         primaryPhone,
         `Your Maharaja Agrasen Foundation household membership is approved! Serial No: ${primarySerial}. ID passes for all ${members.length} member(s) are ready at: ${passUrl}`
       )
@@ -278,7 +272,7 @@ export async function notifyHouseholdMembers(
     if (member.phone && member.phone !== primaryPhone) {
       const memberSerial = member.serialNo || primarySerial;
       notificationsToAwait.push(
-        sendSMS(
+        sendTwilioSms(
           member.phone,
           `Welcome ${member.fullName}! Your Maharaja Agrasen Foundation ID pass (${memberSerial}) is approved. Access here: ${passUrl}`
         )
@@ -391,24 +385,17 @@ export async function approveAllHouseholds() {
   };
 }
 
-export async function resendHouseholdPassAction(householdId: string): Promise<
-  | {
-      success: true;
-      message: string;
-      enqueuedCount: number;
-      attachmentsCount: number;
-      memberCount: number;
-      errors: { memberName: string; error: string }[];
-    }
-  | {
-      success: false;
-      error: string;
-      enqueuedCount?: number;
-      attachmentsCount?: number;
-      memberCount?: number;
-      errors?: { memberName: string; error: string }[];
-    }
-> {
+export type ResendHouseholdPassResult = {
+  success: boolean;
+  message?: string;
+  error?: string;
+  enqueuedCount?: number;
+  attachmentsCount?: number;
+  memberCount?: number;
+  errors?: { memberName: string; error: string }[];
+};
+
+export async function resendHouseholdPassAction(householdId: string): Promise<ResendHouseholdPassResult> {
   const session = await getSession();
   if (session?.role !== "admin") {
     return { success: false, error: "Unauthorized: Admin privileges required." };

@@ -1,5 +1,5 @@
 import React from "react";
-import { Document, Page, Text, View, StyleSheet, Image, Svg, Path, Font } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image, Font } from "@react-pdf/renderer";
 
 // Font candidate path discovery and fallback resilience for serverless runtimes
 let isFontRegistered = false;
@@ -11,22 +11,16 @@ function resolveFontSource(): string | null {
   }
 
   try {
-    // Dynamic access to node built-ins without triggering webpack browser bundling errors
     const req = typeof (globalThis as any).__non_webpack_require__ !== "undefined"
       ? (globalThis as any).__non_webpack_require__
       : eval("require");
     const fs = req("fs");
     const path = req("path");
 
-    const candidatePaths: (string | null | undefined)[] = [
+    const candidatePaths = [
       path.join(process.cwd(), "public/fonts/NotoSansDevanagari-Regular.ttf"),
-      path.resolve("./public/fonts/NotoSansDevanagari-Regular.ttf"),
       path.join(process.cwd(), "web/public/fonts/NotoSansDevanagari-Regular.ttf"),
-      path.join(process.cwd(), ".next/server/public/fonts/NotoSansDevanagari-Regular.ttf"),
-      path.join(process.cwd(), ".next/standalone/public/fonts/NotoSansDevanagari-Regular.ttf"),
-      typeof __dirname !== "undefined" ? path.resolve(__dirname, "../../public/fonts/NotoSansDevanagari-Regular.ttf") : null,
-      typeof __dirname !== "undefined" ? path.resolve(__dirname, "../../../public/fonts/NotoSansDevanagari-Regular.ttf") : null,
-      typeof __dirname !== "undefined" ? path.resolve(__dirname, "../../../../public/fonts/NotoSansDevanagari-Regular.ttf") : null,
+      path.resolve("./public/fonts/NotoSansDevanagari-Regular.ttf"),
     ];
 
     for (const candidate of candidatePaths) {
@@ -59,7 +53,7 @@ function registerDevanagariFont(): string {
   return "Helvetica";
 }
 
-const activeFontFamily = registerDevanagariFont();
+registerDevanagariFont();
 
 const styles = StyleSheet.create({
   page: {
@@ -312,6 +306,34 @@ const styles = StyleSheet.create({
   }
 });
 
+function isSafePhotoUrl(url?: string): boolean {
+  if (!url || typeof url !== "string" || url.trim().length <= 10) return false;
+  const clean = url.trim();
+  if (/^data:image\/(jpeg|jpg|png);base64,/i.test(clean)) return true;
+  if (!clean.startsWith("https://")) return false;
+  try {
+    const host = new URL(clean).hostname.toLowerCase();
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "169.254.169.254" ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+    ) {
+      return false;
+    }
+    return (
+      host.endsWith(".supabase.co") ||
+      host.endsWith(".r2.cloudflarestorage.com") ||
+      host.endsWith(".amazonaws.com") ||
+      host === "agrawal-web.vercel.app"
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function PassPDF({ passData }: { passData: any }) {
   const memberSince = new Date().getFullYear().toString();
   
@@ -322,14 +344,7 @@ export function PassPDF({ passData }: { passData: any }) {
       ? passData.roleLabel.charAt(0).toUpperCase() + passData.roleLabel.slice(1)
       : "Member";
 
-  const isCompatiblePhoto =
-    typeof passData.photoUrl === "string" &&
-    passData.photoUrl.trim().length > 10 &&
-    (passData.photoUrl.startsWith("data:image/jpeg") ||
-      passData.photoUrl.startsWith("data:image/jpg") ||
-      passData.photoUrl.startsWith("data:image/png") ||
-      passData.photoUrl.startsWith("https://") ||
-      passData.photoUrl.startsWith("http://"));
+  const isCompatiblePhoto = isSafePhotoUrl(passData.photoUrl);
 
   return (
     <Document>
