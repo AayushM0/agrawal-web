@@ -24,7 +24,11 @@ async function getAdminIp(): Promise<string> {
   }
 }
 
-export async function sendWelcomeEmail(member: any, household: any, overrideEmail?: string): Promise<{ success: boolean; error?: any }> {
+export async function sendWelcomeEmail(
+  member: any,
+  household: any,
+  overrideEmail?: string
+): Promise<{ success: boolean; error?: any; warning?: string }> {
   const recipient = overrideEmail || member.email;
   if (!process.env.RESEND_API_KEY || !recipient) {
     console.warn("[RESEND EMAIL WARNING] RESEND_API_KEY or recipient email missing");
@@ -33,12 +37,32 @@ export async function sendWelcomeEmail(member: any, household: any, overrideEmai
 
   try {
     const passData = createUnifiedPassData({ member, household });
-    const buffer = await renderToBuffer(React.createElement(PassPDF, { passData }) as any);
+    const passUrl = `${getBaseUrl()}/dashboard/pass`;
+    let buffer: Buffer | null = null;
+    let pdfError: string | null = null;
+
+    try {
+      buffer = await renderToBuffer(React.createElement(PassPDF, { passData }) as any);
+    } catch (err: any) {
+      console.warn(`[PASS PDF WARNING] Failed to render PDF for welcome email (${member.fullName}):`, err);
+      pdfError = err?.message || String(err);
+    }
+
+    const attachments = buffer
+      ? [
+          {
+            filename: `ID_Card_${passData.fullName.replace(/\s+/g, "_")}.pdf`,
+            content: buffer.toString("base64"),
+          },
+        ]
+      : [];
 
     const result = await dispatchResendEmail({
       to: recipient,
       subject: `Your Official ID (${passData.serialNo}) - Maharaja Agrasen Foundation`,
-      text: `Welcome! Your membership is approved. Your assigned Serial Number is ${passData.serialNo}. Your official ID card is attached to this email.`,
+      text: buffer
+        ? `Welcome! Your membership is approved. Your assigned Serial Number is ${passData.serialNo}. Your official ID card is attached to this email.`
+        : `Welcome! Your membership is approved. Your assigned Serial Number is ${passData.serialNo}. Your official ID card is accessible online at ${passUrl}.`,
       html: `
         <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; color: #333; padding: 20px; border: 1px solid #e7e5e4; border-radius: 12px;">
           <h2 style="color: #9a3412; margin-top: 0;">Congratulations, ${escHtml(member.fullName)}!</h2>
@@ -46,36 +70,46 @@ export async function sendWelcomeEmail(member: any, household: any, overrideEmai
           <div style="background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 16px; margin: 16px 0;">
             <p style="margin: 0; font-size: 14px; color: #92400e;"><strong>Assigned Serial Number:</strong> <code style="font-size: 16px; font-weight: bold; color: #9a3412;">${escHtml(passData.serialNo)}</code></p>
           </div>
-          <p>Your official <strong>CR80 Printable Identity Pass (ID Card)</strong> with <em>अंतर्राष्ट्रीय अग्रवाल समाज</em> credentials has been generated and attached to this email as a PDF.</p>
+          ${
+            buffer
+              ? `<p>Your official <strong>CR80 Printable Identity Pass (ID Card)</strong> with <em>अंतर्राष्ट्रीय अग्रवाल समाज</em> credentials has been generated and attached to this email as a PDF.</p>`
+              : `<p>Your official <strong>CR80 Printable Identity Pass (ID Card)</strong> with <em>अंतर्राष्ट्रीय अग्रवाल समाज</em> credentials is ready. You can view and download your pass directly on your dashboard: <a href="${passUrl}">${passUrl}</a></p>`
+          }
           <p style="font-size: 12px; color: #78716c; margin-top: 24px; border-top: 1px solid #e7e5e4; padding-top: 12px;">
             Maharaja Agrasen Foundation Limited Singapore • One Community • One Platform
           </p>
         </div>
       `,
-      attachments: [
-        {
-          filename: `ID_Card_${passData.fullName.replace(/\s+/g, "_")}.pdf`,
-          content: buffer.toString("base64"),
-        }
-      ]
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
 
     if (!result.success) {
       console.error("[RESEND EMAIL ERROR]", result.error);
       return { success: false, error: result.error };
     }
-    return { success: true };
+    return { success: true, ...(pdfError ? { warning: pdfError } : {}) };
   } catch (e: any) {
     console.error("Email failed:", e);
     return { success: false, error: e?.message || e };
   }
 }
 
-async function notifyHouseholdMembers(householdId: string, household: any) {
+export async function notifyHouseholdMembers(
+  householdId: string,
+  household: any
+): Promise<{
+  success: boolean;
+  enqueuedCount: number;
+  attachmentsCount: number;
+  memberCount: number;
+  errors: { memberName: string; error: string }[];
+}> {
   const members = await db.getMembersByHousehold(householdId);
   const headMember = members.find((m) => m.relationToHead === "self") || members[0];
   const primarySerial = headMember?.serialNo || household.serialNo || household.householdCode;
   const passUrl = `${getBaseUrl()}/dashboard/pass`;
+
+  const generationErrors: { memberName: string; error: string }[] = [];
 
   // 1. Generate ID Pass PDF buffer for every family member in parallel to prevent Vercel 10s Serverless timeout
   const attachmentPromises = members.map(async (member) => {
@@ -88,8 +122,12 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
         member,
         passData,
       };
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Failed to generate PDF pass for member ${member.fullName}:`, err);
+      generationErrors.push({
+        memberName: member.fullName,
+        error: err?.message || String(err),
+      });
       return null;
     }
   });
@@ -99,6 +137,25 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
     (item): item is NonNullable<typeof item> => item !== null
   );
 
+  // If any generation errors occurred, record a structured audit log
+  const session = await getSession();
+  const ipAddress = await getAdminIp();
+
+  if (generationErrors.length > 0) {
+    await db.recordAdminAuditLog({
+      adminId: session?.userId || "system",
+      adminContact: session?.contact || "system",
+      action: "PASS_GENERATION_WARNING",
+      targetType: "household",
+      targetId: householdId,
+      details: {
+        householdCode: household.householdCode,
+        errors: generationErrors,
+      },
+      ipAddress,
+    });
+  }
+
   // 2. Identify primary email destination (Head email or verified household email)
   const primaryEmail =
     headMember?.email ||
@@ -106,16 +163,28 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
       ? household.verifiedContact
       : null);
 
-  const notificationsToAwait: Promise<any>[] = [];
+  let enqueuedCount = 0;
 
-  // 3. Enqueue Primary Welcome Email with ALL Family Member ID Pass attachments
-  if (primaryEmail && allAttachments.length > 0) {
+  // 3. Enqueue Primary Welcome Email (ALWAYS enqueued if primaryEmail exists, even if allAttachments.length === 0)
+  if (primaryEmail) {
     const memberSummaryList = members
       .map(
         (m, idx) =>
           `<li><strong>#${idx + 1}: ${escHtml(m.fullName)}</strong> (${escHtml(m.relationToHead === "self" ? "Head of Household" : m.relationToHead)})${m.serialNo ? ` — Serial No: <code>${escHtml(m.serialNo)}</code>` : ""}</li>`
       )
       .join("");
+
+    const hasAttachments = allAttachments.length > 0;
+
+    const passInfoSection = hasAttachments
+      ? `<p>Official ID cards for all <strong>${allAttachments.length} registered member(s)</strong> are attached to this email:</p>
+         <ul>${memberSummaryList}</ul>`
+      : `<p>Registered member(s) (${members.length}):</p>
+         <ul>${memberSummaryList}</ul>
+         <div style="background-color: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 16px; margin: 16px 0;">
+           <p style="margin: 0; color: #92400e; font-size: 14px;"><strong>Identity Passes Ready:</strong> Your official passes have been approved and can be viewed and downloaded directly on your household dashboard:</p>
+           <p style="margin: 8px 0 0 0;"><a href="${passUrl}" style="color: #9a3412; font-weight: bold;">${passUrl}</a></p>
+         </div>`;
 
     await enqueueEmail({
       recipientEmail: primaryEmail,
@@ -125,50 +194,66 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
         <h2>Congratulations! Your Household is Approved</h2>
         <p>Your Maharaja Agrasen Foundation household registration has been verified and approved.</p>
         <p><strong>Assigned Serial Number:</strong> ${escHtml(primarySerial)}</p>
-        <p>Official ID cards for all <strong>${members.length} registered member(s)</strong> are attached to this email:</p>
-        <ul>${memberSummaryList}</ul>
+        ${passInfoSection}
         <p>You can also log in to your household dashboard at any time to view and download live passes for all members: <a href="${passUrl}">${passUrl}</a></p>
       `,
-      attachments: allAttachments.map((a) => ({
-        filename: a.filename,
-        content: a.content,
-      })),
+      attachments: hasAttachments
+        ? allAttachments.map((a) => ({
+            filename: a.filename,
+            content: a.content,
+          }))
+        : undefined,
       metadata: {
         type: "approval_pass_family",
         householdId,
         primarySerial,
         memberCount: members.length,
+        attachmentsCount: allAttachments.length,
       },
     });
+    enqueuedCount++;
   }
 
   // 4. Enqueue individual welcome email if a member has a distinct separate email
-  const distinctEmailMembers = allAttachments.filter(
-    (item) =>
-      item.member.email &&
+  const distinctEmailMembers = members.filter(
+    (member) =>
+      member.email &&
       primaryEmail &&
-      item.member.email.toLowerCase() !== primaryEmail.toLowerCase()
+      member.email.toLowerCase() !== primaryEmail.toLowerCase()
   );
 
-  for (const item of distinctEmailMembers) {
-    const memberSerial = item.passData?.serialNo || item.member.serialNo || primarySerial;
-    await enqueueEmail({
-      recipientEmail: item.member.email,
-      recipientName: item.member.fullName,
-      subject: `Your Official ID Card (${memberSerial}) - Maharaja Agrasen Foundation`,
-      htmlBody: `
-        <h2>Welcome, ${escHtml(item.member.fullName)}!</h2>
+  for (const member of distinctEmailMembers) {
+    const memberAttachment = allAttachments.find((a) => a.member.id === member.id);
+    const memberSerial = memberAttachment?.passData?.serialNo || member.serialNo || primarySerial;
+
+    const emailBody = memberAttachment
+      ? `
+        <h2>Welcome, ${escHtml(member.fullName)}!</h2>
         <p>Your membership is approved. Your assigned Serial Number is <strong>${escHtml(memberSerial)}</strong>.</p>
         <p>Your official ID card is attached to this email. You can also view it online at: <a href="${passUrl}">${passUrl}</a></p>
-      `,
-      attachments: [{ filename: item.filename, content: item.content }],
+      `
+      : `
+        <h2>Welcome, ${escHtml(member.fullName)}!</h2>
+        <p>Your membership is approved. Your assigned Serial Number is <strong>${escHtml(memberSerial)}</strong>.</p>
+        <p>Your official ID card can be viewed and downloaded directly on your household dashboard: <a href="${passUrl}">${passUrl}</a></p>
+      `;
+
+    await enqueueEmail({
+      recipientEmail: member.email,
+      recipientName: member.fullName,
+      subject: `Your Official ID Card (${memberSerial}) - Maharaja Agrasen Foundation`,
+      htmlBody: emailBody,
+      attachments: memberAttachment
+        ? [{ filename: memberAttachment.filename, content: memberAttachment.content }]
+        : undefined,
       metadata: {
         type: "approval_pass_member",
         householdId,
-        memberId: item.member.id,
+        memberId: member.id,
         memberSerial,
       },
     });
+    enqueuedCount++;
   }
 
   // 5. Send SMS to household and member contacts in parallel
@@ -177,6 +262,8 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
     (household.verifiedContact && !household.verifiedContact.includes("@")
       ? household.verifiedContact
       : null);
+
+  const notificationsToAwait: Promise<any>[] = [];
 
   if (primaryPhone) {
     notificationsToAwait.push(
@@ -206,6 +293,14 @@ async function notifyHouseholdMembers(householdId: string, household: any) {
 
   // Paced drain of enqueued passes: for a single household approval, drain up to 6 items immediately within 6 seconds
   await drainEmailQueue({ maxItems: 6, timeoutMs: 6000 });
+
+  return {
+    success: true,
+    enqueuedCount,
+    attachmentsCount: allAttachments.length,
+    memberCount: members.length,
+    errors: generationErrors,
+  };
 }
 
 export async function getModerationHouseholds(): Promise<Household[]> {
@@ -274,7 +369,24 @@ export async function approveAllHouseholds() {
   };
 }
 
-export async function resendHouseholdPassAction(householdId: string) {
+export async function resendHouseholdPassAction(householdId: string): Promise<
+  | {
+      success: true;
+      message: string;
+      enqueuedCount: number;
+      attachmentsCount: number;
+      memberCount: number;
+      errors: { memberName: string; error: string }[];
+    }
+  | {
+      success: false;
+      error: string;
+      enqueuedCount?: number;
+      attachmentsCount?: number;
+      memberCount?: number;
+      errors?: { memberName: string; error: string }[];
+    }
+> {
   const session = await getSession();
   if (session?.role !== "admin") {
     return { success: false, error: "Unauthorized: Admin privileges required." };
@@ -285,7 +397,7 @@ export async function resendHouseholdPassAction(householdId: string) {
     return { success: false, error: "Household not found." };
   }
 
-  await notifyHouseholdMembers(householdId, household);
+  const notifyResult = await notifyHouseholdMembers(householdId, household);
 
   const ipAddress = await getAdminIp();
   await db.recordAdminAuditLog({
@@ -294,13 +406,31 @@ export async function resendHouseholdPassAction(householdId: string) {
     action: "RESEND_HOUSEHOLD_PASSES",
     targetType: "household",
     targetId: householdId,
-    details: { householdCode: household.householdCode },
+    details: {
+      householdCode: household.householdCode,
+      enqueuedCount: notifyResult.enqueuedCount,
+      attachmentsCount: notifyResult.attachmentsCount,
+      errors: notifyResult.errors,
+    },
     ipAddress,
   });
 
+  if (notifyResult.enqueuedCount > 0) {
+    return {
+      ...notifyResult,
+      success: true as const,
+      message: `Enqueued ${notifyResult.enqueuedCount} pass email(s) for delivery.${
+        notifyResult.errors.length > 0
+          ? ` (Note: ${notifyResult.errors.length} pass PDF(s) failed generation and fallback links were dispatched).`
+          : ""
+      }`,
+    };
+  }
+
   return {
-    success: true,
-    message: `Official ID passes enqueued and retransmitted for household ${household.householdCode}.`,
+    ...notifyResult,
+    success: false as const,
+    error: `No email could be enqueued for household ${household.householdCode}. (Checked: ${household.verifiedContact || "no contact"}).`,
   };
 }
 
