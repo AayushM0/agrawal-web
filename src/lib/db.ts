@@ -580,6 +580,86 @@ export const db = {
     }
   },
 
+  async getRecentHouseholdWarnings(): Promise<Record<string, string>> {
+    if (!pool) return {};
+    try {
+      const warnings: Record<string, string> = {};
+
+      // 1. Check admin_audit_logs for PASS_GENERATION_WARNING
+      const auditRes = await pool.query(`
+        SELECT target_id, details, created_at
+        FROM admin_audit_logs
+        WHERE target_type = 'household' AND action = 'PASS_GENERATION_WARNING'
+        ORDER BY created_at DESC
+        LIMIT 100;
+      `);
+
+      for (const row of auditRes.rows) {
+        const hId = String(row.target_id);
+        if (!warnings[hId]) {
+          const details = typeof row.details === "string" ? JSON.parse(row.details) : row.details;
+          const errList = details?.errors;
+          if (Array.isArray(errList) && errList.length > 0) {
+            const firstErr = errList[0];
+            warnings[hId] = `Pass PDF generation warning for ${firstErr.memberName || "member"}: ${firstErr.error || "Generation failed"}`;
+          } else {
+            warnings[hId] = "Pass PDF generation warning encountered.";
+          }
+        }
+      }
+
+      // 2. Check failed emails in email_queue
+      const emailRes = await pool.query(`
+        SELECT metadata->>'householdId' as household_id, last_error
+        FROM email_queue
+        WHERE status = 'failed' AND metadata->>'householdId' IS NOT NULL
+        ORDER BY updated_at DESC
+        LIMIT 100;
+      `);
+
+      for (const row of emailRes.rows) {
+        const hId = String(row.household_id);
+        if (!warnings[hId] && row.last_error) {
+          warnings[hId] = `Email dispatch failure: ${row.last_error}`;
+        }
+      }
+
+      return warnings;
+    } catch (err) {
+      console.warn("[DB] getRecentHouseholdWarnings error:", err);
+      return {};
+    }
+  },
+
+  async getAdminAuditLogs(limit = 50): Promise<any[]> {
+    if (!pool) return [];
+    try {
+      const res = await pool.query(
+        `SELECT id, admin_id as "adminId", admin_contact as "adminContact",
+                action, target_type as "targetType", target_id as "targetId",
+                details, ip_address as "ipAddress", created_at as "createdAt"
+         FROM admin_audit_logs
+         ORDER BY created_at DESC
+         LIMIT $1;`,
+        [limit]
+      );
+      return res.rows.map((r: any) => ({
+        id: String(r.id),
+        adminId: r.adminId,
+        adminContact: r.adminContact,
+        action: r.action,
+        targetType: r.targetType,
+        targetId: r.targetId,
+        details: typeof r.details === "string" ? JSON.parse(r.details) : r.details,
+        ipAddress: r.ipAddress,
+        createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+      }));
+    } catch (err) {
+      console.warn("[DB] getAdminAuditLogs error:", err);
+      return [];
+    }
+  },
+
   async getHouseholdByContact(contact: string): Promise<Household | null> {
     if (!contact) return null;
     const clean = contact.trim();

@@ -308,7 +308,29 @@ export async function getModerationHouseholds(): Promise<Household[]> {
   if (session?.role !== "admin") {
     return [];
   }
-  return await db.getHouseholds();
+  const households = await db.getHouseholds();
+  try {
+    const warnings = await db.getRecentHouseholdWarnings();
+    return households.map((h) => ({
+      ...h,
+      lastError: warnings[h.id] || h.lastError,
+    }));
+  } catch {
+    return households;
+  }
+}
+
+export async function getAdminAuditLogsAction(limit = 30) {
+  const session = await getSession();
+  if (session?.role !== "admin") {
+    return { success: false, error: "Unauthorized: Admin privileges required.", logs: [] };
+  }
+  try {
+    const logs = await db.getAdminAuditLogs(limit);
+    return { success: true, logs };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Failed to load audit logs", logs: [] };
+  }
 }
 
 export async function approveHousehold(householdId: string) {

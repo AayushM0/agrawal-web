@@ -62,6 +62,7 @@ export interface Household {
   passwordHash?: string;
   status: "pending_review" | "live" | "rejected";
   rejectionReason?: string;
+  lastError?: string;
   consentAcceptedAt?: string;
   verifiedContact: string;
   createdAt: string;
