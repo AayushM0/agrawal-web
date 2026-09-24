@@ -43,6 +43,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  outputFileTracingIncludes: {
+    "/**/*": ["./public/fonts/**/*"],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",

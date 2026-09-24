@@ -1,12 +1,57 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet, Image, Font } from "@react-pdf/renderer";
-const devanagariFontSrc = typeof window === "undefined"
-    ? "public/fonts/NotoSansDevanagari-Regular.ttf"
-    : "/fonts/NotoSansDevanagari-Regular.ttf";
-Font.register({
-    family: "NotoSansDevanagari",
-    src: devanagariFontSrc,
-});
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+let isFontRegistered = false;
+
+function resolveFontSource() {
+  if (typeof window !== "undefined") {
+    return "/fonts/NotoSansDevanagari-Regular.ttf";
+  }
+
+  const candidatePaths = [
+    path.join(process.cwd(), "public/fonts/NotoSansDevanagari-Regular.ttf"),
+    path.resolve("./public/fonts/NotoSansDevanagari-Regular.ttf"),
+    path.join(process.cwd(), "web/public/fonts/NotoSansDevanagari-Regular.ttf"),
+    path.join(process.cwd(), ".next/server/public/fonts/NotoSansDevanagari-Regular.ttf"),
+    path.join(process.cwd(), ".next/standalone/public/fonts/NotoSansDevanagari-Regular.ttf"),
+    path.resolve(__dirname, "../../../public/fonts/NotoSansDevanagari-Regular.ttf"),
+    path.resolve(__dirname, "../../public/fonts/NotoSansDevanagari-Regular.ttf"),
+    path.resolve(__dirname, "../../../../public/fonts/NotoSansDevanagari-Regular.ttf"),
+  ];
+
+  for (const candidate of candidatePaths) {
+    if (candidate && fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return "https://agrawal-web.vercel.app/fonts/NotoSansDevanagari-Regular.ttf";
+}
+
+function registerDevanagariFont() {
+  try {
+    const fontSrc = resolveFontSource();
+    if (fontSrc) {
+      Font.register({
+        family: "NotoSansDevanagari",
+        src: fontSrc,
+      });
+      isFontRegistered = true;
+      return "NotoSansDevanagari";
+    }
+  } catch (error) {
+    console.warn("Devanagari font registration failed, falling back to Helvetica:", error);
+  }
+  return "Helvetica";
+}
+
+const activeFontFamily = registerDevanagariFont();
 const styles = StyleSheet.create({
     page: {
         backgroundColor: "#0d111a",
@@ -244,7 +289,7 @@ const styles = StyleSheet.create({
         marginRight: 4,
     },
     footerLeftText: {
-        fontFamily: "NotoSansDevanagari",
+        fontFamily: isFontRegistered ? "NotoSansDevanagari" : "Helvetica",
         fontSize: 7.5,
         color: "#fbbf24",
         fontWeight: "bold",
@@ -266,7 +311,9 @@ export function PassPDF({ passData }) {
             : "Member";
     const isCompatiblePhoto = typeof passData.photoUrl === "string" &&
         passData.photoUrl.trim().length > 10 &&
-        (passData.photoUrl.startsWith("data:image/") ||
+        (passData.photoUrl.startsWith("data:image/jpeg") ||
+            passData.photoUrl.startsWith("data:image/jpg") ||
+            passData.photoUrl.startsWith("data:image/png") ||
             passData.photoUrl.startsWith("https://") ||
             passData.photoUrl.startsWith("http://"));
     return (React.createElement(Document, null,

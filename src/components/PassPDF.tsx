@@ -1,15 +1,65 @@
 import React from "react";
 import { Document, Page, Text, View, StyleSheet, Image, Svg, Path, Font } from "@react-pdf/renderer";
 
-const devanagariFontSrc =
-  typeof window === "undefined"
-    ? "public/fonts/NotoSansDevanagari-Regular.ttf"
-    : "/fonts/NotoSansDevanagari-Regular.ttf";
+// Font candidate path discovery and fallback resilience for serverless runtimes
+let isFontRegistered = false;
 
-Font.register({
-  family: "NotoSansDevanagari",
-  src: devanagariFontSrc,
-});
+function resolveFontSource(): string | null {
+  if (typeof window !== "undefined") {
+    // In client-side browser runtime, access public assets via web root
+    return "/fonts/NotoSansDevanagari-Regular.ttf";
+  }
+
+  try {
+    // Dynamic access to node built-ins without triggering webpack browser bundling errors
+    const req = typeof (globalThis as any).__non_webpack_require__ !== "undefined"
+      ? (globalThis as any).__non_webpack_require__
+      : eval("require");
+    const fs = req("fs");
+    const path = req("path");
+
+    const candidatePaths: (string | null | undefined)[] = [
+      path.join(process.cwd(), "public/fonts/NotoSansDevanagari-Regular.ttf"),
+      path.resolve("./public/fonts/NotoSansDevanagari-Regular.ttf"),
+      path.join(process.cwd(), "web/public/fonts/NotoSansDevanagari-Regular.ttf"),
+      path.join(process.cwd(), ".next/server/public/fonts/NotoSansDevanagari-Regular.ttf"),
+      path.join(process.cwd(), ".next/standalone/public/fonts/NotoSansDevanagari-Regular.ttf"),
+      typeof __dirname !== "undefined" ? path.resolve(__dirname, "../../public/fonts/NotoSansDevanagari-Regular.ttf") : null,
+      typeof __dirname !== "undefined" ? path.resolve(__dirname, "../../../public/fonts/NotoSansDevanagari-Regular.ttf") : null,
+      typeof __dirname !== "undefined" ? path.resolve(__dirname, "../../../../public/fonts/NotoSansDevanagari-Regular.ttf") : null,
+    ];
+
+    for (const candidate of candidatePaths) {
+      if (candidate && fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+  } catch {
+    // Ignore runtime filesystem discovery errors
+  }
+
+  // Fallback remote CDN URL if local font file is not traced or absent on disk
+  return "https://agrawal-web.vercel.app/fonts/NotoSansDevanagari-Regular.ttf";
+}
+
+function registerDevanagariFont(): string {
+  try {
+    const fontSrc = resolveFontSource();
+    if (fontSrc) {
+      Font.register({
+        family: "NotoSansDevanagari",
+        src: fontSrc,
+      });
+      isFontRegistered = true;
+      return "NotoSansDevanagari";
+    }
+  } catch (error) {
+    console.warn("Devanagari font registration failed, falling back to Helvetica:", error);
+  }
+  return "Helvetica";
+}
+
+const activeFontFamily = registerDevanagariFont();
 
 const styles = StyleSheet.create({
   page: {
@@ -248,7 +298,7 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   footerLeftText: {
-    fontFamily: "NotoSansDevanagari",
+    fontFamily: isFontRegistered ? "NotoSansDevanagari" : "Helvetica",
     fontSize: 7.5,
     color: "#fbbf24",
     fontWeight: "bold",
@@ -275,7 +325,9 @@ export function PassPDF({ passData }: { passData: any }) {
   const isCompatiblePhoto =
     typeof passData.photoUrl === "string" &&
     passData.photoUrl.trim().length > 10 &&
-    (passData.photoUrl.startsWith("data:image/") ||
+    (passData.photoUrl.startsWith("data:image/jpeg") ||
+      passData.photoUrl.startsWith("data:image/jpg") ||
+      passData.photoUrl.startsWith("data:image/png") ||
       passData.photoUrl.startsWith("https://") ||
       passData.photoUrl.startsWith("http://"));
 
