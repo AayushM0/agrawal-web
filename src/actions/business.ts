@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { getSession } from "@/actions/auth";
+import { sendMessage } from "@/actions/chat";
 import type { BusinessProfile, LinkedDirector, BusinessCustomField, BusinessSocialLinks } from "@/types/business";
 
 export interface CreateBusinessProfileInput {
@@ -375,3 +376,110 @@ export async function getMyHouseholdBusinesses(): Promise<{
     return { businesses: [], canCreate: false, error: "Failed to fetch household businesses" };
   }
 }
+
+/**
+ * Initiate commercial chat inquiry with an enterprise's primary contact director.
+ */
+export async function initiateBusinessChat(params: {
+  businessId: string;
+  initialMessage?: string;
+}): Promise<{
+  success: boolean;
+  conversationId?: string;
+  isGuest?: boolean;
+  isSelf?: boolean;
+  error?: string;
+}> {
+  const session = await getSession();
+  if (!session || !session.userId) {
+    return {
+      success: false,
+      isGuest: true,
+      error: "Please log in to contact this enterprise.",
+    };
+  }
+
+  try {
+    const business = await db.getBusinessProfileById(params.businessId);
+    if (!business || business.status !== "live") {
+      return {
+        success: false,
+        error: "Business profile not found or is currently not active.",
+      };
+    }
+
+    if (!business.linkedDirectors || business.linkedDirectors.length === 0) {
+      return {
+        success: false,
+        error: "This enterprise has no linked contact directors registered.",
+      };
+    }
+
+    const primaryDirector =
+      business.linkedDirectors.find((d) => d.isPrimaryContact) || business.linkedDirectors[0];
+
+    // Resolve caller's effective member ID
+    let callerMemberId = session.userId;
+    if (session.contact) {
+      const member = await db.getMemberByContact(session.contact);
+      if (member?.id) {
+        callerMemberId = member.id;
+      }
+    }
+
+    // Disallow self-messaging if caller is the primary contact director
+    if (callerMemberId === primaryDirector.memberId) {
+      return {
+        success: false,
+        isSelf: true,
+        error: "You cannot message yourself or initiate an inquiry with your own business.",
+      };
+    }
+
+    // Also check if caller belongs to the same household
+    if (session.contact) {
+      const callerHousehold = await db.getHouseholdByContact(session.contact);
+      if (callerHousehold && callerHousehold.id === business.householdId) {
+        return {
+          success: false,
+          isSelf: true,
+          error: "You cannot message yourself or initiate an inquiry with your own household's business.",
+        };
+      }
+    }
+
+    // Get or create conversation with the primary contact director
+    const conversation = await db.getOrCreateConversation(callerMemberId, primaryDirector.memberId);
+
+    // Format contextual business inquiry tag
+    const inquiryPrefix = `[Business Inquiry: ${business.businessName}]`;
+    const messageContent = params.initialMessage?.trim()
+      ? `${inquiryPrefix} ${params.initialMessage.trim()}`
+      : `${inquiryPrefix} Namaste! I am interested in connecting regarding ${business.businessName}.`;
+
+    const sendRes = await sendMessage({
+      recipientMemberId: primaryDirector.memberId,
+      messageBody: messageContent,
+      conversationId: conversation.id,
+    });
+
+    if (!sendRes.success && sendRes.error) {
+      return {
+        success: false,
+        error: sendRes.error,
+      };
+    }
+
+    return {
+      success: true,
+      conversationId: conversation.id,
+    };
+  } catch (err: any) {
+    console.error("[ACTION ERROR] initiateBusinessChat:", err);
+    return {
+      success: false,
+      error: err.message || "Failed to initiate commercial chat.",
+    };
+  }
+}
+

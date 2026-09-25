@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { getBusinessProfileById } from "@/actions/business";
+import { getBusinessProfileById, initiateBusinessChat } from "@/actions/business";
 import type { BusinessProfile } from "@/types/business";
 
 export default function BusinessDetailPage() {
@@ -47,11 +47,28 @@ export default function BusinessDetailPage() {
     setIsInitiatingChat(true);
 
     try {
-      // In Task 5, initiateBusinessChat will route directly to Pusher chat
-      // For now, redirect to login if guest or /messages with contextual inquiry param
-      router.push(`/messages?businessId=${encodeURIComponent(profile.id)}&name=${encodeURIComponent(profile.businessName)}`);
-    } catch (err) {
+      const res = await initiateBusinessChat({
+        businessId: profile.id,
+      });
+
+      if (res.isGuest) {
+        router.push(`/login?redirect=/businesses/${profile.id}`);
+        return;
+      }
+
+      if (res.isSelf) {
+        alert(res.error || "You cannot message your own business.");
+        return;
+      }
+
+      if (res.success && res.conversationId) {
+        router.push(`/messages?conversationId=${encodeURIComponent(res.conversationId)}`);
+      } else {
+        alert(res.error || "Failed to start chat with business.");
+      }
+    } catch (err: any) {
       console.error("Chat initiation error:", err);
+      alert(err.message || "Failed to connect with business.");
     } finally {
       setIsInitiatingChat(false);
     }
