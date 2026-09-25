@@ -14,16 +14,24 @@ import {
   getEmailQueueStatusAction,
   retryFailedEmailsAction,
   drainEmailQueueAction,
+  getPendingBusinessProfilesAction,
+  approveBusinessProfileAction,
+  rejectBusinessProfileAction,
 } from "@/actions/moderate";
 import { getIncompleteRegistrations } from "@/actions/draft";
 import { Household } from "@/types/household";
+import type { BusinessProfile } from "@/types/business";
 
 export default function ModerationQueuePage() {
   const [households, setHouseholds] = useState<Household[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [inquiries, setInquiries] = useState<any[]>([]);
   const [drafts, setDrafts] = useState<any[]>([]);
-  const [filter, setFilter] = useState<"pending" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue">("pending");
+  const [pendingBusinesses, setPendingBusinesses] = useState<BusinessProfile[]>([]);
+  const [awardVerifiedMap, setAwardVerifiedMap] = useState<Record<string, boolean>>({});
+  const [rejectingBusinessId, setRejectingBusinessId] = useState<string | null>(null);
+  const [businessRejectReason, setBusinessRejectReason] = useState("");
+  const [filter, setFilter] = useState<"pending" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue" | "businesses">("pending");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -61,12 +69,13 @@ export default function ModerationQueuePage() {
 
   const loadQueue = async () => {
     setIsLoading(true);
-    const [data, repRes, inqRes, draftRes, qRes] = await Promise.all([
+    const [data, repRes, inqRes, draftRes, qRes, bizRes] = await Promise.all([
       getModerationHouseholds(),
       getMessageReports(),
       getAdminSupportInquiries(),
       getIncompleteRegistrations(),
       getEmailQueueStatusAction(),
+      getPendingBusinessProfilesAction(),
     ]);
     setHouseholds(data);
     if (repRes.success) {
@@ -82,7 +91,44 @@ export default function ModerationQueuePage() {
       setQueueStats(qRes.stats || null);
       setQueueLogs(qRes.recentLogs || []);
     }
+    if (bizRes.success) {
+      setPendingBusinesses(bizRes.profiles || []);
+    }
     setIsLoading(false);
+  };
+
+  const handleApproveBusiness = async (businessId: string) => {
+    const awardVerified = Boolean(awardVerifiedMap[businessId]);
+    const res = await approveBusinessProfileAction({
+      businessId,
+      awardVerifiedBadge: awardVerified,
+    });
+    if (res.success) {
+      setPendingBusinesses((prev) => prev.filter((b) => b.id !== businessId));
+      setStatusMessage(res.message || "Business enterprise approved and published live!");
+      setTimeout(() => setStatusMessage(""), 4000);
+    } else {
+      setStatusMessage(res.error || "Failed to approve business.");
+      setTimeout(() => setStatusMessage(""), 4000);
+    }
+  };
+
+  const handleConfirmRejectBusiness = async () => {
+    if (!rejectingBusinessId || !businessRejectReason.trim()) return;
+    const res = await rejectBusinessProfileAction({
+      businessId: rejectingBusinessId,
+      rejectionReason: businessRejectReason.trim(),
+    });
+    if (res.success) {
+      setPendingBusinesses((prev) => prev.filter((b) => b.id !== rejectingBusinessId));
+      setRejectingBusinessId(null);
+      setBusinessRejectReason("");
+      setStatusMessage(res.message || "Business rejected with feedback logged.");
+      setTimeout(() => setStatusMessage(""), 4000);
+    } else {
+      setStatusMessage(res.error || "Failed to reject business.");
+      setTimeout(() => setStatusMessage(""), 4000);
+    }
   };
 
   useEffect(() => {
@@ -338,6 +384,21 @@ export default function ModerationQueuePage() {
                   {queueStats && queueStats.pending > 0 && (
                     <span className="px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded-full text-[10px] font-bold">
                       {queueStats.pending}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setFilter("businesses")}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 min-h-[38px] ${
+                    filter === "businesses"
+                      ? "bg-brand-primary text-white"
+                      : "text-body-muted hover:text-brand-primary"
+                  }`}
+                >
+                  <span>🏢 Business Directory (व्यापार)</span>
+                  {pendingBusinesses.length > 0 && (
+                    <span className="px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded-full text-[10px] font-bold">
+                      {pendingBusinesses.length}
                     </span>
                   )}
                 </button>
@@ -786,6 +847,207 @@ export default function ModerationQueuePage() {
               )}
             </div>
           </div>
+        ) : filter === "businesses" ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-brand-primary uppercase tracking-wider">
+                Pending Business Directory Listings ({pendingBusinesses.length})
+              </h2>
+            </div>
+
+            {pendingBusinesses.length === 0 ? (
+              <div className="bg-white border border-brand-accent/30 rounded-3xl p-12 text-center space-y-4 shadow-sm">
+                <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-3xl mx-auto">
+                  ✓
+                </div>
+                <h3 className="font-serif text-lg font-bold text-brand-primary">
+                  All Business Listings Reviewed!
+                </h3>
+                <p className="text-xs text-body-muted max-w-md mx-auto">
+                  There are currently no enterprise applications awaiting administrative moderation.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {pendingBusinesses.map((b) => {
+                  const isVerifiedChecked = Boolean(awardVerifiedMap[b.id] ?? true);
+                  const photos = b.photos || [];
+
+                  return (
+                    <div
+                      key={b.id}
+                      className="bg-white border border-brand-accent/40 rounded-3xl p-5 sm:p-7 shadow-warm space-y-5"
+                    >
+                      {/* Business Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                        <div className="flex items-start gap-3.5">
+                          {photos.length > 0 ? (
+                            <img
+                              src={photos[0]}
+                              alt={b.businessName}
+                              className="w-16 h-16 rounded-2xl object-cover border border-brand-accent/40 shadow-xs shrink-0"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-amber-200 border border-brand-accent/40 flex items-center justify-center text-2xl font-serif font-black text-brand-primary shrink-0">
+                              {b.businessName.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-serif text-lg font-bold text-brand-primary">
+                                {b.businessName}
+                              </h3>
+                              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-brand-burgundy border border-amber-200">
+                                {b.industrySector}
+                              </span>
+                              <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-canvas-warm text-body-heading border border-brand-accent/20">
+                                {b.businessType}
+                              </span>
+                            </div>
+
+                            {b.legalName && (
+                              <p className="text-xs text-body-muted">Legal Entity: {b.legalName}</p>
+                            )}
+
+                            {b.tagline && (
+                              <p className="text-xs italic text-body-muted">&ldquo;{b.tagline}&rdquo;</p>
+                            )}
+
+                            <p className="text-xs text-body-muted pt-0.5">
+                              📍 {b.city}, {b.state}, {b.country}
+                              {b.pincode ? ` (${b.pincode})` : ""}
+                              {b.yearEstablished ? ` • Est. ${b.yearEstablished}` : ""}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Status Chip */}
+                        <span className="self-start px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                          Pending Review
+                        </span>
+                      </div>
+
+                      {/* Credentials Inspection Banner */}
+                      <div className="p-4 rounded-2xl bg-canvas-warm/60 border border-brand-accent/30 space-y-2 text-xs">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-bold text-body-heading">
+                            Registration Credentials (पंजीकरण प्रमाण):
+                          </span>
+                          {b.registrationNumber ? (
+                            <span className="font-mono font-bold bg-white px-2.5 py-1 rounded-lg border border-brand-accent/30 text-brand-primary text-xs">
+                              {b.registrationType || "ID"}: {b.registrationNumber}
+                            </span>
+                          ) : (
+                            <span className="italic text-body-muted">No registration number provided</span>
+                          )}
+                        </div>
+                        {b.addressLine && (
+                          <p className="text-body-muted">
+                            <span className="font-semibold text-body-heading">Physical Address:</span> {b.addressLine}
+                          </p>
+                        )}
+                        {b.websiteUrl && (
+                          <p className="text-body-muted">
+                            <span className="font-semibold text-body-heading">Website:</span>{" "}
+                            <a
+                              href={b.websiteUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-brand-primary hover:underline"
+                            >
+                              {b.websiteUrl} ↗
+                            </a>
+                          </p>
+                        )}
+                      </div>
+
+                      {/* About & Offerings Narrative */}
+                      <div className="space-y-2 text-xs">
+                        <p className="font-bold text-body-heading">About Business:</p>
+                        <p className="text-body-muted leading-relaxed whitespace-pre-line bg-gray-50/80 p-3 rounded-xl border border-gray-200">
+                          {b.aboutBusiness}
+                        </p>
+                        {b.offeringsSummary && (
+                          <div className="pt-1">
+                            <p className="font-bold text-body-heading">Products & Services:</p>
+                            <p className="text-body-muted leading-relaxed whitespace-pre-line bg-gray-50/80 p-3 rounded-xl border border-gray-200">
+                              {b.offeringsSummary}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Linked Directors */}
+                      {b.linkedDirectors && b.linkedDirectors.length > 0 && (
+                        <div className="pt-2 border-t border-brand-accent/20">
+                          <p className="text-xs font-bold uppercase tracking-wider text-brand-primary mb-2">
+                            Linked Directors ({b.linkedDirectors.length}):
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                            {b.linkedDirectors.map((d, idx) => (
+                              <div
+                                key={idx}
+                                className="p-3 rounded-xl bg-canvas-warm/40 border border-brand-accent/20 flex items-center justify-between"
+                              >
+                                <div>
+                                  <p className="font-bold text-body-heading">{d.name}</p>
+                                  <p className="text-[11px] text-body-muted">{d.roleTitle}</p>
+                                </div>
+                                {d.isPrimaryContact && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-brand-burgundy border border-amber-300">
+                                    Primary Contact
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action & Verification Controls */}
+                      <div className="pt-3 border-t border-brand-accent/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-emerald-800 bg-emerald-50 px-3.5 py-2 rounded-xl border border-emerald-200 shadow-xs">
+                          <input
+                            type="checkbox"
+                            checked={isVerifiedChecked}
+                            onChange={(e) =>
+                              setAwardVerifiedMap((prev) => ({
+                                ...prev,
+                                [b.id]: e.target.checked,
+                              }))
+                            }
+                            className="w-4 h-4 text-emerald-600 rounded border-emerald-300 focus:ring-emerald-500"
+                          />
+                          <span>Award Verified Enterprise Badge (सत्यापित प्रतिष्ठान बैज)</span>
+                        </label>
+
+                        <div className="flex items-center gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRejectingBusinessId(b.id);
+                              setBusinessRejectReason("");
+                            }}
+                            className="px-4 py-2 rounded-xl text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 transition"
+                          >
+                            ✕ Reject Application
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleApproveBusiness(b.id)}
+                            className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 shadow-xs transition"
+                          >
+                            ✓ Approve &amp; Publish Live
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         ) : filteredHouseholds.length === 0 ? (
           <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">
             <p className="text-sm font-bold text-brand-primary mb-1">
@@ -1082,6 +1344,49 @@ export default function ModerationQueuePage() {
                   type="button"
                   onClick={handleConfirmReject}
                   disabled={!rejectReason.trim()}
+                  className="px-5 py-2 rounded-full text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-all min-h-[38px]"
+                >
+                  Confirm Rejection
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Business Rejection Modal */}
+        {rejectingBusinessId && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl border-2 border-brand-accent/40 animate-in fade-in zoom-in-95">
+              <h3 className="text-lg font-bold text-brand-primary mb-2">
+                Reject Business Application
+              </h3>
+              <p className="text-xs text-body-muted mb-4">
+                Please provide an explanation for the applicant. This feedback will be recorded and shown on their dashboard.
+              </p>
+
+              <textarea
+                value={businessRejectReason}
+                onChange={(e) => setBusinessRejectReason(e.target.value)}
+                placeholder="e.g. Commercial registration could not be verified; invalid address or GSTIN."
+                rows={4}
+                className="w-full p-3 rounded-2xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary mb-4"
+              />
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRejectingBusinessId(null);
+                    setBusinessRejectReason("");
+                  }}
+                  className="px-4 py-2 rounded-full text-xs font-bold text-body-muted hover:bg-canvas-warm min-h-[38px]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmRejectBusiness}
+                  disabled={!businessRejectReason.trim()}
                   className="px-5 py-2 rounded-full text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-all min-h-[38px]"
                 >
                   Confirm Rejection

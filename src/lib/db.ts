@@ -3547,6 +3547,23 @@ export const db = {
     }
   },
 
+  async getPendingBusinessProfiles(): Promise<BusinessProfile[]> {
+    if (!pool) {
+      const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles =
+        (globalThis as any).__memoryBusinessProfiles || []);
+      return list.filter((p) => p.status === "pending_review");
+    }
+    try {
+      const res = await pool.query(
+        `SELECT * FROM business_profiles WHERE status = 'pending_review' ORDER BY created_at ASC;`
+      );
+      return res.rows.map(mapBusinessProfileRow);
+    } catch (err) {
+      console.error("[DB ERROR] getPendingBusinessProfiles:", err);
+      return [];
+    }
+  },
+
   async setBusinessProfileStatus(
     id: string,
     status: "pending_review" | "live" | "paused" | "rejected",

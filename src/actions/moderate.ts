@@ -3,6 +3,7 @@
 import { db } from "../lib/db";
 import { getSession } from "./auth";
 import { Household } from "@/types/household";
+import type { BusinessProfile } from "@/types/business";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { PassPDF } from "@/components/PassPDF";
 import { getBaseUrl, createUnifiedPassData } from "@/lib/pass";
@@ -630,5 +631,118 @@ export async function updateAdminInquiryStatus(params: {
     return { success: false, error: "Failed to update inquiry status. Please try again." };
   }
 }
+
+/**
+ * Fetch all pending business profiles for moderation queue.
+ */
+export async function getPendingBusinessProfilesAction(): Promise<{
+  success: boolean;
+  profiles: BusinessProfile[];
+  error?: string;
+}> {
+  const session = await getSession();
+  if (session?.role !== "admin") {
+    return { success: false, error: "Unauthorized: Admin privileges required.", profiles: [] };
+  }
+  try {
+    const profiles = await db.getPendingBusinessProfiles();
+    return { success: true, profiles };
+  } catch (err: any) {
+    console.error("getPendingBusinessProfilesAction error:", err);
+    return { success: false, error: "Failed to load pending businesses.", profiles: [] };
+  }
+}
+
+/**
+ * Approve business profile, publishing it live and optionally granting verified badge.
+ */
+export async function approveBusinessProfileAction(params: {
+  businessId: string;
+  awardVerifiedBadge?: boolean;
+}): Promise<{ success: boolean; message?: string; error?: string }> {
+  const session = await getSession();
+  if (session?.role !== "admin") {
+    return { success: false, error: "Unauthorized: Admin privileges required." };
+  }
+  try {
+    const ok = await db.setBusinessProfileStatus(
+      params.businessId,
+      "live",
+      undefined,
+      Boolean(params.awardVerifiedBadge)
+    );
+    if (!ok) {
+      return { success: false, error: "Business profile not found or update failed." };
+    }
+
+    const ipAddress = await getAdminIp();
+    await db.recordAdminAuditLog({
+      adminId: session.userId || "admin",
+      adminContact: session.contact || "admin",
+      action: "APPROVE_BUSINESS",
+      targetType: "business",
+      targetId: params.businessId,
+      details: { awardVerifiedBadge: Boolean(params.awardVerifiedBadge) },
+      ipAddress,
+    });
+
+    return {
+      success: true,
+      message: `Business enterprise successfully approved and published live${
+        params.awardVerifiedBadge ? " with Verified Enterprise Badge" : ""
+      }.`,
+    };
+  } catch (err: any) {
+    console.error("approveBusinessProfileAction error:", err);
+    return { success: false, error: err.message || "Failed to approve business." };
+  }
+}
+
+/**
+ * Reject business profile with a mandatory reason for owner feedback.
+ */
+export async function rejectBusinessProfileAction(params: {
+  businessId: string;
+  rejectionReason: string;
+}): Promise<{ success: boolean; message?: string; error?: string }> {
+  const session = await getSession();
+  if (session?.role !== "admin") {
+    return { success: false, error: "Unauthorized: Admin privileges required." };
+  }
+  if (!params.rejectionReason || !params.rejectionReason.trim()) {
+    return { success: false, error: "A valid rejection reason is required for audit records." };
+  }
+
+  try {
+    const ok = await db.setBusinessProfileStatus(
+      params.businessId,
+      "rejected",
+      params.rejectionReason.trim()
+    );
+    if (!ok) {
+      return { success: false, error: "Business profile not found or update failed." };
+    }
+
+    const ipAddress = await getAdminIp();
+    await db.recordAdminAuditLog({
+      adminId: session.userId || "admin",
+      adminContact: session.contact || "admin",
+      action: "REJECT_BUSINESS",
+      targetType: "business",
+      targetId: params.businessId,
+      details: { reason: params.rejectionReason.trim() },
+      ipAddress,
+    });
+
+    return {
+      success: true,
+      message: "Business application rejected with feedback logged.",
+    };
+  } catch (err: any) {
+    console.error("rejectBusinessProfileAction error:", err);
+    return { success: false, error: err.message || "Failed to reject business." };
+  }
+}
+
 
 
