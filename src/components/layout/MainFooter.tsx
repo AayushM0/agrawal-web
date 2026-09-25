@@ -75,6 +75,9 @@ export default function MainFooter() {
                 <Link href="/matrimony" className="hover:text-brand-primary transition-colors font-medium text-brand-primary">💍 Matrimony Portal (वैवाहिक मंच)</Link>
               </li>
               <li>
+                <Link href="/businesses" className="hover:text-brand-primary transition-colors font-medium text-brand-primary">🏢 Business Network (व्यापार मंच)</Link>
+              </li>
+              <li>
                 <Link href="/claim" className="hover:text-brand-primary transition-colors">Claim Member Profile</Link>
               </li>
             </ul>

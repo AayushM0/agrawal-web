@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { getLiveBusinessProfiles } from "@/actions/business";
 import type { BusinessProfile } from "@/types/business";
 
-export const SECTOR_OPTIONS = [
+const SECTOR_OPTIONS = [
   "All",
   "Manufacturing & Heavy Industries",
   "Textiles, Apparel & Garments",
@@ -26,7 +26,7 @@ export const SECTOR_OPTIONS = [
   "Other",
 ];
 
-export const BUSINESS_TYPE_OPTIONS = [
+const BUSINESS_TYPE_OPTIONS = [
   "All",
   "Manufacturer",
   "Wholesaler / Trader / Distributor",

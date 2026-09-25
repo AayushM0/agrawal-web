@@ -594,6 +594,100 @@ const GUIDE_TOPICS: GuideTopic[] = [
       },
     ],
   },
+
+  // 8. Global Business Network
+  {
+    id: "businesses",
+    icon: "🏢",
+    nameEn: "Global Business Network",
+    nameHi: "अग्रवाल व्यापार संजाल",
+    taglineEn: "Verified commercial directory, enterprise showcase, and secure in-platform B2B inquiries",
+    taglineHi: "सत्यापित व्यावसायिक निर्देशिका, व्यापार प्रोफाइल और सुरक्षित इन-वेबसाइट वाणिज्यिक संवाद",
+    flowchartNodes: [
+      { id: "1", labelEn: "1. Household Live Check", labelHi: "पारिवारिक सत्यापन", type: "start" },
+      { id: "2", labelEn: "2. Profile & Offerings", labelHi: "संस्था विवरण व उत्पाद", type: "process" },
+      { id: "3", labelEn: "3. Admin Review & Badge", labelHi: "दस्तावेज व सत्यापन बैज", type: "process" },
+      { id: "4", labelEn: "4. Direct In-Platform Chat", labelHi: "सुरक्षित इन-वेबसाइट संवाद", type: "success" },
+    ],
+    steps: [
+      {
+        stepNumber: 1,
+        titleEn: "Step 1: Verified Household Anchor & 5-Business Allocation",
+        titleHi: "चरण 1: सत्यापित परिवार एवं 5 व्यावसायिक उपक्रमों की सीमा",
+        descriptionEn: "To maintain the highest standards of trust and community integrity, only approved households (status = 'live') can register business profiles. Each household may launch and manage up to 5 distinct enterprises under their family umbrella.",
+        descriptionHi: "विश्वास और प्रामाणिकता बनाए रखने हेतु केवल प्रशासनिक रूप से स्वीकृत (Live) परिवार ही व्यवसाय पंजीकृत कर सकते हैं। प्रत्येक परिवार अपनी छत तले अधिकतम 5 भिन्न व्यावसायिक उपक्रम संचालित कर सकता है।",
+        keyPoints: [
+          "Anchor businesses directly to verified family lineages and directors",
+          "Strict 5-business limit per household prevents spam directory floods",
+          "Unverified or pending accounts cannot register commercial entities",
+        ],
+      },
+      {
+        stepNumber: 2,
+        titleEn: "Step 2: Company Profile, Catalog & Leadership Team",
+        titleHi: "चरण 2: संस्था परिचय, उत्पाद/सेवाएं एवं निदेशक मंडल",
+        descriptionEn: "Provide company details, business category, headquarters, GSTIN/CIN credentials, and link verified household members as directors with role titles and a designated primary contact.",
+        descriptionHi: "कंपनी का नाम, कार्यक्षेत्र, मुख्यालय, GSTIN/CIN और परिवार के सदस्यों को निदेशक के रूप में लिंक करें एवं मुख्य संपर्क सूत्र मनोनीत करें।",
+        keyPoints: [
+          "Rich product & service catalogs with structured specifications",
+          "High-resolution corporate branding, logos, and gallery images",
+          "Directors link back to their verified personal community profiles (/directory/[id])",
+        ],
+      },
+      {
+        stepNumber: 3,
+        titleEn: "Step 3: Administrative Moderation & Verification Badge",
+        titleHi: "चरण 3: प्रशासनिक समीक्षा एवं सत्यापित उपक्रम बैज",
+        descriptionEn: "All new submissions enter a pending moderation queue. Administrators verify legitimacy, business credentials (GSTIN/CIN), and approve the listing with a 'Verified Enterprise' trust badge.",
+        descriptionHi: "प्रत्येक नया व्यापार प्रशासनिक समीक्षा हेतु जाता है। व्यवस्थापक साख व पंजीकरण जांचने के बाद उसे 'सत्यापित उपक्रम' (Verified Enterprise) बैज प्रदान कर प्रकाशित करते हैं।",
+        keyPoints: [
+          "Strict administrative quality gate protects community trust",
+          "Status updates and rejection reasons are tracked transparently",
+          "Approved enterprises are immediately listed in the public directory",
+        ],
+      },
+      {
+        stepNumber: 4,
+        titleEn: "Step 4: Zero-Spam In-Platform Commercial Inquiries",
+        titleHi: "चरण 4: सुरक्षित इन-वेबसाइट वाणिज्यिक संवाद (फोन व ईमेल सुरक्षित)",
+        descriptionEn: "To protect community entrepreneurs from telemarketers and web scraping, personal phone numbers and emails are never exposed publicly. All commercial inquiries route directly to the designated director via the secure, real-time in-platform chat system.",
+        descriptionHi: "फोन नंबर व व्यक्तिगत ईमेल सार्वजनिक रूप से कभी प्रदर्शित नहीं किए जाते। व्यापारिक पूछताछ सीधे इन-वेबसाइट चैट प्रणाली के माध्यम से संबंधित निदेशक तक पहुंचाई जाती है।",
+        keyPoints: [
+          "100% protection against phone harvesting, scraping bots, and cold spam",
+          "Automated anti-fraud and spam screening on initial inquiry messages",
+          "Direct real-time notifications to the enterprise primary contact director",
+        ],
+      },
+    ],
+    primaryCta: {
+      label: "Explore Business Network (व्यापार संजाल) →",
+      href: "/businesses",
+    },
+    secondaryCta: {
+      label: "+ Register Your Enterprise (व्यापार पंजीकृत करें)",
+      href: "/businesses/create",
+    },
+    faqs: [
+      {
+        qEn: "Can my household register multiple different businesses?",
+        qHi: "क्या हमारा परिवार एक से अधिक विभिन्न व्यवसाय पंजीकृत कर सकता है?",
+        aEn: "Yes. Every verified household is entitled to register up to 5 distinct businesses (e.g. manufacturing, retail, professional services) managed from their family dashboard.",
+        aHi: "हाँ। प्रत्येक सत्यापित परिवार अपने डैशबोर्ड से अधिकतम 5 अलग-अलग व्यवसायों (जैसे विनिर्माण, खुदरा, परामर्श आदि) को पंजीकृत व संचालित कर सकता है।",
+      },
+      {
+        qEn: "Why is my telephone number and email not visible on my company page?",
+        qHi: "कंपनी पेज पर मेरा फोन नंबर और व्यक्तिगत ईमेल क्यों नहीं दिखता?",
+        aEn: "To safeguard our business owners from unsolicited sales calls, spam bots, and scraping. Interested buyers and community partners connect directly with your designated director through secure in-platform chat.",
+        aHi: "अनावश्यक विज्ञापनों, टेलीकॉलर्स और डेटा चोरी से सुरक्षा हेतु संपर्क विवरण छिपाए जाते हैं। इच्छुक ग्राहक सीधे इन-वेबसाइट चैट से आपके निदेशक से संपर्क कर सकते हैं।",
+      },
+      {
+        qEn: "How does an enterprise earn the 'Verified Enterprise' badge?",
+        qHi: "किसी व्यवसाय को 'सत्यापित उपक्रम' (Verified Enterprise) बैज कैसे प्राप्त होता है?",
+        aEn: "Enterprises linked to verified Agarwal households that provide valid government registrations (such as GSTIN or CIN) are reviewed and badged by community administrators.",
+        aHi: "स्वीकृत अग्रवाल परिवारों द्वारा संचालित संस्थाएं जो वैध सरकारी पंजीकरण (जैसे GSTIN या CIN) प्रस्तुत करती हैं, उन्हें प्रशासनिक जांच के बाद यह प्रतिष्ठित बैज प्रदान किया जाता है।",
+      },
+    ],
+  },
 ];
 
 export default function UserGuidePage() {

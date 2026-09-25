@@ -16,3 +16,9 @@ The 18 established Gotras founded by Maharaja Agrasen: Garg, Bansal, Bindal, Dha
 - `live`: An approved, searchable household in the directory.
 - `visibility`: Field-level privacy controls (`members_only`, `hidden`, `public_to_members`).
 - `revealContact`: Rate-limited, server-authenticated contact reveal mechanism.
+
+### 5. Global Business Network (Pillar 2)
+- `BusinessProfile`: A verified commercial enterprise owned by an approved household, featuring business overview, sector/type categorization, registration credentials, and corporate photos.
+- `LinkedDirector`: A verified community member (`Member`) associated with a `BusinessProfile` as a founder, partner, or executive, with one designated as the `isPrimaryContact`.
+- `VerifiedEnterprise`: An official trust badge awarded by platform administrators to businesses with verified government credentials (GSTIN, MSME, CIN).
+- `CommercialChat`: In-website, real-time commercial inquiry communication routed via Pusher to the business's primary contact director with zero exposure of raw phone numbers or personal emails.

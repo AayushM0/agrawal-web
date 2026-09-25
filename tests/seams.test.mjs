@@ -605,3 +605,50 @@ test("Seam 23: Outbound email queue system, Undici IPv4 DNS resolution, and rate
   assert.ok(drainRoute.includes("drainEmailQueue"), "email-queue/drain/route.ts must call drainEmailQueue");
 });
 
+// --- SEAM 24: Global Agarwal Business Network Contract Suite ---
+test("Seam 24: Global Agarwal Business Network adheres to all contracts and invariants", () => {
+  const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+  const dbLib = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const businessTypes = fs.readFileSync(path.join(webRoot, "src/types/business.ts"), "utf8");
+  const businessActions = fs.readFileSync(path.join(webRoot, "src/actions/business.ts"), "utf8");
+  const moderateActions = fs.readFileSync(path.join(webRoot, "src/actions/moderate.ts"), "utf8");
+  const topNav = fs.readFileSync(path.join(webRoot, "src/components/layout/TopNavBar.tsx"), "utf8");
+  const mainHeader = fs.readFileSync(path.join(webRoot, "src/components/layout/MainHeader.tsx"), "utf8");
+  const mainFooter = fs.readFileSync(path.join(webRoot, "src/components/layout/MainFooter.tsx"), "utf8");
+  const guidePage = fs.readFileSync(path.join(webRoot, "src/app/guide/page.tsx"), "utf8");
+  const businessDirectory = fs.readFileSync(path.join(webRoot, "src/app/businesses/page.tsx"), "utf8");
+  const businessShowcase = fs.readFileSync(path.join(webRoot, "src/app/businesses/[id]/page.tsx"), "utf8");
+  const businessBuilder = fs.readFileSync(path.join(webRoot, "src/app/businesses/create/page.tsx"), "utf8");
+
+  // 1. Schema & RLS enablement for business_profiles
+  assert.ok(schemaSql.includes("CREATE TABLE IF NOT EXISTS business_profiles"), "schema.sql must define business_profiles");
+  assert.ok(schemaSql.includes("ALTER TABLE business_profiles ENABLE ROW LEVEL SECURITY;"), "schema.sql must enable RLS on business_profiles");
+  assert.ok(dbLib.includes("ALTER TABLE business_profiles ENABLE ROW LEVEL SECURITY;"), "db.ts must enable RLS on business_profiles");
+  assert.ok(businessTypes.includes("export interface BusinessProfile"), "business.ts types must export BusinessProfile");
+
+  // 2. Server actions authorization & PII safety
+  assert.ok(businessActions.includes("export async function createBusinessProfile"), "Must export createBusinessProfile");
+  assert.ok(businessActions.includes("export async function getLiveBusinessProfiles"), "Must export getLiveBusinessProfiles");
+  assert.ok(businessActions.includes("export async function getBusinessProfileById"), "Must export getBusinessProfileById");
+  assert.ok(businessActions.includes("export async function initiateBusinessChat"), "Must export initiateBusinessChat");
+  assert.ok(businessActions.includes("export async function getMyHouseholdBusinesses"), "Must export getMyHouseholdBusinesses");
+  assert.ok(moderateActions.includes("export async function approveBusinessProfileAction"), "Must export approveBusinessProfileAction");
+  assert.ok(moderateActions.includes("export async function rejectBusinessProfileAction"), "Must export rejectBusinessProfileAction");
+
+  // 3. Navigation links to /businesses across Header, Nav, and Footer
+  assert.ok(topNav.includes("/businesses"), "TopNavBar must link to /businesses");
+  assert.ok(mainHeader.includes("/businesses"), "MainHeader must link to /businesses");
+  assert.ok(mainFooter.includes("/businesses"), "MainFooter must link to /businesses");
+
+  // 4. Topic 8 in src/app/guide/page.tsx
+  assert.ok(guidePage.includes("Topic 8") || guidePage.includes("अग्रवाल व्यापार संजाल") || guidePage.includes("Business Network"), "Guide page must contain Topic 8 for Business Network");
+  assert.ok(guidePage.includes("/businesses"), "Guide page must link to /businesses");
+
+  // 5. In-Platform commercial chat routing & anti-scraping privacy guarantee
+  assert.ok(businessShowcase.includes("initiateBusinessChat"), "Showcase must wire initiateBusinessChat");
+  assert.ok(!businessShowcase.includes("profile.phone"), "Showcase must not expose raw personal phone");
+  assert.ok(businessDirectory.includes("getLiveBusinessProfiles"), "Directory must consume getLiveBusinessProfiles");
+  assert.ok(businessBuilder.includes("createBusinessProfile"), "Builder must consume createBusinessProfile");
+});
+
+

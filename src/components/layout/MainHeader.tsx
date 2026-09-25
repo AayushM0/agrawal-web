@@ -293,6 +293,18 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
             <span>Matrimony</span>
           </Link>
 
+          <Link
+            href="/businesses"
+            className={`flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-full transition-all ${
+              pathname.startsWith("/businesses")
+                ? "bg-brand-primary text-white shadow-sm"
+                : "text-body-heading hover:text-brand-primary hover:bg-canvas-warm"
+            }`}
+          >
+            <span>🏢</span>
+            <span>Business Network</span>
+          </Link>
+
           {/* DYNAMIC LOGGED IN NAVIGATION */}
           {isLoggedIn ? (
             <>
@@ -581,6 +593,17 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
                 }`}
               >
                 <span>💍 Matrimonial Directory (वैवाहिक मंच)</span>
+                <span>→</span>
+              </Link>
+
+              <Link
+                href="/businesses"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all ${
+                  pathname.startsWith("/businesses") ? "bg-brand-primary text-white" : "text-body-heading hover:bg-canvas-warm"
+                }`}
+              >
+                <span>🏢 Business Network (व्यापार संजाल)</span>
                 <span>→</span>
               </Link>
             </div>

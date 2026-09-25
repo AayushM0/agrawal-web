@@ -43,7 +43,7 @@ export interface BusinessFilterInput {
 /**
  * Sanitize business profile for public display, removing any private/internal credentials.
  */
-export function sanitizeBusinessProfile(profile: BusinessProfile): BusinessProfile {
+function sanitizeBusinessProfile(profile: BusinessProfile): BusinessProfile {
   return {
     ...profile,
     // Ensure array and object defaults

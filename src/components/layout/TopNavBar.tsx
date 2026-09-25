@@ -38,6 +38,12 @@ export default function TopNavBar() {
                 <span>Matrimony (वैवाहिक मंच)</span>
               </Link>
             </li>
+            <li>
+              <Link href="/businesses" className="hover:text-white hover:underline transition-colors flex items-center gap-1">
+                <span>🏢</span>
+                <span>Business Network (व्यापार मंच)</span>
+              </Link>
+            </li>
             <li className="hidden lg:inline">
               <Link href="/dashboard/messages" className="hover:text-white hover:underline transition-colors flex items-center gap-1">
                 <span>💬</span>
