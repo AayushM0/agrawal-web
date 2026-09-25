@@ -16,6 +16,12 @@ import { calculateAge, maskContact } from "@/lib/privacy";
 import { optimizeImageForUpload } from "@/lib/image-optimizer";
 import { getMyHouseholdMatrimonialProfiles } from "@/actions/matrimony";
 import type { MatrimonialProfile } from "@/types/matrimony";
+import {
+  getMyHouseholdBusinesses,
+  toggleBusinessVisibility,
+  deleteBusinessProfile,
+} from "@/actions/business";
+import type { BusinessProfile } from "@/types/business";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -24,6 +30,10 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [matrimonialProfiles, setMatrimonialProfiles] = useState<MatrimonialProfile[]>([]);
+  const [householdBusinesses, setHouseholdBusinesses] = useState<BusinessProfile[]>([]);
+  const [canCreateBusiness, setCanCreateBusiness] = useState(false);
+  const [isTogglingBusiness, setIsTogglingBusiness] = useState<string | null>(null);
+  const [isDeletingBusiness, setIsDeletingBusiness] = useState<string | null>(null);
 
   // Edit Member Modal State
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -214,6 +224,15 @@ export default function DashboardPage() {
       } catch (err) {
         console.error("Failed to load matrimonial profiles:", err);
       }
+      try {
+        const bizRes = await getMyHouseholdBusinesses();
+        if (bizRes.businesses) {
+          setHouseholdBusinesses(bizRes.businesses);
+          setCanCreateBusiness(Boolean(bizRes.canCreate));
+        }
+      } catch (err) {
+        console.error("Failed to load household businesses:", err);
+      }
     } else {
       setHousehold(null);
       setSessionContact(res.sessionContact);
@@ -221,6 +240,46 @@ export default function DashboardPage() {
     }
     setIsLoading(false);
   }
+
+  const handleToggleBusiness = async (biz: BusinessProfile) => {
+    setIsTogglingBusiness(biz.id);
+    try {
+      const res = await toggleBusinessVisibility(biz.id);
+      if (res.success && res.status) {
+        setHouseholdBusinesses((prev) =>
+          prev.map((b) => (b.id === biz.id ? { ...b, status: res.status as any } : b))
+        );
+      } else {
+        alert(res.error || "Failed to update business visibility.");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to toggle visibility.");
+    } finally {
+      setIsTogglingBusiness(null);
+    }
+  };
+
+  const handleDeleteBusiness = async (biz: BusinessProfile) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete "${biz.businessName}"? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setIsDeletingBusiness(biz.id);
+    try {
+      const res = await deleteBusinessProfile(biz.id);
+      if (res.success) {
+        setHouseholdBusinesses((prev) => prev.filter((b) => b.id !== biz.id));
+        setCanCreateBusiness(true);
+      } else {
+        alert(res.error || "Failed to delete business listing.");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to delete business.");
+    } finally {
+      setIsDeletingBusiness(null);
+    }
+  };
 
   const handleCopyClaimLink = async (memberId: string) => {
     const res = await createClaimInvite(memberId);
@@ -739,6 +798,168 @@ export default function DashboardPage() {
                           >
                             View Matrimony Profile →
                           </Link>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Business Profiles Management Card */}
+        <div className="bg-white border border-brand-accent/30 rounded-3xl p-5 sm:p-8 shadow-warm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-brand-accent/20">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🏢</span>
+                <h2 className="text-base sm:text-lg font-extrabold text-brand-primary">
+                  My Businesses / व्यापार प्रतिष्ठान ({householdBusinesses.length}/5)
+                </h2>
+              </div>
+              <p className="text-xs text-body-muted mt-0.5">
+                Manage commercial enterprises, factories, and trade ventures belonging to your household.
+              </p>
+            </div>
+            {canCreateBusiness ? (
+              <Link
+                href="/businesses/create"
+                className="self-start sm:self-center px-4 py-2 rounded-full text-xs font-bold text-white va-btn-join transition-all shadow-goldCta flex items-center gap-1.5 shrink-0"
+              >
+                <span>+</span>
+                <span>Register Enterprise</span>
+              </Link>
+            ) : householdBusinesses.length >= 5 ? (
+              <span className="self-start sm:self-center px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">
+                Max 5 Enterprises Reached
+              </span>
+            ) : (
+              <Link
+                href="/businesses/create"
+                className="self-start sm:self-center px-4 py-2 rounded-full text-xs font-bold text-white va-btn-join transition-all shadow-goldCta flex items-center gap-1.5 shrink-0"
+              >
+                <span>+</span>
+                <span>Register Enterprise</span>
+              </Link>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {householdBusinesses.length === 0 ? (
+              <div className="text-center py-6 px-4 rounded-2xl border border-dashed border-brand-accent/40 bg-canvas-warm/10">
+                <p className="text-sm font-semibold text-brand-primary mb-1">No businesses registered yet.</p>
+                <p className="text-xs text-body-muted max-w-md mx-auto mb-4">
+                  Approved household members can register up to 5 commercial enterprises with verified community badges, commercial chat inquiries, and zero unsolicited phone spam.
+                </p>
+                <Link
+                  href="/businesses/create"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold text-brand-primary border border-brand-accent/50 bg-white hover:bg-canvas-warm transition-all"
+                >
+                  <span>🏢</span>
+                  <span>Register Your Enterprise</span>
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {householdBusinesses.map((b) => {
+                  const isLive = b.status === "live";
+                  const isPaused = b.status === "paused";
+                  const isPending = b.status === "pending_review";
+                  const isRejected = b.status === "rejected";
+                  const primaryPhoto = b.photos && b.photos.length > 0 ? b.photos[0] : null;
+
+                  return (
+                    <div
+                      key={b.id}
+                      className="p-4 rounded-2xl border border-brand-accent/30 bg-canvas-warm/20 flex flex-col justify-between space-y-3"
+                    >
+                      <div className="flex items-start gap-3.5">
+                        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gradient-to-br from-[#fff7dd] to-[#fae8b2] border border-brand-accent flex items-center justify-center text-lg font-bold text-brand-primary shrink-0 shadow-sm">
+                          {primaryPhoto ? (
+                            <img src={primaryPhoto} alt={b.businessName} className="w-full h-full object-cover" />
+                          ) : (
+                            b.businessName.charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <h3 className="text-sm font-bold text-brand-primary truncate">{b.businessName}</h3>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${
+                                isLive
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : isPending
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : isPaused
+                                  ? "bg-gray-100 text-gray-700 border border-gray-300"
+                                  : "bg-red-50 text-red-700 border border-red-200"
+                              }`}
+                            >
+                              {isPending
+                                ? "Under Review"
+                                : isLive
+                                ? "Active / Live"
+                                : isPaused
+                                ? "Paused"
+                                : "Needs Revision"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-body-muted">
+                            {b.industrySector} • {b.businessType}
+                          </p>
+                          <p className="text-xs text-body-muted truncate mt-0.5">
+                            📍 {b.city}, {b.state}
+                            {b.isVerifiedBadge && (
+                              <span className="ml-1.5 text-emerald-700 font-semibold">• ✓ Verified</span>
+                            )}
+                          </p>
+
+                          {isRejected && b.rejectionReason && (
+                            <div className="mt-2 p-2 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800">
+                              <strong>Moderator Note:</strong> {b.rejectionReason}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="pt-2 border-t border-brand-accent/20 flex items-center justify-between gap-2">
+                        <Link
+                          href={`/businesses/${b.id}`}
+                          className="text-xs font-bold text-brand-primary hover:underline inline-flex items-center gap-1"
+                        >
+                          View Showcase →
+                        </Link>
+
+                        <div className="flex items-center gap-2">
+                          {(isLive || isPaused) && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleBusiness(b)}
+                              disabled={isTogglingBusiness === b.id}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
+                                isPaused
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                  : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                              }`}
+                            >
+                              {isTogglingBusiness === b.id
+                                ? "Updating..."
+                                : isPaused
+                                ? "Resume Listing"
+                                : "Pause Listing"}
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBusiness(b)}
+                            disabled={isDeletingBusiness === b.id}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-600 hover:text-red-800 hover:bg-red-50 transition"
+                          >
+                            {isDeletingBusiness === b.id ? "Deleting..." : "Delete"}
+                          </button>
                         </div>
                       </div>
                     </div>
