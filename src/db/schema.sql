@@ -367,6 +367,55 @@ CREATE TABLE IF NOT EXISTS email_queue (
 CREATE INDEX IF NOT EXISTS idx_email_queue_status_sched ON email_queue(status, scheduled_for, created_at);
 CREATE INDEX IF NOT EXISTS idx_email_queue_created ON email_queue(created_at DESC);
 
+-- 9d. Global Business Network (Pillar 2: business_profiles)
+CREATE TABLE IF NOT EXISTS business_profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    created_by_member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    status VARCHAR(32) NOT NULL DEFAULT 'pending_review', -- 'pending_review' | 'live' | 'paused' | 'rejected'
+    rejection_reason TEXT,
+    
+    -- Business Identity
+    business_name VARCHAR(255) NOT NULL,
+    legal_name VARCHAR(255),
+    tagline VARCHAR(300),
+    industry_sector VARCHAR(100) NOT NULL,
+    business_type VARCHAR(100) NOT NULL,
+    year_established INTEGER,
+    about_business TEXT NOT NULL,
+    offerings_summary TEXT,
+    
+    -- Credentials & Verification
+    registration_type VARCHAR(50), -- 'GSTIN' | 'MSME' | 'CIN' | 'LLPIN' | 'Trade License' | 'Other'
+    registration_number VARCHAR(100),
+    is_verified_badge BOOLEAN NOT NULL DEFAULT FALSE,
+    
+    -- Geographic Location
+    country VARCHAR(100) NOT NULL DEFAULT 'India',
+    state VARCHAR(100) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    pincode VARCHAR(20),
+    address_line TEXT,
+    
+    -- Online Presence & Media
+    website_url VARCHAR(500),
+    social_links JSONB NOT NULL DEFAULT '{}'::jsonb,
+    photos TEXT[] NOT NULL DEFAULT '{}',
+    custom_fields JSONB NOT NULL DEFAULT '[]'::jsonb,
+    
+    -- Linked Leadership (Directors / Partners)
+    linked_directors JSONB NOT NULL DEFAULT '[]'::jsonb,
+    
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_business_profiles_status ON business_profiles(status);
+CREATE INDEX IF NOT EXISTS idx_business_profiles_household ON business_profiles(household_id);
+CREATE INDEX IF NOT EXISTS idx_business_profiles_sector ON business_profiles(industry_sector);
+CREATE INDEX IF NOT EXISTS idx_business_profiles_city ON business_profiles(city);
+CREATE INDEX IF NOT EXISTS idx_business_profiles_created_by ON business_profiles(created_by_member_id);
+
 -- 10. Row-Level Security (RLS) Configuration (Supabase Hardening)
 -- Enable RLS on all tables to prevent public anonymous REST API data exfiltration
 ALTER TABLE households ENABLE ROW LEVEL SECURITY;
@@ -383,6 +432,7 @@ ALTER TABLE registration_drafts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matrimonial_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE business_profiles ENABLE ROW LEVEL SECURITY;
 
 -- Households, Members, Message Reports, Rate Limits, and Admin Attempts have NO policies defined.
 -- In PostgreSQL, this default deny-all state blocks all public anon/authenticated REST/GraphQL operations.

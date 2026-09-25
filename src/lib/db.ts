@@ -4,6 +4,7 @@ import type { Household, Member } from "../types/household";
 import type { SupportInquiry, CreateInquiryInput, InquiryStatus } from "../types/support";
 import type { MatrimonialProfile, MatrimonyFilter } from "../types/matrimony";
 import type { EmailQueueItem, EnqueueEmailInput, EmailQueueStats } from "../types/email-queue";
+import type { BusinessProfile } from "../types/business";
 
 const globalForPg = globalThis as unknown as {
   pgPool?: Pool;
@@ -368,6 +369,44 @@ async function ensureSchema(client: any) {
       CREATE INDEX IF NOT EXISTS idx_matrimonial_profiles_household ON matrimonial_profiles(household_id);
       ALTER TABLE matrimonial_profiles ENABLE ROW LEVEL SECURITY;
       ALTER TABLE matrimonial_profiles ADD COLUMN IF NOT EXISTS referenced_by VARCHAR(150);
+
+      -- Business Profiles Table (Global Business Network - Pillar 2)
+      CREATE TABLE IF NOT EXISTS business_profiles (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+          created_by_member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          status VARCHAR(32) NOT NULL DEFAULT 'pending_review',
+          rejection_reason TEXT,
+          business_name VARCHAR(255) NOT NULL,
+          legal_name VARCHAR(255),
+          tagline VARCHAR(300),
+          industry_sector VARCHAR(100) NOT NULL,
+          business_type VARCHAR(100) NOT NULL,
+          year_established INTEGER,
+          about_business TEXT NOT NULL,
+          offerings_summary TEXT,
+          registration_type VARCHAR(50),
+          registration_number VARCHAR(100),
+          is_verified_badge BOOLEAN NOT NULL DEFAULT FALSE,
+          country VARCHAR(100) NOT NULL DEFAULT 'India',
+          state VARCHAR(100) NOT NULL,
+          city VARCHAR(100) NOT NULL,
+          pincode VARCHAR(20),
+          address_line TEXT,
+          website_url VARCHAR(500),
+          social_links JSONB NOT NULL DEFAULT '{}'::jsonb,
+          photos TEXT[] NOT NULL DEFAULT '{}',
+          custom_fields JSONB NOT NULL DEFAULT '[]'::jsonb,
+          linked_directors JSONB NOT NULL DEFAULT '[]'::jsonb,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_business_profiles_status ON business_profiles(status);
+      CREATE INDEX IF NOT EXISTS idx_business_profiles_household ON business_profiles(household_id);
+      CREATE INDEX IF NOT EXISTS idx_business_profiles_sector ON business_profiles(industry_sector);
+      CREATE INDEX IF NOT EXISTS idx_business_profiles_city ON business_profiles(city);
+      CREATE INDEX IF NOT EXISTS idx_business_profiles_created_by ON business_profiles(created_by_member_id);
+      ALTER TABLE business_profiles ENABLE ROW LEVEL SECURITY;
     `);
     schemaEnsured = true;
     globalForPg.schemaEnsured = true;
@@ -3182,6 +3221,399 @@ export const db = {
       return 0;
     }
   },
+
+  // ==========================================
+  // BUSINESS PROFILES METHODS (Pillar 2)
+  // ==========================================
+
+  async createBusinessProfile(p: Omit<BusinessProfile, "id" | "createdAt" | "updatedAt">): Promise<BusinessProfile> {
+    if (!pool) {
+      const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles =
+        (globalThis as any).__memoryBusinessProfiles || []);
+      const newProfile: BusinessProfile = {
+        id: crypto.randomUUID(),
+        ...p,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      list.unshift(newProfile);
+      return newProfile;
+    }
+
+    const query = `
+      INSERT INTO business_profiles (
+        household_id, created_by_member_id, status, rejection_reason,
+        business_name, legal_name, tagline, industry_sector, business_type,
+        year_established, about_business, offerings_summary,
+        registration_type, registration_number, is_verified_badge,
+        country, state, city, pincode, address_line,
+        website_url, social_links, photos, custom_fields, linked_directors
+      ) VALUES (
+        $1, $2, $3, $4,
+        $5, $6, $7, $8, $9,
+        $10, $11, $12,
+        $13, $14, $15,
+        $16, $17, $18, $19, $20,
+        $21, $22, $23, $24, $25
+      ) RETURNING *;
+    `;
+
+    const values = [
+      p.householdId,
+      p.createdByMemberId,
+      p.status || "pending_review",
+      p.rejectionReason || null,
+      p.businessName,
+      p.legalName || null,
+      p.tagline || null,
+      p.industrySector,
+      p.businessType,
+      p.yearEstablished ? parseInt(String(p.yearEstablished), 10) : null,
+      p.aboutBusiness,
+      p.offeringsSummary || null,
+      p.registrationType || null,
+      p.registrationNumber || null,
+      Boolean(p.isVerifiedBadge),
+      p.country || "India",
+      p.state,
+      p.city,
+      p.pincode || null,
+      p.addressLine || null,
+      p.websiteUrl || null,
+      JSON.stringify(p.socialLinks || {}),
+      p.photos || [],
+      JSON.stringify(p.customFields || []),
+      JSON.stringify(p.linkedDirectors || []),
+    ];
+
+    const res = await pool.query(query, values);
+    return mapBusinessProfileRow(res.rows[0]);
+  },
+
+  async getBusinessProfileById(id: string): Promise<BusinessProfile | null> {
+    if (!pool) {
+      const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles =
+        (globalThis as any).__memoryBusinessProfiles || []);
+      const item = list.find((p) => p.id === id);
+      return item || null;
+    }
+    try {
+      const res = await pool.query(`SELECT * FROM business_profiles WHERE id::text = $1;`, [id]);
+      if (res.rows.length === 0) return null;
+      return mapBusinessProfileRow(res.rows[0]);
+    } catch (err) {
+      console.error("[DB ERROR] getBusinessProfileById:", err);
+      return null;
+    }
+  },
+
+  async getLiveBusinessProfiles(filters: {
+    query?: string;
+    sector?: string;
+    businessType?: string;
+    country?: string;
+    state?: string;
+    city?: string;
+    verifiedOnly?: boolean;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ profiles: BusinessProfile[]; totalCount: number }> {
+    if (!pool) {
+      let list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles =
+        (globalThis as any).__memoryBusinessProfiles || []);
+      list = list.filter((p) => p.status === "live");
+      if (filters.sector && filters.sector !== "All") {
+        list = list.filter((p) => p.industrySector === filters.sector);
+      }
+      if (filters.businessType && filters.businessType !== "All") {
+        list = list.filter((p) => p.businessType === filters.businessType);
+      }
+      if (filters.verifiedOnly) {
+        list = list.filter((p) => p.isVerifiedBadge);
+      }
+      if (filters.city && filters.city.trim()) {
+        const c = filters.city.trim().toLowerCase();
+        list = list.filter((p) => p.city.toLowerCase().includes(c));
+      }
+      if (filters.query && filters.query.trim()) {
+        const q = filters.query.trim().toLowerCase();
+        list = list.filter(
+          (p) =>
+            p.businessName.toLowerCase().includes(q) ||
+            (p.tagline && p.tagline.toLowerCase().includes(q)) ||
+            (p.aboutBusiness && p.aboutBusiness.toLowerCase().includes(q)) ||
+            (p.offeringsSummary && p.offeringsSummary.toLowerCase().includes(q))
+        );
+      }
+      return { profiles: list, totalCount: list.length };
+    }
+    try {
+      const conditions: string[] = ["status = 'live'"];
+      const values: any[] = [];
+      let paramIndex = 1;
+
+      if (filters.sector && filters.sector !== "All") {
+        conditions.push(`industry_sector = $${paramIndex++}`);
+        values.push(filters.sector);
+      }
+      if (filters.businessType && filters.businessType !== "All") {
+        conditions.push(`business_type = $${paramIndex++}`);
+        values.push(filters.businessType);
+      }
+      if (filters.country && filters.country !== "All") {
+        conditions.push(`country ILIKE $${paramIndex++}`);
+        values.push(`%${filters.country.trim()}%`);
+      }
+      if (filters.state && filters.state !== "All") {
+        conditions.push(`state ILIKE $${paramIndex++}`);
+        values.push(`%${filters.state.trim()}%`);
+      }
+      if (filters.city && filters.city.trim()) {
+        conditions.push(`city ILIKE $${paramIndex++}`);
+        values.push(`%${filters.city.trim()}%`);
+      }
+      if (filters.verifiedOnly) {
+        conditions.push(`is_verified_badge = TRUE`);
+      }
+      if (filters.query && filters.query.trim()) {
+        conditions.push(`(business_name ILIKE $${paramIndex} OR tagline ILIKE $${paramIndex} OR about_business ILIKE $${paramIndex} OR offerings_summary ILIKE $${paramIndex})`);
+        values.push(`%${filters.query.trim()}%`);
+        paramIndex++;
+      }
+
+      const whereClause = `WHERE ${conditions.join(" AND ")}`;
+      const countRes = await pool.query(`SELECT COUNT(*)::int as count FROM business_profiles ${whereClause};`, values);
+      const totalCount = countRes.rows[0]?.count || 0;
+
+      const limit = Math.min(filters.limit || 50, 100);
+      const offset = filters.offset || 0;
+      const dataQuery = `
+        SELECT * FROM business_profiles
+        ${whereClause}
+        ORDER BY is_verified_badge DESC, created_at DESC
+        LIMIT $${paramIndex++} OFFSET $${paramIndex++};
+      `;
+      values.push(limit, offset);
+      const dataRes = await pool.query(dataQuery, values);
+      return {
+        profiles: dataRes.rows.map(mapBusinessProfileRow),
+        totalCount,
+      };
+    } catch (err) {
+      console.error("[DB ERROR] getLiveBusinessProfiles:", err);
+      return { profiles: [], totalCount: 0 };
+    }
+  },
+
+  async getBusinessProfilesByHouseholdId(householdId: string): Promise<BusinessProfile[]> {
+    if (!pool) {
+      const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles =
+        (globalThis as any).__memoryBusinessProfiles || []);
+      return list.filter((p) => p.householdId === householdId);
+    }
+    try {
+      const res = await pool.query(
+        `SELECT * FROM business_profiles WHERE household_id::text = $1 ORDER BY created_at DESC;`,
+        [householdId]
+      );
+      return res.rows.map(mapBusinessProfileRow);
+    } catch (err) {
+      console.error("[DB ERROR] getBusinessProfilesByHouseholdId:", err);
+      return [];
+    }
+  },
+
+  async updateBusinessProfile(id: string, data: Partial<BusinessProfile>, householdId?: string): Promise<BusinessProfile | null> {
+    if (!pool) {
+      const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles =
+        (globalThis as any).__memoryBusinessProfiles || []);
+      const idx = list.findIndex((p) => p.id === id);
+      if (idx === -1) return null;
+      list[idx] = { ...list[idx], ...data, updatedAt: new Date().toISOString() };
+      return list[idx];
+    }
+    try {
+      const sets: string[] = ["updated_at = NOW()"];
+      const values: any[] = [id];
+      let paramIndex = 2;
+
+      if (data.businessName !== undefined) {
+        sets.push(`business_name = $${paramIndex++}`);
+        values.push(data.businessName);
+      }
+      if (data.legalName !== undefined) {
+        sets.push(`legal_name = $${paramIndex++}`);
+        values.push(data.legalName);
+      }
+      if (data.tagline !== undefined) {
+        sets.push(`tagline = $${paramIndex++}`);
+        values.push(data.tagline);
+      }
+      if (data.industrySector !== undefined) {
+        sets.push(`industry_sector = $${paramIndex++}`);
+        values.push(data.industrySector);
+      }
+      if (data.businessType !== undefined) {
+        sets.push(`business_type = $${paramIndex++}`);
+        values.push(data.businessType);
+      }
+      if (data.yearEstablished !== undefined) {
+        sets.push(`year_established = $${paramIndex++}`);
+        values.push(data.yearEstablished ? parseInt(String(data.yearEstablished), 10) : null);
+      }
+      if (data.aboutBusiness !== undefined) {
+        sets.push(`about_business = $${paramIndex++}`);
+        values.push(data.aboutBusiness);
+      }
+      if (data.offeringsSummary !== undefined) {
+        sets.push(`offerings_summary = $${paramIndex++}`);
+        values.push(data.offeringsSummary);
+      }
+      if (data.registrationType !== undefined) {
+        sets.push(`registration_type = $${paramIndex++}`);
+        values.push(data.registrationType);
+      }
+      if (data.registrationNumber !== undefined) {
+        sets.push(`registration_number = $${paramIndex++}`);
+        values.push(data.registrationNumber);
+      }
+      if (data.country !== undefined) {
+        sets.push(`country = $${paramIndex++}`);
+        values.push(data.country);
+      }
+      if (data.state !== undefined) {
+        sets.push(`state = $${paramIndex++}`);
+        values.push(data.state);
+      }
+      if (data.city !== undefined) {
+        sets.push(`city = $${paramIndex++}`);
+        values.push(data.city);
+      }
+      if (data.pincode !== undefined) {
+        sets.push(`pincode = $${paramIndex++}`);
+        values.push(data.pincode);
+      }
+      if (data.addressLine !== undefined) {
+        sets.push(`address_line = $${paramIndex++}`);
+        values.push(data.addressLine);
+      }
+      if (data.websiteUrl !== undefined) {
+        sets.push(`website_url = $${paramIndex++}`);
+        values.push(data.websiteUrl);
+      }
+      if (data.socialLinks !== undefined) {
+        sets.push(`social_links = $${paramIndex++}`);
+        values.push(JSON.stringify(data.socialLinks));
+      }
+      if (data.photos !== undefined) {
+        sets.push(`photos = $${paramIndex++}`);
+        values.push(data.photos);
+      }
+      if (data.customFields !== undefined) {
+        sets.push(`custom_fields = $${paramIndex++}`);
+        values.push(JSON.stringify(data.customFields));
+      }
+      if (data.linkedDirectors !== undefined) {
+        sets.push(`linked_directors = $${paramIndex++}`);
+        values.push(JSON.stringify(data.linkedDirectors));
+      }
+      if (data.status !== undefined) {
+        sets.push(`status = $${paramIndex++}`);
+        values.push(data.status);
+      }
+      if (data.rejectionReason !== undefined) {
+        sets.push(`rejection_reason = $${paramIndex++}`);
+        values.push(data.rejectionReason);
+      }
+
+      let extraWhere = "";
+      if (householdId) {
+        extraWhere = ` AND household_id::text = $${paramIndex++}`;
+        values.push(householdId);
+      }
+
+      const query = `
+        UPDATE business_profiles
+        SET ${sets.join(", ")}
+        WHERE id::text = $1 ${extraWhere}
+        RETURNING *;
+      `;
+      const res = await pool.query(query, values);
+      if (res.rows.length === 0) return null;
+      return mapBusinessProfileRow(res.rows[0]);
+    } catch (err) {
+      console.error("[DB ERROR] updateBusinessProfile:", err);
+      return null;
+    }
+  },
+
+  async setBusinessProfileStatus(
+    id: string,
+    status: "pending_review" | "live" | "paused" | "rejected",
+    rejectionReason?: string,
+    isVerifiedBadge?: boolean
+  ): Promise<boolean> {
+    if (!pool) {
+      const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles =
+        (globalThis as any).__memoryBusinessProfiles || []);
+      const idx = list.findIndex((p) => p.id === id);
+      if (idx === -1) return false;
+      list[idx].status = status;
+      if (rejectionReason !== undefined) list[idx].rejectionReason = rejectionReason;
+      if (isVerifiedBadge !== undefined) list[idx].isVerifiedBadge = isVerifiedBadge;
+      list[idx].updatedAt = new Date().toISOString();
+      return true;
+    }
+    try {
+      const sets: string[] = ["status = $2", "updated_at = NOW()"];
+      const values: any[] = [id, status];
+      let paramIndex = 3;
+
+      if (rejectionReason !== undefined) {
+        sets.push(`rejection_reason = $${paramIndex++}`);
+        values.push(rejectionReason);
+      }
+      if (isVerifiedBadge !== undefined) {
+        sets.push(`is_verified_badge = $${paramIndex++}`);
+        values.push(isVerifiedBadge);
+      }
+
+      const res = await pool.query(
+        `UPDATE business_profiles SET ${sets.join(", ")} WHERE id::text = $1 RETURNING id;`,
+        values
+      );
+      return (res.rowCount || 0) > 0;
+    } catch (err) {
+      console.error("[DB ERROR] setBusinessProfileStatus:", err);
+      return false;
+    }
+  },
+
+  async deleteBusinessProfile(id: string, householdId?: string): Promise<boolean> {
+    if (!pool) {
+      const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles =
+        (globalThis as any).__memoryBusinessProfiles || []);
+      const idx = list.findIndex((p) => p.id === id);
+      if (idx !== -1) {
+        list.splice(idx, 1);
+        return true;
+      }
+      return false;
+    }
+    try {
+      let query = `DELETE FROM business_profiles WHERE id::text = $1`;
+      const values: any[] = [id];
+      if (householdId) {
+        query += ` AND household_id::text = $2`;
+        values.push(householdId);
+      }
+      const res = await pool.query(query, values);
+      return (res.rowCount || 0) > 0;
+    } catch (err) {
+      console.error("[DB ERROR] deleteBusinessProfile:", err);
+      return false;
+    }
+  },
 };
 
 function mapMatrimonialRow(row: any): MatrimonialProfile {
@@ -3255,6 +3687,39 @@ function mapMatrimonialRow(row: any): MatrimonialProfile {
     age,
     fatherMemberSerial: row.father_serial || undefined,
     motherMemberSerial: row.mother_serial || undefined,
+  };
+}
+
+function mapBusinessProfileRow(row: any): BusinessProfile {
+  return {
+    id: String(row.id),
+    householdId: String(row.household_id || row.householdId || ""),
+    createdByMemberId: String(row.created_by_member_id || row.createdByMemberId || ""),
+    status: row.status || "pending_review",
+    rejectionReason: row.rejection_reason || row.rejectionReason || undefined,
+    businessName: row.business_name || row.businessName || "",
+    legalName: row.legal_name || row.legalName || undefined,
+    tagline: row.tagline || undefined,
+    industrySector: row.industry_sector || row.industrySector || "",
+    businessType: row.business_type || row.businessType || "",
+    yearEstablished: row.year_established ? parseInt(row.year_established, 10) : undefined,
+    aboutBusiness: row.about_business || row.aboutBusiness || "",
+    offeringsSummary: row.offerings_summary || row.offeringsSummary || undefined,
+    registrationType: row.registration_type || row.registrationType || undefined,
+    registrationNumber: row.registration_number || row.registrationNumber || undefined,
+    isVerifiedBadge: Boolean(row.is_verified_badge),
+    country: row.country || "India",
+    state: row.state || "",
+    city: row.city || "",
+    pincode: row.pincode || undefined,
+    addressLine: row.address_line || row.addressLine || undefined,
+    websiteUrl: row.website_url || row.websiteUrl || undefined,
+    socialLinks: typeof row.social_links === "string" ? JSON.parse(row.social_links) : (row.social_links || row.socialLinks || {}),
+    photos: Array.isArray(row.photos) ? row.photos : (typeof row.photos === "string" ? JSON.parse(row.photos) : []),
+    customFields: typeof row.custom_fields === "string" ? JSON.parse(row.custom_fields) : (row.custom_fields || row.customFields || []),
+    linkedDirectors: typeof row.linked_directors === "string" ? JSON.parse(row.linked_directors) : (row.linked_directors || row.linkedDirectors || []),
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || new Date().toISOString()),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || new Date().toISOString()),
   };
 }
 
