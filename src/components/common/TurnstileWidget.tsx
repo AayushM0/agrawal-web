@@ -67,13 +67,17 @@ export function TurnstileWidget({
   const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'verified' | 'error'>('loading');
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
 
-  // Check if we are running on a Vercel preview domain (*.vercel.app) or localhost
-  // Cloudflare Turnstile disallows wildcard *.vercel.app in allowed domains.
-  // Using Cloudflare's official test key on preview URLs allows previews to pass verification seamlessly.
+  // Check if we are running on a local development host or Vercel preview domain
+  const isLocalHost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname === '[::1]' ||
+    window.location.hostname.endsWith('.local')
+  );
+
   const isPreviewHost = typeof window !== 'undefined' && (
     window.location.hostname.endsWith('.vercel.app') ||
-    window.location.hostname === 'localhost' ||
-    window.location.hostname === '127.0.0.1'
+    isLocalHost
   );
 
   const rawSiteKey = isPreviewHost
@@ -107,6 +111,13 @@ export function TurnstileWidget({
         },
         'error-callback': (errorCode: string) => {
           console.error('[TURNSTILE ERROR CODE]', errorCode);
+          if (isLocalHost || isPreviewHost) {
+            console.warn(`[TURNSTILE] Error ${errorCode} on dev/preview host. Auto-falling back to dev-bypass-token.`);
+            setIsDevFallback(true);
+            setLoadStatus('verified');
+            onVerifyRef.current?.('dev-bypass-token');
+            return;
+          }
           setLoadStatus('error');
           setErrorDetails(getTurnstileErrorMessage(String(errorCode)));
           onErrorRef.current?.(errorCode);
@@ -117,9 +128,10 @@ export function TurnstileWidget({
       setLoadStatus('ready');
     } catch (err) {
       console.error('[TURNSTILE RENDER ERROR]', err);
-      if (process.env.NODE_ENV !== 'production') {
+      if (isLocalHost || isPreviewHost || process.env.NODE_ENV !== 'production') {
+        setIsDevFallback(true);
         setLoadStatus('verified');
-        onVerifyRef.current('dev-bypass-token');
+        onVerifyRef.current?.('dev-bypass-token');
       } else {
         setLoadStatus('error');
         setErrorDetails('Widget rendering encountered an unexpected exception.');
@@ -128,13 +140,23 @@ export function TurnstileWidget({
   };
 
   useEffect(() => {
+    // 0. Auto-bypass immediately on localhost for zero-friction local development & testing
+    if (isLocalHost && process.env.NEXT_PUBLIC_FORCE_TURNSTILE_LOCAL !== 'true') {
+      setIsDevFallback(true);
+      setLoadStatus('verified');
+      const timer = setTimeout(() => {
+        onVerifyRef.current?.('dev-bypass-token');
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+
     // 1. If no site key is available, activate dev bypass
     if (!effectiveSiteKey) {
       setIsDevFallback(true);
       setLoadStatus('verified');
       const timer = setTimeout(() => {
-        onVerifyRef.current('dev-bypass-token');
-      }, 100);
+        onVerifyRef.current?.('dev-bypass-token');
+      }, 50);
       return () => clearTimeout(timer);
     }
 
@@ -153,6 +175,13 @@ export function TurnstileWidget({
       script.async = true;
       script.defer = true;
       script.onerror = () => {
+        if (isLocalHost || isPreviewHost) {
+          console.warn('[TURNSTILE] Script failed to load on dev/preview host. Auto-falling back to dev-bypass-token.');
+          setIsDevFallback(true);
+          setLoadStatus('verified');
+          onVerifyRef.current?.('dev-bypass-token');
+          return;
+        }
         setLoadStatus('error');
         setErrorDetails('Turnstile script failed to load from Cloudflare. Check your internet connection or ad-blocker.');
         onErrorRef.current?.('Turnstile script failed to load');
@@ -168,12 +197,19 @@ export function TurnstileWidget({
       };
     }
 
-    // 3. Fallback timeout check (6s) if script blocked by ad-blocker or network
+    // 3. Fallback timeout check (2.5s) if script blocked by ad-blocker or network
     const timeoutCheck = setTimeout(() => {
-      if (!window.turnstile && !widgetIdRef.current && process.env.NODE_ENV === 'production') {
-        setLoadStatus('error');
+      if (!window.turnstile && !widgetIdRef.current) {
+        if (isLocalHost || isPreviewHost) {
+          console.warn('[TURNSTILE] Script timed out on dev/preview host. Auto-falling back to dev-bypass-token.');
+          setIsDevFallback(true);
+          setLoadStatus('verified');
+          onVerifyRef.current?.('dev-bypass-token');
+        } else if (process.env.NODE_ENV === 'production') {
+          setLoadStatus('error');
+        }
       }
-    }, 6000);
+    }, 2500);
 
     return () => {
       clearTimeout(timeoutCheck);
@@ -186,7 +222,7 @@ export function TurnstileWidget({
         widgetIdRef.current = null;
       }
     };
-  }, [effectiveSiteKey, theme, size]);
+  }, [effectiveSiteKey, theme, size, isLocalHost]);
 
   if (isDevFallback) {
     return (
@@ -221,23 +257,38 @@ export function TurnstileWidget({
           <span className="text-[11px] text-body-muted leading-relaxed">
             {errorDetails || 'If you have an ad-blocker or private DNS enabled, please disable it for this site and retry.'}
           </span>
-          <button
-            type="button"
-            onClick={() => {
-              setErrorDetails(null);
-              setLoadStatus('loading');
-              if (window.turnstile && containerRef.current) {
-                try {
-                  if (widgetIdRef.current) window.turnstile.remove(widgetIdRef.current);
-                } catch {}
-                widgetIdRef.current = null;
-                renderWidget();
-              }
-            }}
-            className="mt-1.5 px-4 py-1.5 bg-white border border-red-300 rounded-lg text-xs font-bold text-red-700 hover:bg-red-50 transition-all shadow-xs"
-          >
-            ↻ Retry Verification
-          </button>
+          <div className="flex items-center gap-2 mt-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setErrorDetails(null);
+                setLoadStatus('loading');
+                if (window.turnstile && containerRef.current) {
+                  try {
+                    if (widgetIdRef.current) window.turnstile.remove(widgetIdRef.current);
+                  } catch {}
+                  widgetIdRef.current = null;
+                  renderWidget();
+                }
+              }}
+              className="px-4 py-1.5 bg-white border border-red-300 rounded-lg text-xs font-bold text-red-700 hover:bg-red-50 transition-all shadow-xs"
+            >
+              ↻ Retry Verification
+            </button>
+            {(isLocalHost || isPreviewHost || process.env.NODE_ENV !== 'production') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDevFallback(true);
+                  setLoadStatus('verified');
+                  onVerifyRef.current?.('dev-bypass-token');
+                }}
+                className="px-4 py-1.5 bg-brand-primary border border-brand-accent/40 rounded-lg text-xs font-bold text-white hover:bg-brand-primary/90 transition-all shadow-xs"
+              >
+                ⚡ Bypass on Localhost
+              </button>
+            )}
+          </div>
         </div>
       )}
 
