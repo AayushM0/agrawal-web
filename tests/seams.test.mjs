@@ -712,5 +712,37 @@ test("Seam 25: Global Agarwal Jobs & Careers Network adheres to all contracts an
   assert.ok(dashboardPage.includes("/careers/jobs/create"), "Dashboard must link to job create");
 });
 
+test("Seam 26: Admin-Assisted Delegated Profile Creation adheres to contracts and security invariants", () => {
+  const adminActionsPath = path.join(webRoot, "src/actions/admin-profiles.ts");
+  const adminCompPath = path.join(webRoot, "src/components/admin/AdminAssistedProfilesCreator.tsx");
+  const modPagePath = path.join(webRoot, "src/app/admin/moderation/page.tsx");
+
+  assert.ok(fs.existsSync(adminActionsPath), "src/actions/admin-profiles.ts must exist");
+  assert.ok(fs.existsSync(adminCompPath), "src/components/admin/AdminAssistedProfilesCreator.tsx must exist");
+  assert.ok(fs.existsSync(modPagePath), "src/app/admin/moderation/page.tsx must exist");
+
+  const actionsCode = fs.readFileSync(adminActionsPath, "utf8");
+  const compCode = fs.readFileSync(adminCompPath, "utf8");
+  const modCode = fs.readFileSync(modPagePath, "utf8");
+
+  // 1. Exported server actions
+  assert.ok(actionsCode.includes("searchMembersForAdminAction"), "Must export searchMembersForAdminAction");
+  assert.ok(actionsCode.includes("adminCreateMatrimonyProfileAction"), "Must export adminCreateMatrimonyProfileAction");
+  assert.ok(actionsCode.includes("adminCreateCareerProfileAction"), "Must export adminCreateCareerProfileAction");
+  assert.ok(actionsCode.includes("adminCreateBusinessProfileAction"), "Must export adminCreateBusinessProfileAction");
+
+  // 2. Security guards & audit logging
+  assert.ok(actionsCode.includes('session?.role !== "admin"'), "Must guard actions with session.role !== 'admin'");
+  assert.ok(actionsCode.includes("recordAdminAuditLog"), "Must record audit trail in admin_action_logs");
+  assert.ok(actionsCode.includes("ADMIN_CREATE_MATRIMONY_PROFILE"), "Must log matrimony profile creation");
+  assert.ok(actionsCode.includes("ADMIN_CREATE_CAREER_PROFILE"), "Must log career profile creation");
+  assert.ok(actionsCode.includes("ADMIN_CREATE_BUSINESS_PROFILE"), "Must log business profile creation");
+
+  // 3. UI Integration
+  assert.ok(modCode.includes("AdminAssistedProfilesCreator"), "Admin moderation page must render AdminAssistedProfilesCreator");
+  assert.ok(modCode.includes("Create on Behalf") || modCode.includes("assisted"), "Admin moderation page must have Create on Behalf tab");
+  assert.ok(compCode.includes("matrimony") && compCode.includes("career") && compCode.includes("business"), "AdminAssistedProfilesCreator must support matrimony, career, and business profiles");
+});
+
 
 

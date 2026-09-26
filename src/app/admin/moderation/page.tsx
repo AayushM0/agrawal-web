@@ -24,6 +24,7 @@ import type { BusinessProfile } from "@/types/business";
 import { getLiveJobPostingsAction } from "@/actions/career";
 import type { JobPosting } from "@/types/career";
 import { gotras } from "@/data/gotras";
+import AdminAssistedProfilesCreator from "@/components/admin/AdminAssistedProfilesCreator";
 
 export default function ModerationQueuePage() {
   const [households, setHouseholds] = useState<Household[]>([]);
@@ -35,7 +36,7 @@ export default function ModerationQueuePage() {
   const [awardVerifiedMap, setAwardVerifiedMap] = useState<Record<string, boolean>>({});
   const [rejectingBusinessId, setRejectingBusinessId] = useState<string | null>(null);
   const [businessRejectReason, setBusinessRejectReason] = useState("");
-  const [filter, setFilter] = useState<"pending" | "approved" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue" | "businesses" | "careers">("pending");
+  const [filter, setFilter] = useState<"pending" | "approved" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue" | "businesses" | "careers" | "assisted">("pending");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGotra, setSelectedGotra] = useState("all");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -471,6 +472,19 @@ export default function ModerationQueuePage() {
             <span className="text-[10px] font-bold text-teal-800 uppercase tracking-wider block">Email Queue</span>
             <span className="text-lg font-black text-teal-700">{queueStats?.failed ? `${queueStats.failed} err` : (queueStats?.pending ?? 0)}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setFilter("assisted")}
+            className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
+              filter === "assisted"
+                ? "bg-amber-100/90 border-amber-500 ring-2 ring-amber-400/30"
+                : "bg-white border-brand-accent/30 hover:bg-amber-50/40"
+            }`}
+          >
+            <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">✨ Assist &amp; Create</span>
+            <span className="text-lg font-black text-amber-900">Direct</span>
+          </button>
         </div>
 
         {/* Tab Navigation Bar */}
@@ -642,6 +656,17 @@ export default function ModerationQueuePage() {
                   {queueStats.pending}
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setFilter("assisted")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center gap-1.5 ${
+                filter === "assisted"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <span>✨ Create on Behalf</span>
             </button>
           </div>
         </div>
@@ -1143,6 +1168,8 @@ export default function ModerationQueuePage() {
               )}
             </div>
           </div>
+        ) : filter === "assisted" ? (
+          <AdminAssistedProfilesCreator />
         ) : filter === "careers" ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
