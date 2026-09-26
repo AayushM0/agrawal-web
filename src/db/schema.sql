@@ -105,12 +105,14 @@ CREATE INDEX IF NOT EXISTS idx_members_coordinates ON members USING gist(coordin
 CREATE INDEX IF NOT EXISTS idx_members_trgm_name ON members USING gin(full_name gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_households_status ON households(status);
 CREATE INDEX IF NOT EXISTS idx_households_gotra ON households(gotra);
-CREATE INDEX IF NOT EXISTS idx_households_serial_no ON households(serial_no);
+ALTER TABLE households ADD COLUMN IF NOT EXISTS aadhaar_hash TEXT;
+ALTER TABLE members ADD COLUMN IF NOT EXISTS aadhaar_hash TEXT;
 CREATE INDEX IF NOT EXISTS idx_households_aadhaar_hash ON households(aadhaar_hash);
 CREATE INDEX IF NOT EXISTS idx_members_aadhaar_hash ON members(aadhaar_hash);
 
 -- Schema Migration Deltas
 ALTER TABLE households ADD COLUMN IF NOT EXISTS serial_no VARCHAR(32) UNIQUE;
+CREATE INDEX IF NOT EXISTS idx_households_serial_no ON households(serial_no);
 ALTER TABLE households ADD COLUMN IF NOT EXISTS country TEXT DEFAULT 'India';
 ALTER TABLE households ADD COLUMN IF NOT EXISTS postal_code TEXT;
 ALTER TABLE households ADD COLUMN IF NOT EXISTS state TEXT;
@@ -175,6 +177,10 @@ CREATE TABLE IF NOT EXISTS messages (
     read_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_url TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_type VARCHAR(20);
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_name TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_size INTEGER;
 CREATE INDEX IF NOT EXISTS idx_messages_has_attachment ON messages(conversation_id) WHERE attachment_url IS NOT NULL;
 
 
