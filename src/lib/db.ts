@@ -5,6 +5,7 @@ import type { SupportInquiry, CreateInquiryInput, InquiryStatus } from "../types
 import type { MatrimonialProfile, MatrimonyFilter } from "../types/matrimony";
 import type { EmailQueueItem, EnqueueEmailInput, EmailQueueStats } from "../types/email-queue";
 import type { BusinessProfile } from "../types/business";
+import type { CareerProfile, CreateCareerProfileInput, UpdateCareerProfileInput, CareerFilter } from "../types/career";
 
 const globalForPg = globalThis as unknown as {
   pgPool?: Pool;
@@ -419,6 +420,40 @@ async function ensureSchema(client: any) {
       CREATE INDEX IF NOT EXISTS idx_business_profiles_city ON business_profiles(city);
       CREATE INDEX IF NOT EXISTS idx_business_profiles_created_by ON business_profiles(created_by_member_id);
       ALTER TABLE business_profiles ENABLE ROW LEVEL SECURITY;
+
+      -- Career Profiles Table (Global Jobs & Careers Network - Pillar 4)
+      CREATE TABLE IF NOT EXISTS career_profiles (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+          member_id UUID NOT NULL UNIQUE REFERENCES members(id) ON DELETE CASCADE,
+          headline VARCHAR(255) NOT NULL,
+          career_level VARCHAR(50) NOT NULL,
+          primary_domain VARCHAR(100) NOT NULL,
+          current_company VARCHAR(255),
+          current_designation VARCHAR(255),
+          years_of_experience INTEGER NOT NULL DEFAULT 0,
+          education_highest VARCHAR(150),
+          education_institution VARCHAR(255),
+          skills TEXT[] NOT NULL DEFAULT '{}',
+          seeking_status VARCHAR(50) NOT NULL DEFAULT 'open_to_offers',
+          preferred_locations TEXT[] NOT NULL DEFAULT '{}',
+          workplace_preference VARCHAR(50) NOT NULL DEFAULT 'flexible',
+          resume_url TEXT,
+          bio TEXT,
+          linkedin_url TEXT,
+          portfolio_url TEXT,
+          is_mentor_available BOOLEAN NOT NULL DEFAULT FALSE,
+          is_confidential_mode BOOLEAN NOT NULL DEFAULT FALSE,
+          status VARCHAR(50) NOT NULL DEFAULT 'live',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_career_profiles_status ON career_profiles(status);
+      CREATE INDEX IF NOT EXISTS idx_career_profiles_domain ON career_profiles(primary_domain);
+      CREATE INDEX IF NOT EXISTS idx_career_profiles_member ON career_profiles(member_id);
+      CREATE INDEX IF NOT EXISTS idx_career_profiles_household ON career_profiles(household_id);
+      CREATE INDEX IF NOT EXISTS idx_career_profiles_mentor ON career_profiles(is_mentor_available);
+      ALTER TABLE career_profiles ENABLE ROW LEVEL SECURITY;
     `);
     schemaEnsured = true;
     globalForPg.schemaEnsured = true;
@@ -3643,6 +3678,277 @@ export const db = {
       return false;
     }
   },
+
+  async createCareerProfile(p: CreateCareerProfileInput): Promise<CareerProfile> {
+    if (!pool) {
+      const list: CareerProfile[] = ((globalThis as any).__memoryCareerProfiles =
+        (globalThis as any).__memoryCareerProfiles || []);
+      const newProfile: CareerProfile = {
+        id: crypto.randomUUID(),
+        householdId: p.householdId,
+        memberId: p.memberId,
+        headline: p.headline,
+        careerLevel: p.careerLevel,
+        primaryDomain: p.primaryDomain,
+        currentCompany: p.currentCompany,
+        currentDesignation: p.currentDesignation,
+        yearsOfExperience: p.yearsOfExperience || 0,
+        educationHighest: p.educationHighest,
+        educationInstitution: p.educationInstitution,
+        skills: p.skills || [],
+        seekingStatus: p.seekingStatus || "open_to_offers",
+        preferredLocations: p.preferredLocations || [],
+        workplacePreference: p.workplacePreference || "flexible",
+        resumeUrl: p.resumeUrl,
+        bio: p.bio,
+        linkedinUrl: p.linkedinUrl,
+        portfolioUrl: p.portfolioUrl,
+        isMentorAvailable: Boolean(p.isMentorAvailable),
+        isConfidentialMode: Boolean(p.isConfidentialMode),
+        status: "live",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      list.unshift(newProfile);
+      return newProfile;
+    }
+
+    const query = `
+      INSERT INTO career_profiles (
+        household_id, member_id, headline, career_level, primary_domain,
+        current_company, current_designation, years_of_experience,
+        education_highest, education_institution, skills,
+        seeking_status, preferred_locations, workplace_preference,
+        resume_url, bio, linkedin_url, portfolio_url,
+        is_mentor_available, is_confidential_mode, status
+      ) VALUES (
+        $1, $2, $3, $4, $5,
+        $6, $7, $8,
+        $9, $10, $11,
+        $12, $13, $14,
+        $15, $16, $17, $18,
+        $19, $20, $21
+      )
+      ON CONFLICT (member_id) DO UPDATE SET
+        headline = EXCLUDED.headline,
+        career_level = EXCLUDED.career_level,
+        primary_domain = EXCLUDED.primary_domain,
+        current_company = EXCLUDED.current_company,
+        current_designation = EXCLUDED.current_designation,
+        years_of_experience = EXCLUDED.years_of_experience,
+        education_highest = EXCLUDED.education_highest,
+        education_institution = EXCLUDED.education_institution,
+        skills = EXCLUDED.skills,
+        seeking_status = EXCLUDED.seeking_status,
+        preferred_locations = EXCLUDED.preferred_locations,
+        workplace_preference = EXCLUDED.workplace_preference,
+        resume_url = EXCLUDED.resume_url,
+        bio = EXCLUDED.bio,
+        linkedin_url = EXCLUDED.linkedin_url,
+        portfolio_url = EXCLUDED.portfolio_url,
+        is_mentor_available = EXCLUDED.is_mentor_available,
+        is_confidential_mode = EXCLUDED.is_confidential_mode,
+        status = EXCLUDED.status,
+        updated_at = NOW()
+      RETURNING *;
+    `;
+
+    const values = [
+      p.householdId,
+      p.memberId,
+      p.headline,
+      p.careerLevel,
+      p.primaryDomain,
+      p.currentCompany || null,
+      p.currentDesignation || null,
+      p.yearsOfExperience || 0,
+      p.educationHighest || null,
+      p.educationInstitution || null,
+      p.skills || [],
+      p.seekingStatus || "open_to_offers",
+      p.preferredLocations || [],
+      p.workplacePreference || "flexible",
+      p.resumeUrl || null,
+      p.bio || null,
+      p.linkedinUrl || null,
+      p.portfolioUrl || null,
+      Boolean(p.isMentorAvailable),
+      Boolean(p.isConfidentialMode),
+      "live",
+    ];
+
+    const res = await pool.query(query, values);
+    return mapCareerProfileRow(res.rows[0]);
+  },
+
+  async getCareerProfileById(id: string): Promise<CareerProfile | null> {
+    if (!pool) {
+      const list: CareerProfile[] = (globalThis as any).__memoryCareerProfiles || [];
+      return list.find((p) => p.id === id) || null;
+    }
+    const query = `
+      SELECT cp.*, m.full_name, m.gender, m.serial_no, h.gotra, h.city, h.state, h.country, h.native_place, h.household_code
+      FROM career_profiles cp
+      JOIN members m ON cp.member_id = m.id
+      JOIN households h ON cp.household_id = h.id
+      WHERE cp.id::text = $1;
+    `;
+    const res = await pool.query(query, [id]);
+    return res.rows[0] ? mapCareerProfileRow(res.rows[0]) : null;
+  },
+
+  async getCareerProfileByMemberId(memberId: string): Promise<CareerProfile | null> {
+    if (!pool) {
+      const list: CareerProfile[] = (globalThis as any).__memoryCareerProfiles || [];
+      return list.find((p) => p.memberId === memberId) || null;
+    }
+    const query = `
+      SELECT cp.*, m.full_name, m.gender, m.serial_no, h.gotra, h.city, h.state, h.country, h.native_place, h.household_code
+      FROM career_profiles cp
+      JOIN members m ON cp.member_id = m.id
+      JOIN households h ON cp.household_id = h.id
+      WHERE cp.member_id::text = $1;
+    `;
+    const res = await pool.query(query, [memberId]);
+    return res.rows[0] ? mapCareerProfileRow(res.rows[0]) : null;
+  },
+
+  async getLiveCareerProfiles(filter: CareerFilter = {}): Promise<{ profiles: CareerProfile[]; total: number }> {
+    if (!pool) {
+      let list: CareerProfile[] = (globalThis as any).__memoryCareerProfiles || [];
+      list = list.filter((p) => p.status === "live");
+      if (filter.primaryDomain && filter.primaryDomain !== "all") list = list.filter((p) => p.primaryDomain === filter.primaryDomain);
+      if (filter.careerLevel && filter.careerLevel !== "all") list = list.filter((p) => p.careerLevel === filter.careerLevel);
+      if (filter.isMentorAvailable) list = list.filter((p) => p.isMentorAvailable);
+      return { profiles: list, total: list.length };
+    }
+
+    const conditions: string[] = ["cp.status = 'live'", "h.status = 'live'"];
+    const values: any[] = [];
+    let pIdx = 1;
+
+    if (filter.primaryDomain && filter.primaryDomain !== "all") {
+      conditions.push(`cp.primary_domain = $${pIdx++}`);
+      values.push(filter.primaryDomain);
+    }
+
+    if (filter.careerLevel && filter.careerLevel !== "all") {
+      conditions.push(`cp.career_level = $${pIdx++}`);
+      values.push(filter.careerLevel);
+    }
+
+    if (filter.gotra && filter.gotra !== "all") {
+      conditions.push(`LOWER(h.gotra) = LOWER($${pIdx++})`);
+      values.push(filter.gotra);
+    }
+
+    if (filter.city) {
+      conditions.push(`(LOWER(h.city) LIKE LOWER($${pIdx}) OR LOWER(cp.preferred_locations::text) LIKE LOWER($${pIdx}))`);
+      values.push(`%${filter.city}%`);
+      pIdx++;
+    }
+
+    if (filter.isMentorAvailable) {
+      conditions.push(`cp.is_mentor_available = TRUE`);
+    }
+
+    if (filter.query) {
+      conditions.push(`(
+        cp.headline ILIKE $${pIdx} OR
+        cp.skills::text ILIKE $${pIdx} OR
+        m.full_name ILIKE $${pIdx} OR
+        cp.current_company ILIKE $${pIdx}
+      )`);
+      values.push(`%${filter.query}%`);
+      pIdx++;
+    }
+
+    const whereClause = `WHERE ${conditions.join(" AND ")}`;
+    const countRes = await pool.query(`
+      SELECT COUNT(*)::int as count
+      FROM career_profiles cp
+      JOIN members m ON cp.member_id = m.id
+      JOIN households h ON cp.household_id = h.id
+      ${whereClause};
+    `, values);
+
+    const limit = filter.limit || 50;
+    const offset = filter.offset || 0;
+    values.push(limit, offset);
+
+    const query = `
+      SELECT cp.*, m.full_name, m.gender, m.serial_no, h.gotra, h.city, h.state, h.country, h.native_place, h.household_code
+      FROM career_profiles cp
+      JOIN members m ON cp.member_id = m.id
+      JOIN households h ON cp.household_id = h.id
+      ${whereClause}
+      ORDER BY cp.created_at DESC
+      LIMIT $${pIdx++} OFFSET $${pIdx++};
+    `;
+
+    const res = await pool.query(query, values);
+    return {
+      profiles: res.rows.map(mapCareerProfileRow),
+      total: countRes.rows[0]?.count || 0,
+    };
+  },
+
+  async updateCareerProfile(id: string, updates: UpdateCareerProfileInput): Promise<CareerProfile | null> {
+    if (!pool) {
+      const list: CareerProfile[] = (globalThis as any).__memoryCareerProfiles || [];
+      const idx = list.findIndex((p) => p.id === id);
+      if (idx === -1) return null;
+      list[idx] = { ...list[idx], ...updates, updatedAt: new Date().toISOString() };
+      return list[idx];
+    }
+
+    const sets: string[] = [];
+    const values: any[] = [id];
+    let pIdx = 2;
+
+    const addSet = (col: string, val: any) => {
+      sets.push(`${col} = $${pIdx++}`);
+      values.push(val);
+    };
+
+    if (updates.headline !== undefined) addSet("headline", updates.headline);
+    if (updates.careerLevel !== undefined) addSet("career_level", updates.careerLevel);
+    if (updates.primaryDomain !== undefined) addSet("primary_domain", updates.primaryDomain);
+    if (updates.currentCompany !== undefined) addSet("current_company", updates.currentCompany);
+    if (updates.currentDesignation !== undefined) addSet("current_designation", updates.currentDesignation);
+    if (updates.yearsOfExperience !== undefined) addSet("years_of_experience", updates.yearsOfExperience);
+    if (updates.educationHighest !== undefined) addSet("education_highest", updates.educationHighest);
+    if (updates.educationInstitution !== undefined) addSet("education_institution", updates.educationInstitution);
+    if (updates.skills !== undefined) addSet("skills", updates.skills);
+    if (updates.seekingStatus !== undefined) addSet("seeking_status", updates.seekingStatus);
+    if (updates.preferredLocations !== undefined) addSet("preferred_locations", updates.preferredLocations);
+    if (updates.workplacePreference !== undefined) addSet("workplace_preference", updates.workplacePreference);
+    if (updates.resumeUrl !== undefined) addSet("resume_url", updates.resumeUrl);
+    if (updates.bio !== undefined) addSet("bio", updates.bio);
+    if (updates.linkedinUrl !== undefined) addSet("linkedin_url", updates.linkedinUrl);
+    if (updates.portfolioUrl !== undefined) addSet("portfolio_url", updates.portfolioUrl);
+    if (updates.isMentorAvailable !== undefined) addSet("is_mentor_available", updates.isMentorAvailable);
+    if (updates.isConfidentialMode !== undefined) addSet("is_confidential_mode", updates.isConfidentialMode);
+    if (updates.status !== undefined) addSet("status", updates.status);
+
+    if (sets.length === 0) return null;
+    sets.push("updated_at = NOW()");
+
+    const query = `UPDATE career_profiles SET ${sets.join(", ")} WHERE id::text = $1 RETURNING *;`;
+    const res = await pool.query(query, values);
+    return res.rows[0] ? mapCareerProfileRow(res.rows[0]) : null;
+  },
+
+  async deleteCareerProfile(id: string): Promise<boolean> {
+    if (!pool) {
+      let list: CareerProfile[] = (globalThis as any).__memoryCareerProfiles || [];
+      const initialLen = list.length;
+      (globalThis as any).__memoryCareerProfiles = list.filter((p) => p.id !== id);
+      return (globalThis as any).__memoryCareerProfiles.length < initialLen;
+    }
+    const res = await pool.query(`DELETE FROM career_profiles WHERE id::text = $1;`, [id]);
+    return (res.rowCount || 0) > 0;
+  },
 };
 
 function mapMatrimonialRow(row: any): MatrimonialProfile {
@@ -3749,6 +4055,44 @@ function mapBusinessProfileRow(row: any): BusinessProfile {
     linkedDirectors: typeof row.linked_directors === "string" ? JSON.parse(row.linked_directors) : (row.linked_directors || row.linkedDirectors || []),
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || new Date().toISOString()),
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || new Date().toISOString()),
+  };
+}
+
+function mapCareerProfileRow(row: any): CareerProfile {
+  return {
+    id: String(row.id),
+    householdId: String(row.household_id || row.householdId || ""),
+    memberId: String(row.member_id || row.memberId || ""),
+    headline: row.headline || "",
+    careerLevel: row.career_level || row.careerLevel || "mid_level",
+    primaryDomain: row.primary_domain || row.primaryDomain || "Other",
+    currentCompany: row.current_company || row.currentCompany || undefined,
+    currentDesignation: row.current_designation || row.currentDesignation || undefined,
+    yearsOfExperience: typeof row.years_of_experience === "number" ? row.years_of_experience : (parseInt(row.years_of_experience, 10) || 0),
+    educationHighest: row.education_highest || row.educationHighest || undefined,
+    educationInstitution: row.education_institution || row.educationInstitution || undefined,
+    skills: Array.isArray(row.skills) ? row.skills : (typeof row.skills === "string" ? JSON.parse(row.skills) : []),
+    seekingStatus: row.seeking_status || row.seekingStatus || "open_to_offers",
+    preferredLocations: Array.isArray(row.preferred_locations) ? row.preferred_locations : (typeof row.preferred_locations === "string" ? JSON.parse(row.preferred_locations) : []),
+    workplacePreference: row.workplace_preference || row.workplacePreference || "flexible",
+    resumeUrl: row.resume_url || row.resumeUrl || undefined,
+    bio: row.bio || undefined,
+    linkedinUrl: row.linkedin_url || row.linkedinUrl || undefined,
+    portfolioUrl: row.portfolio_url || row.portfolioUrl || undefined,
+    isMentorAvailable: Boolean(row.is_mentor_available),
+    isConfidentialMode: Boolean(row.is_confidential_mode),
+    status: row.status || "live",
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || new Date().toISOString()),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || new Date().toISOString()),
+    fullName: row.full_name || row.fullName || undefined,
+    gender: row.gender || undefined,
+    gotra: row.gotra || undefined,
+    city: row.city || undefined,
+    state: row.state || undefined,
+    country: row.country || undefined,
+    nativePlace: row.native_place || row.nativePlace || undefined,
+    serialNo: row.serial_no ? parseInt(row.serial_no, 10) : undefined,
+    householdCode: row.household_code || row.householdCode || undefined,
   };
 }
 

@@ -422,6 +422,46 @@ CREATE INDEX IF NOT EXISTS idx_business_profiles_sector ON business_profiles(ind
 CREATE INDEX IF NOT EXISTS idx_business_profiles_city ON business_profiles(city);
 CREATE INDEX IF NOT EXISTS idx_business_profiles_created_by ON business_profiles(created_by_member_id);
 
+-- 9e. Global Jobs & Careers Network (Pillar 4: career_profiles)
+CREATE TABLE IF NOT EXISTS career_profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    member_id UUID NOT NULL UNIQUE REFERENCES members(id) ON DELETE CASCADE,
+    
+    headline VARCHAR(255) NOT NULL,
+    career_level VARCHAR(50) NOT NULL,
+    primary_domain VARCHAR(100) NOT NULL,
+    current_company VARCHAR(255),
+    current_designation VARCHAR(255),
+    years_of_experience INTEGER NOT NULL DEFAULT 0,
+    
+    education_highest VARCHAR(150),
+    education_institution VARCHAR(255),
+    skills TEXT[] NOT NULL DEFAULT '{}',
+    
+    seeking_status VARCHAR(50) NOT NULL DEFAULT 'open_to_offers',
+    preferred_locations TEXT[] NOT NULL DEFAULT '{}',
+    workplace_preference VARCHAR(50) NOT NULL DEFAULT 'flexible',
+    
+    resume_url TEXT,
+    bio TEXT,
+    linkedin_url TEXT,
+    portfolio_url TEXT,
+    
+    is_mentor_available BOOLEAN NOT NULL DEFAULT FALSE,
+    is_confidential_mode BOOLEAN NOT NULL DEFAULT FALSE,
+    status VARCHAR(50) NOT NULL DEFAULT 'live',
+    
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_career_profiles_status ON career_profiles(status);
+CREATE INDEX IF NOT EXISTS idx_career_profiles_domain ON career_profiles(primary_domain);
+CREATE INDEX IF NOT EXISTS idx_career_profiles_member ON career_profiles(member_id);
+CREATE INDEX IF NOT EXISTS idx_career_profiles_household ON career_profiles(household_id);
+CREATE INDEX IF NOT EXISTS idx_career_profiles_mentor ON career_profiles(is_mentor_available);
+
 -- 10. Row-Level Security (RLS) Configuration (Supabase Hardening)
 -- Enable RLS on all tables to prevent public anonymous REST API data exfiltration
 ALTER TABLE households ENABLE ROW LEVEL SECURITY;
@@ -439,6 +479,7 @@ ALTER TABLE admin_audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE matrimonial_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_queue ENABLE ROW LEVEL SECURITY;
 ALTER TABLE business_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE career_profiles ENABLE ROW LEVEL SECURITY;
 
 -- Households, Members, Message Reports, Rate Limits, and Admin Attempts have NO policies defined.
 -- In PostgreSQL, this default deny-all state blocks all public anon/authenticated REST/GraphQL operations.
