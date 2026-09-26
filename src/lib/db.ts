@@ -15,15 +15,27 @@ let pool: Pool | null = globalForPg.pgPool || null;
 
 if (!pool && process.env.DATABASE_URL) {
   try {
+    let effectiveDbUrl = process.env.DATABASE_URL;
+
+    // Hard safety guard: When running locally outside Vercel cloud, prevent accidental connection to production Supabase
+    if (!process.env.VERCEL && (effectiveDbUrl.includes("supabase.co") || effectiveDbUrl.includes("supabase.com") || effectiveDbUrl.includes("pooler.supabase.com"))) {
+      if (process.env.ALLOW_REMOTE_DB_ON_LOCAL !== "true") {
+        console.warn("[DB SAFETY GUARD] Remote Supabase database URL detected in local environment. Automatically redirecting to local Docker PostGIS database (127.0.0.1:5432/agrawal_dev) for safety.");
+        effectiveDbUrl = "postgresql://postgres:postgres@127.0.0.1:5432/agrawal_dev";
+      }
+    }
+
     const isLocalDb =
-      process.env.DATABASE_URL.includes("localhost") ||
-      process.env.DATABASE_URL.includes("127.0.0.1") ||
-      process.env.DATABASE_URL.includes("::1");
+      effectiveDbUrl.includes("localhost") ||
+      effectiveDbUrl.includes("127.0.0.1") ||
+      effectiveDbUrl.includes("::1");
 
     const isProduction = process.env.NODE_ENV === "production";
 
+    console.log(`[DATABASE CONNECT] Connecting to PostgreSQL at: ${isLocalDb ? "127.0.0.1:5432/agrawal_dev (LOCAL DOCKER)" : "REMOTE CLOUD"}`);
+
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: effectiveDbUrl,
       ssl: isLocalDb ? false : { rejectUnauthorized: false },
       max: isProduction ? 2 : 10,
       idleTimeoutMillis: isProduction ? 10000 : 30000,
