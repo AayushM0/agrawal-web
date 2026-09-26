@@ -5,7 +5,15 @@ import type { SupportInquiry, CreateInquiryInput, InquiryStatus } from "../types
 import type { MatrimonialProfile, MatrimonyFilter } from "../types/matrimony";
 import type { EmailQueueItem, EnqueueEmailInput, EmailQueueStats } from "../types/email-queue";
 import type { BusinessProfile } from "../types/business";
-import type { CareerProfile, CreateCareerProfileInput, UpdateCareerProfileInput, CareerFilter } from "../types/career";
+import type {
+  CareerProfile,
+  CreateCareerProfileInput,
+  UpdateCareerProfileInput,
+  CareerFilter,
+  JobPosting,
+  CreateJobPostingInput,
+  JobApplication,
+} from "../types/career";
 
 const globalForPg = globalThis as unknown as {
   pgPool?: Pool;
@@ -454,6 +462,51 @@ async function ensureSchema(client: any) {
       CREATE INDEX IF NOT EXISTS idx_career_profiles_household ON career_profiles(household_id);
       CREATE INDEX IF NOT EXISTS idx_career_profiles_mentor ON career_profiles(is_mentor_available);
       ALTER TABLE career_profiles ENABLE ROW LEVEL SECURITY;
+      
+      -- Enterprise Job Postings Table
+      CREATE TABLE IF NOT EXISTS job_postings (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+          business_id UUID REFERENCES business_profiles(id) ON DELETE SET NULL,
+          posted_by_member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          title VARCHAR(255) NOT NULL,
+          company_name VARCHAR(255) NOT NULL,
+          industry VARCHAR(100) NOT NULL,
+          job_type VARCHAR(50) NOT NULL,
+          workplace_type VARCHAR(50) NOT NULL,
+          city VARCHAR(100),
+          country VARCHAR(100) NOT NULL DEFAULT 'India',
+          experience_min INTEGER NOT NULL DEFAULT 0,
+          experience_max INTEGER,
+          salary_range VARCHAR(100),
+          description TEXT NOT NULL,
+          requirements TEXT,
+          skills_required TEXT[] NOT NULL DEFAULT '{}',
+          status VARCHAR(50) NOT NULL DEFAULT 'active',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_job_postings_status ON job_postings(status);
+      CREATE INDEX IF NOT EXISTS idx_job_postings_industry ON job_postings(industry);
+      CREATE INDEX IF NOT EXISTS idx_job_postings_household ON job_postings(household_id);
+      CREATE INDEX IF NOT EXISTS idx_job_postings_business ON job_postings(business_id);
+      ALTER TABLE job_postings ENABLE ROW LEVEL SECURITY;
+
+      -- Job Applications Table
+      CREATE TABLE IF NOT EXISTS job_applications (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          job_posting_id UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+          applicant_member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          career_profile_id UUID NOT NULL REFERENCES career_profiles(id) ON DELETE CASCADE,
+          cover_note TEXT,
+          status VARCHAR(50) NOT NULL DEFAULT 'submitted',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          UNIQUE(job_posting_id, applicant_member_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_job_applications_posting ON job_applications(job_posting_id);
+      CREATE INDEX IF NOT EXISTS idx_job_applications_applicant ON job_applications(applicant_member_id);
+      ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;
     `);
     schemaEnsured = true;
     globalForPg.schemaEnsured = true;
@@ -3949,6 +4002,316 @@ export const db = {
     const res = await pool.query(`DELETE FROM career_profiles WHERE id::text = $1;`, [id]);
     return (res.rowCount || 0) > 0;
   },
+
+  async createJobPosting(p: CreateJobPostingInput): Promise<JobPosting> {
+    if (!pool) {
+      const newJob: JobPosting = {
+        id: "job-" + Date.now(),
+        householdId: p.householdId,
+        businessId: p.businessId,
+        postedByMemberId: p.postedByMemberId,
+        title: p.title,
+        companyName: p.companyName,
+        industry: p.industry,
+        jobType: p.jobType,
+        workplaceType: p.workplaceType,
+        city: p.city,
+        country: p.country || "India",
+        experienceMin: p.experienceMin || 0,
+        experienceMax: p.experienceMax,
+        salaryRange: p.salaryRange,
+        description: p.description,
+        requirements: p.requirements,
+        skillsRequired: p.skillsRequired || [],
+        status: "active",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        applicantCount: 0,
+      };
+      (globalThis as any).__memoryJobPostings = (globalThis as any).__memoryJobPostings || [];
+      (globalThis as any).__memoryJobPostings.unshift(newJob);
+      return newJob;
+    }
+
+    const query = `
+      INSERT INTO job_postings (
+        household_id, business_id, posted_by_member_id, title, company_name,
+        industry, job_type, workplace_type, city, country, experience_min,
+        experience_max, salary_range, description, requirements, skills_required, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'active')
+      RETURNING *;
+    `;
+
+    const values = [
+      p.householdId,
+      p.businessId || null,
+      p.postedByMemberId,
+      p.title,
+      p.companyName,
+      p.industry,
+      p.jobType,
+      p.workplaceType,
+      p.city || null,
+      p.country || "India",
+      p.experienceMin || 0,
+      p.experienceMax || null,
+      p.salaryRange || null,
+      p.description,
+      p.requirements || null,
+      p.skillsRequired || [],
+    ];
+
+    const res = await pool.query(query, values);
+    return mapJobPostingRow(res.rows[0]);
+  },
+
+  async getJobPostingById(id: string): Promise<JobPosting | null> {
+    if (!pool) {
+      const list: JobPosting[] = (globalThis as any).__memoryJobPostings || [];
+      return list.find((j) => j.id === id) || null;
+    }
+
+    const query = `
+      SELECT jp.*, 
+        bp.is_verified_badge as is_verified_enterprise,
+        (SELECT COUNT(*)::int FROM job_applications ja WHERE ja.job_posting_id = jp.id) as applicant_count
+      FROM job_postings jp
+      LEFT JOIN business_profiles bp ON jp.business_id = bp.id
+      WHERE jp.id::text = $1;
+    `;
+    const res = await pool.query(query, [id]);
+    return res.rows[0] ? mapJobPostingRow(res.rows[0]) : null;
+  },
+
+  async getLiveJobPostings(filter: {
+    industry?: string;
+    jobType?: string;
+    workplaceType?: string;
+    query?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ jobs: JobPosting[]; total: number }> {
+    if (!pool) {
+      let list: JobPosting[] = (globalThis as any).__memoryJobPostings || [];
+      list = list.filter((j) => j.status === "active");
+      if (filter.industry && filter.industry !== "all") list = list.filter((j) => j.industry === filter.industry);
+      if (filter.jobType && filter.jobType !== "all") list = list.filter((j) => j.jobType === filter.jobType);
+      if (filter.workplaceType && filter.workplaceType !== "all") list = list.filter((j) => j.workplaceType === filter.workplaceType);
+      if (filter.query) {
+        const q = filter.query.toLowerCase();
+        list = list.filter((j) => j.title.toLowerCase().includes(q) || j.companyName.toLowerCase().includes(q) || j.skillsRequired.some(s => s.toLowerCase().includes(q)));
+      }
+      return { jobs: list, total: list.length };
+    }
+
+    const conditions: string[] = ["jp.status = 'active'"];
+    const values: any[] = [];
+    let pIdx = 1;
+
+    if (filter.industry && filter.industry !== "all") {
+      conditions.push(`jp.industry = $${pIdx++}`);
+      values.push(filter.industry);
+    }
+    if (filter.jobType && filter.jobType !== "all") {
+      conditions.push(`jp.job_type = $${pIdx++}`);
+      values.push(filter.jobType);
+    }
+    if (filter.workplaceType && filter.workplaceType !== "all") {
+      conditions.push(`jp.workplace_type = $${pIdx++}`);
+      values.push(filter.workplaceType);
+    }
+    if (filter.query) {
+      conditions.push(`(
+        jp.title ILIKE $${pIdx} OR
+        jp.company_name ILIKE $${pIdx} OR
+        jp.skills_required::text ILIKE $${pIdx} OR
+        jp.city ILIKE $${pIdx}
+      )`);
+      values.push(`%${filter.query}%`);
+      pIdx++;
+    }
+
+    const whereClause = `WHERE ${conditions.join(" AND ")}`;
+    const countRes = await pool.query(`
+      SELECT COUNT(*)::int as count
+      FROM job_postings jp
+      ${whereClause};
+    `, values);
+
+    const limit = filter.limit || 50;
+    const offset = filter.offset || 0;
+    values.push(limit, offset);
+
+    const query = `
+      SELECT jp.*,
+        bp.is_verified_badge as is_verified_enterprise,
+        (SELECT COUNT(*)::int FROM job_applications ja WHERE ja.job_posting_id = jp.id) as applicant_count
+      FROM job_postings jp
+      LEFT JOIN business_profiles bp ON jp.business_id = bp.id
+      ${whereClause}
+      ORDER BY jp.created_at DESC
+      LIMIT $${pIdx++} OFFSET $${pIdx++};
+    `;
+
+    const res = await pool.query(query, values);
+    return {
+      jobs: res.rows.map(mapJobPostingRow),
+      total: countRes.rows[0]?.count || 0,
+    };
+  },
+
+  async getJobPostingsByHousehold(householdId: string): Promise<JobPosting[]> {
+    if (!pool) {
+      const list: JobPosting[] = (globalThis as any).__memoryJobPostings || [];
+      return list.filter((j) => j.householdId === householdId);
+    }
+    const query = `
+      SELECT jp.*,
+        (SELECT COUNT(*)::int FROM job_applications ja WHERE ja.job_posting_id = jp.id) as applicant_count
+      FROM job_postings jp
+      WHERE jp.household_id::text = $1
+      ORDER BY jp.created_at DESC;
+    `;
+    const res = await pool.query(query, [householdId]);
+    return res.rows.map(mapJobPostingRow);
+  },
+
+  async updateJobPosting(id: string, updates: Partial<JobPosting>): Promise<JobPosting | null> {
+    if (!pool) {
+      const list: JobPosting[] = (globalThis as any).__memoryJobPostings || [];
+      const idx = list.findIndex((j) => j.id === id);
+      if (idx === -1) return null;
+      list[idx] = { ...list[idx], ...updates, updatedAt: new Date().toISOString() };
+      return list[idx];
+    }
+
+    const sets: string[] = [];
+    const values: any[] = [id];
+    let pIdx = 2;
+
+    const addSet = (col: string, val: any) => {
+      sets.push(`${col} = $${pIdx++}`);
+      values.push(val);
+    };
+
+    if (updates.title !== undefined) addSet("title", updates.title);
+    if (updates.companyName !== undefined) addSet("company_name", updates.companyName);
+    if (updates.industry !== undefined) addSet("industry", updates.industry);
+    if (updates.jobType !== undefined) addSet("job_type", updates.jobType);
+    if (updates.workplaceType !== undefined) addSet("workplace_type", updates.workplaceType);
+    if (updates.city !== undefined) addSet("city", updates.city);
+    if (updates.country !== undefined) addSet("country", updates.country);
+    if (updates.experienceMin !== undefined) addSet("experience_min", updates.experienceMin);
+    if (updates.experienceMax !== undefined) addSet("experience_max", updates.experienceMax);
+    if (updates.salaryRange !== undefined) addSet("salary_range", updates.salaryRange);
+    if (updates.description !== undefined) addSet("description", updates.description);
+    if (updates.requirements !== undefined) addSet("requirements", updates.requirements);
+    if (updates.skillsRequired !== undefined) addSet("skills_required", updates.skillsRequired);
+    if (updates.status !== undefined) addSet("status", updates.status);
+
+    if (sets.length === 0) return null;
+    sets.push("updated_at = NOW()");
+
+    const query = `UPDATE job_postings SET ${sets.join(", ")} WHERE id::text = $1 RETURNING *;`;
+    const res = await pool.query(query, values);
+    return res.rows[0] ? mapJobPostingRow(res.rows[0]) : null;
+  },
+
+  async deleteJobPosting(id: string): Promise<boolean> {
+    if (!pool) {
+      let list: JobPosting[] = (globalThis as any).__memoryJobPostings || [];
+      const initialLen = list.length;
+      (globalThis as any).__memoryJobPostings = list.filter((j) => j.id !== id);
+      return (globalThis as any).__memoryJobPostings.length < initialLen;
+    }
+    const res = await pool.query(`DELETE FROM job_postings WHERE id::text = $1;`, [id]);
+    return (res.rowCount || 0) > 0;
+  },
+
+  async createJobApplication(app: {
+    jobPostingId: string;
+    applicantMemberId: string;
+    careerProfileId: string;
+    coverNote?: string;
+  }): Promise<JobApplication> {
+    if (!pool) {
+      const newApp: JobApplication = {
+        id: "app-" + Date.now(),
+        jobPostingId: app.jobPostingId,
+        applicantMemberId: app.applicantMemberId,
+        careerProfileId: app.careerProfileId,
+        coverNote: app.coverNote,
+        status: "submitted",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      (globalThis as any).__memoryJobApplications = (globalThis as any).__memoryJobApplications || [];
+      (globalThis as any).__memoryJobApplications.push(newApp);
+      return newApp;
+    }
+
+    const query = `
+      INSERT INTO job_applications (
+        job_posting_id, applicant_member_id, career_profile_id, cover_note, status
+      ) VALUES ($1, $2, $3, $4, 'submitted')
+      ON CONFLICT (job_posting_id, applicant_member_id) DO UPDATE SET
+        cover_note = EXCLUDED.cover_note,
+        career_profile_id = EXCLUDED.career_profile_id,
+        updated_at = NOW()
+      RETURNING *;
+    `;
+    const values = [app.jobPostingId, app.applicantMemberId, app.careerProfileId, app.coverNote || null];
+    const res = await pool.query(query, values);
+    return mapJobApplicationRow(res.rows[0]);
+  },
+
+  async getJobApplicationsByPosting(jobPostingId: string): Promise<JobApplication[]> {
+    if (!pool) {
+      const list: JobApplication[] = (globalThis as any).__memoryJobApplications || [];
+      return list.filter((a) => a.jobPostingId === jobPostingId);
+    }
+    const query = `
+      SELECT ja.*, m.full_name as applicant_name, cp.headline as applicant_headline, cp.resume_url as applicant_resume_url
+      FROM job_applications ja
+      JOIN members m ON ja.applicant_member_id = m.id
+      JOIN career_profiles cp ON ja.career_profile_id = cp.id
+      WHERE ja.job_posting_id::text = $1
+      ORDER BY ja.created_at DESC;
+    `;
+    const res = await pool.query(query, [jobPostingId]);
+    return res.rows.map(mapJobApplicationRow);
+  },
+
+  async getJobApplicationsByApplicant(applicantMemberId: string): Promise<JobApplication[]> {
+    if (!pool) {
+      const list: JobApplication[] = (globalThis as any).__memoryJobApplications || [];
+      return list.filter((a) => a.applicantMemberId === applicantMemberId);
+    }
+    const query = `
+      SELECT ja.*, m.full_name as applicant_name, cp.headline as applicant_headline, cp.resume_url as applicant_resume_url
+      FROM job_applications ja
+      JOIN members m ON ja.applicant_member_id = m.id
+      JOIN career_profiles cp ON ja.career_profile_id = cp.id
+      WHERE ja.applicant_member_id::text = $1
+      ORDER BY ja.created_at DESC;
+    `;
+    const res = await pool.query(query, [applicantMemberId]);
+    return res.rows.map(mapJobApplicationRow);
+  },
+
+  async hasMemberApplied(jobPostingId: string, applicantMemberId: string): Promise<boolean> {
+    if (!pool) {
+      const list: JobApplication[] = (globalThis as any).__memoryJobApplications || [];
+      return list.some((a) => a.jobPostingId === jobPostingId && a.applicantMemberId === applicantMemberId);
+    }
+    const query = `
+      SELECT 1 FROM job_applications
+      WHERE job_posting_id::text = $1 AND applicant_member_id::text = $2
+      LIMIT 1;
+    `;
+    const res = await pool.query(query, [jobPostingId, applicantMemberId]);
+    return (res.rowCount || 0) > 0;
+  },
 };
 
 function mapMatrimonialRow(row: any): MatrimonialProfile {
@@ -4093,6 +4456,49 @@ function mapCareerProfileRow(row: any): CareerProfile {
     nativePlace: row.native_place || row.nativePlace || undefined,
     serialNo: row.serial_no ? parseInt(row.serial_no, 10) : undefined,
     householdCode: row.household_code || row.householdCode || undefined,
+  };
+}
+
+function mapJobPostingRow(row: any): JobPosting {
+  return {
+    id: String(row.id),
+    householdId: String(row.household_id || row.householdId || ""),
+    businessId: row.business_id || row.businessId || undefined,
+    postedByMemberId: String(row.posted_by_member_id || row.postedByMemberId || ""),
+    title: row.title || "",
+    companyName: row.company_name || row.companyName || "",
+    industry: row.industry || "",
+    jobType: row.job_type || row.jobType || "full_time",
+    workplaceType: row.workplace_type || row.workplaceType || "hybrid",
+    city: row.city || undefined,
+    country: row.country || "India",
+    experienceMin: typeof row.experience_min === "number" ? row.experience_min : (parseInt(row.experience_min, 10) || 0),
+    experienceMax: row.experience_max ? parseInt(row.experience_max, 10) : undefined,
+    salaryRange: row.salary_range || row.salaryRange || undefined,
+    description: row.description || "",
+    requirements: row.requirements || undefined,
+    skillsRequired: Array.isArray(row.skills_required) ? row.skills_required : (typeof row.skills_required === "string" ? JSON.parse(row.skills_required) : []),
+    status: row.status || "active",
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || new Date().toISOString()),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || new Date().toISOString()),
+    applicantCount: typeof row.applicant_count === "number" ? row.applicant_count : (parseInt(row.applicant_count, 10) || 0),
+    isVerifiedEnterprise: Boolean(row.is_verified_enterprise),
+  };
+}
+
+function mapJobApplicationRow(row: any): JobApplication {
+  return {
+    id: String(row.id),
+    jobPostingId: String(row.job_posting_id || row.jobPostingId || ""),
+    applicantMemberId: String(row.applicant_member_id || row.applicantMemberId || ""),
+    careerProfileId: String(row.career_profile_id || row.careerProfileId || ""),
+    coverNote: row.cover_note || row.coverNote || undefined,
+    status: row.status || "submitted",
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || new Date().toISOString()),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || new Date().toISOString()),
+    applicantName: row.applicant_name || row.applicantName || undefined,
+    applicantHeadline: row.applicant_headline || row.applicantHeadline || undefined,
+    applicantResumeUrl: row.applicant_resume_url || row.applicantResumeUrl || undefined,
   };
 }
 

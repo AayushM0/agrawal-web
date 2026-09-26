@@ -127,3 +127,65 @@ export interface CareerFilter {
   limit?: number;
   offset?: number;
 }
+
+export type JobType = "full_time" | "internship" | "part_time" | "contract" | "advisory";
+export type WorkplaceType = "remote" | "hybrid" | "on_site";
+
+export interface JobPosting {
+  id: string;
+  householdId: string;
+  businessId?: string;
+  postedByMemberId: string;
+  title: string;
+  companyName: string;
+  industry: string;
+  jobType: JobType;
+  workplaceType: WorkplaceType;
+  city?: string;
+  country: string;
+  experienceMin: number;
+  experienceMax?: number;
+  salaryRange?: string;
+  description: string;
+  requirements?: string;
+  skillsRequired: string[];
+  status: "active" | "paused" | "closed";
+  createdAt?: string;
+  updatedAt?: string;
+  applicantCount?: number;
+  isVerifiedEnterprise?: boolean;
+}
+
+export interface CreateJobPostingInput {
+  householdId: string;
+  businessId?: string;
+  postedByMemberId: string;
+  title: string;
+  companyName: string;
+  industry: string;
+  jobType: JobType;
+  workplaceType: WorkplaceType;
+  city?: string;
+  country?: string;
+  experienceMin?: number;
+  experienceMax?: number;
+  salaryRange?: string;
+  description: string;
+  requirements?: string;
+  skillsRequired?: string[];
+}
+
+export interface JobApplication {
+  id: string;
+  jobPostingId: string;
+  applicantMemberId: string;
+  careerProfileId: string;
+  coverNote?: string;
+  status: "submitted" | "reviewed" | "shortlisted" | "declined";
+  createdAt?: string;
+  updatedAt?: string;
+  applicantName?: string;
+  applicantHeadline?: string;
+  applicantResumeUrl?: string;
+}
+

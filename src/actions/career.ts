@@ -7,6 +7,9 @@ import type {
   CreateCareerProfileInput,
   UpdateCareerProfileInput,
   CareerFilter,
+  JobPosting,
+  CreateJobPostingInput,
+  JobApplication,
 } from "@/types/career";
 
 /**
@@ -273,3 +276,313 @@ export async function deleteCareerProfileAction(id: string): Promise<{
     return { success: false, error: "Failed to delete profile." };
   }
 }
+
+/**
+ * Post a new job opportunity by a verified household or enterprise.
+ */
+export async function createJobPostingAction(input: CreateJobPostingInput): Promise<{
+  success: boolean;
+  job?: JobPosting;
+  error?: string;
+}> {
+  const session = await getSession();
+  if (!session || !session.userId) {
+    return { success: false, error: "Please log in to post a job opportunity." };
+  }
+
+  if (session.householdStatus !== "live") {
+    return { success: false, error: "Your household registration is pending administrative approval." };
+  }
+
+  try {
+    const household = await db.getHouseholdByContact(session.contact);
+    if (!household || !household.id) {
+      return { success: false, error: "Unable to locate verified household record." };
+    }
+
+    const postedByMemberId = input.postedByMemberId?.trim();
+    if (!postedByMemberId) {
+      return { success: false, error: "Please select the member posting this opportunity." };
+    }
+
+    const member = household.members?.find((m: any) => m.id === postedByMemberId);
+    if (!member) {
+      return { success: false, error: "The selected member does not belong to your household." };
+    }
+
+    const title = input.title?.trim();
+    if (!title || title.length < 3) {
+      return { success: false, error: "Job title must be at least 3 characters." };
+    }
+
+    const companyName = input.companyName?.trim();
+    if (!companyName || companyName.length < 2) {
+      return { success: false, error: "Company name must be at least 2 characters." };
+    }
+
+    if (!input.industry?.trim()) {
+      return { success: false, error: "Please select an industry sector." };
+    }
+
+    if (!input.jobType?.trim()) {
+      return { success: false, error: "Please select employment type." };
+    }
+
+    if (!input.workplaceType?.trim()) {
+      return { success: false, error: "Please select workplace format." };
+    }
+
+    const description = input.description?.trim();
+    if (!description || description.length < 10) {
+      return { success: false, error: "Job description must be at least 10 characters." };
+    }
+
+    const skillsRequired = Array.isArray(input.skillsRequired)
+      ? input.skillsRequired.map((s) => s.trim()).filter(Boolean)
+      : [];
+
+    const job = await db.createJobPosting({
+      householdId: household.id,
+      businessId: input.businessId?.trim() || undefined,
+      postedByMemberId,
+      title,
+      companyName,
+      industry: input.industry.trim(),
+      jobType: input.jobType,
+      workplaceType: input.workplaceType,
+      city: input.city?.trim() || undefined,
+      country: input.country?.trim() || "India",
+      experienceMin: typeof input.experienceMin === "number" ? Math.max(0, input.experienceMin) : 0,
+      experienceMax: typeof input.experienceMax === "number" ? input.experienceMax : undefined,
+      salaryRange: input.salaryRange?.trim() || undefined,
+      description,
+      requirements: input.requirements?.trim() || undefined,
+      skillsRequired,
+    });
+
+    return { success: true, job };
+  } catch (err: any) {
+    console.error("[CAREER ACTION ERROR] createJobPostingAction:", err);
+    return { success: false, error: err.message || "Failed to create job posting." };
+  }
+}
+
+/**
+ * Fetch live active job postings matching filters.
+ */
+export async function getLiveJobPostingsAction(filter: {
+  industry?: string;
+  jobType?: string;
+  workplaceType?: string;
+  query?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{
+  success: boolean;
+  jobs: JobPosting[];
+  total: number;
+  error?: string;
+}> {
+  try {
+    const { jobs, total } = await db.getLiveJobPostings(filter);
+    return { success: true, jobs, total };
+  } catch (err: any) {
+    console.error("[CAREER ACTION ERROR] getLiveJobPostingsAction:", err);
+    return { success: false, jobs: [], total: 0, error: "Failed to fetch job postings." };
+  }
+}
+
+/**
+ * Fetch a single job posting by ID, including application state if user is logged in.
+ */
+export async function getJobPostingByIdAction(id: string): Promise<{
+  success: boolean;
+  job?: JobPosting;
+  hasApplied?: boolean;
+  error?: string;
+}> {
+  try {
+    const job = await db.getJobPostingById(id);
+    if (!job) {
+      return { success: false, error: "Job opening not found." };
+    }
+
+    let hasApplied = false;
+    const session = await getSession();
+    if (session && session.userId) {
+      const household = await db.getHouseholdByContact(session.contact);
+      if (household && household.members) {
+        for (const m of household.members) {
+          const applied = await db.hasMemberApplied(id, m.id);
+          if (applied) {
+            hasApplied = true;
+            break;
+          }
+        }
+      }
+    }
+
+    return { success: true, job, hasApplied };
+  } catch (err: any) {
+    console.error("[CAREER ACTION ERROR] getJobPostingByIdAction:", err);
+    return { success: false, error: "Failed to fetch job details." };
+  }
+}
+
+/**
+ * 1-Click apply to an active job opening using verified community career profile.
+ */
+export async function applyForJobAction(
+  jobPostingId: string,
+  applicantMemberId: string,
+  coverNote?: string
+): Promise<{
+  success: boolean;
+  application?: JobApplication;
+  error?: string;
+}> {
+  const session = await getSession();
+  if (!session || !session.userId) {
+    return { success: false, error: "Please log in to apply for job opportunities." };
+  }
+
+  if (session.householdStatus !== "live") {
+    return { success: false, error: "Your household registration is pending administrative approval." };
+  }
+
+  try {
+    const household = await db.getHouseholdByContact(session.contact);
+    if (!household || !household.id) {
+      return { success: false, error: "Unable to locate verified household record." };
+    }
+
+    const member = household.members?.find((m: any) => m.id === applicantMemberId);
+    if (!member) {
+      return { success: false, error: "Selected member does not belong to your verified household." };
+    }
+
+    const job = await db.getJobPostingById(jobPostingId);
+    if (!job || job.status !== "active") {
+      return { success: false, error: "This job opportunity is no longer accepting applications." };
+    }
+
+    // Check if applicant has a career profile
+    const profile = await db.getCareerProfileByMemberId(applicantMemberId);
+    if (!profile) {
+      return {
+        success: false,
+        error: "Please create your Agarwal Career Profile before applying for jobs.",
+      };
+    }
+
+    // Check if already applied
+    const alreadyApplied = await db.hasMemberApplied(jobPostingId, applicantMemberId);
+    if (alreadyApplied) {
+      return { success: false, error: "You have already applied for this opening." };
+    }
+
+    const application = await db.createJobApplication({
+      jobPostingId,
+      applicantMemberId,
+      careerProfileId: profile.id,
+      coverNote: coverNote?.trim() || undefined,
+    });
+
+    return { success: true, application };
+  } catch (err: any) {
+    console.error("[CAREER ACTION ERROR] applyForJobAction:", err);
+    return { success: false, error: err.message || "Failed to submit job application." };
+  }
+}
+
+/**
+ * Get applications received for a job posting (for employer / poster).
+ */
+export async function getJobApplicationsByPostingAction(jobPostingId: string): Promise<{
+  success: boolean;
+  applications: JobApplication[];
+  error?: string;
+}> {
+  const session = await getSession();
+  if (!session || !session.userId) {
+    return { success: false, applications: [], error: "Unauthorized." };
+  }
+
+  try {
+    const job = await db.getJobPostingById(jobPostingId);
+    if (!job) {
+      return { success: false, applications: [], error: "Job posting not found." };
+    }
+
+    const household = await db.getHouseholdByContact(session.contact);
+    if (!household || household.id !== job.householdId) {
+      return { success: false, applications: [], error: "Unauthorized to view these applications." };
+    }
+
+    const applications = await db.getJobApplicationsByPosting(jobPostingId);
+    return { success: true, applications };
+  } catch (err: any) {
+    console.error("[CAREER ACTION ERROR] getJobApplicationsByPostingAction:", err);
+    return { success: false, applications: [], error: "Failed to fetch applications." };
+  }
+}
+
+/**
+ * Get job applications submitted by the current user's household.
+ */
+export async function getMyHouseholdApplicationsAction(): Promise<{
+  success: boolean;
+  applications: JobApplication[];
+  error?: string;
+}> {
+  const session = await getSession();
+  if (!session || !session.userId) {
+    return { success: false, applications: [], error: "Unauthorized." };
+  }
+
+  try {
+    const household = await db.getHouseholdByContact(session.contact);
+    if (!household || !household.members) {
+      return { success: false, applications: [], error: "Household not found." };
+    }
+
+    const allApps: JobApplication[] = [];
+    for (const m of household.members) {
+      const apps = await db.getJobApplicationsByApplicant(m.id);
+      allApps.push(...apps);
+    }
+
+    return { success: true, applications: allApps };
+  } catch (err: any) {
+    console.error("[CAREER ACTION ERROR] getMyHouseholdApplicationsAction:", err);
+    return { success: false, applications: [], error: "Failed to fetch applications." };
+  }
+}
+
+/**
+ * Get job postings created by the current user's household.
+ */
+export async function getMyHouseholdJobPostingsAction(): Promise<{
+  success: boolean;
+  jobs: JobPosting[];
+  error?: string;
+}> {
+  const session = await getSession();
+  if (!session || !session.userId) {
+    return { success: false, jobs: [], error: "Unauthorized." };
+  }
+
+  try {
+    const household = await db.getHouseholdByContact(session.contact);
+    if (!household) {
+      return { success: false, jobs: [], error: "Household not found." };
+    }
+
+    const jobs = await db.getJobPostingsByHousehold(household.id);
+    return { success: true, jobs };
+  } catch (err: any) {
+    console.error("[CAREER ACTION ERROR] getMyHouseholdJobPostingsAction:", err);
+    return { success: false, jobs: [], error: "Failed to fetch posted jobs." };
+  }
+}
+

@@ -462,6 +462,51 @@ CREATE INDEX IF NOT EXISTS idx_career_profiles_member ON career_profiles(member_
 CREATE INDEX IF NOT EXISTS idx_career_profiles_household ON career_profiles(household_id);
 CREATE INDEX IF NOT EXISTS idx_career_profiles_mentor ON career_profiles(is_mentor_available);
 
+-- 9f. Enterprise Job Postings Table
+CREATE TABLE IF NOT EXISTS job_postings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    business_id UUID REFERENCES business_profiles(id) ON DELETE SET NULL,
+    posted_by_member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    company_name VARCHAR(255) NOT NULL,
+    industry VARCHAR(100) NOT NULL,
+    job_type VARCHAR(50) NOT NULL,
+    workplace_type VARCHAR(50) NOT NULL,
+    city VARCHAR(100),
+    country VARCHAR(100) NOT NULL DEFAULT 'India',
+    experience_min INTEGER NOT NULL DEFAULT 0,
+    experience_max INTEGER,
+    salary_range VARCHAR(100),
+    description TEXT NOT NULL,
+    requirements TEXT,
+    skills_required TEXT[] NOT NULL DEFAULT '{}',
+    status VARCHAR(50) NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_postings_status ON job_postings(status);
+CREATE INDEX IF NOT EXISTS idx_job_postings_industry ON job_postings(industry);
+CREATE INDEX IF NOT EXISTS idx_job_postings_household ON job_postings(household_id);
+CREATE INDEX IF NOT EXISTS idx_job_postings_business ON job_postings(business_id);
+
+-- 9g. Job Applications Table
+CREATE TABLE IF NOT EXISTS job_applications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_posting_id UUID NOT NULL REFERENCES job_postings(id) ON DELETE CASCADE,
+    applicant_member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    career_profile_id UUID NOT NULL REFERENCES career_profiles(id) ON DELETE CASCADE,
+    cover_note TEXT,
+    status VARCHAR(50) NOT NULL DEFAULT 'submitted',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(job_posting_id, applicant_member_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_applications_posting ON job_applications(job_posting_id);
+CREATE INDEX IF NOT EXISTS idx_job_applications_applicant ON job_applications(applicant_member_id);
+
 -- 10. Row-Level Security (RLS) Configuration (Supabase Hardening)
 -- Enable RLS on all tables to prevent public anonymous REST API data exfiltration
 ALTER TABLE households ENABLE ROW LEVEL SECURITY;
@@ -480,6 +525,8 @@ ALTER TABLE matrimonial_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_queue ENABLE ROW LEVEL SECURITY;
 ALTER TABLE business_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE career_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE job_postings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;
 
 -- Households, Members, Message Reports, Rate Limits, and Admin Attempts have NO policies defined.
 -- In PostgreSQL, this default deny-all state blocks all public anon/authenticated REST/GraphQL operations.
