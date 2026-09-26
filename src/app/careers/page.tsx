@@ -304,7 +304,7 @@ export default function CareerDirectoryPage() {
                                   {p.gotra}
                                 </span>
                               )}
-                              {typeof p.serialNo === "number" && !isNaN(p.serialNo) && p.serialNo > 0 ? (
+                              {p.serialNo && p.serialNo !== "NaN" && (typeof p.serialNo === "string" ? !p.serialNo.includes("NaN") : !isNaN(p.serialNo)) ? (
                                 <span className="font-mono bg-canvas-warm px-1.5 py-0.5 rounded border border-brand-accent/30">
                                   #{p.serialNo}
                                 </span>

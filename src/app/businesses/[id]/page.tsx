@@ -200,7 +200,7 @@ export default function BusinessDetailPage() {
 
               {profile.websiteUrl && (
                 <a
-                  href={profile.websiteUrl}
+                  href={profile.websiteUrl.startsWith("http") ? profile.websiteUrl : `https://${profile.websiteUrl}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full px-5 py-2.5 rounded-full text-xs font-semibold text-center text-brand-primary bg-amber-50 hover:bg-amber-100 border border-brand-accent/30 transition flex items-center justify-center gap-1.5"

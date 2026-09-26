@@ -4157,8 +4157,8 @@ export const db = {
       ${whereClause};
     `, values);
 
-    const limit = filter.limit || 50;
-    const offset = filter.offset || 0;
+    const limit = Math.min(Math.max(1, Number(filter.limit) || 50), 100);
+    const offset = Math.max(0, Number(filter.offset) || 0);
     values.push(limit, offset);
 
     const query = `
@@ -4474,9 +4474,7 @@ function mapCareerProfileRow(row: any): CareerProfile {
     state: row.state || undefined,
     country: row.country || undefined,
     nativePlace: row.native_place || row.nativePlace || undefined,
-    serialNo: (row.serial_no != null && row.serial_no !== "" && !isNaN(parseInt(String(row.serial_no), 10)))
-      ? parseInt(String(row.serial_no), 10)
-      : undefined,
+    serialNo: row.serial_no ? String(row.serial_no).trim() : undefined,
     householdCode: row.household_code || row.householdCode || undefined,
   };
 }

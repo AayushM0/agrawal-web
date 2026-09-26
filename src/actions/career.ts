@@ -38,6 +38,10 @@ function sanitizeResumeUrl(url?: string): string | undefined {
   return `https://${trimmed}`;
 }
 
+function cleanList(arr?: string[]): string[] {
+  return Array.isArray(arr) ? arr.map((s) => s.trim()).filter(Boolean) : [];
+}
+
 /**
  * Sanitize candidate profile for public display, masking confidential details.
  */
@@ -102,13 +106,8 @@ export async function createCareerProfileAction(input: CreateCareerProfileInput)
       return { success: false, error: "Please select your career seniority level." };
     }
 
-    const cleanSkills = Array.isArray(input.skills)
-      ? input.skills.map((s) => s.trim()).filter(Boolean)
-      : [];
-
-    const cleanLocations = Array.isArray(input.preferredLocations)
-      ? input.preferredLocations.map((l) => l.trim()).filter(Boolean)
-      : [];
+    const cleanSkills = cleanList(input.skills);
+    const cleanLocations = cleanList(input.preferredLocations);
 
     const created = await db.createCareerProfile({
       householdId: household.id,
@@ -377,9 +376,7 @@ export async function createJobPostingAction(input: CreateJobPostingInput): Prom
       return { success: false, error: "Job description must be at least 10 characters." };
     }
 
-    const skillsRequired = Array.isArray(input.skillsRequired)
-      ? input.skillsRequired.map((s) => s.trim()).filter(Boolean)
-      : [];
+    const skillsRequired = cleanList(input.skillsRequired);
 
     const job = await db.createJobPosting({
       householdId: household.id,
@@ -403,7 +400,7 @@ export async function createJobPostingAction(input: CreateJobPostingInput): Prom
     return { success: true, job };
   } catch (err: any) {
     console.error("[CAREER ACTION ERROR] createJobPostingAction:", err);
-    return { success: false, error: err.message || "Failed to create job posting." };
+    return { success: false, error: "Failed to create job posting. Please check your inputs." };
   }
 }
 
@@ -451,14 +448,11 @@ export async function getJobPostingByIdAction(id: string): Promise<{
     const session = await getSession();
     if (session && session.userId) {
       const household = await db.getHouseholdByContact(session.contact);
-      if (household && household.members) {
-        for (const m of household.members) {
-          const applied = await db.hasMemberApplied(id, m.id);
-          if (applied) {
-            hasApplied = true;
-            break;
-          }
-        }
+      if (household && household.members && household.members.length > 0) {
+        const appliedFlags = await Promise.all(
+          household.members.map((m: any) => db.hasMemberApplied(id, m.id))
+        );
+        hasApplied = appliedFlags.some(Boolean);
       }
     }
 
@@ -531,7 +525,12 @@ export async function applyForJobAction(
     return { success: true, application };
   } catch (err: any) {
     console.error("[CAREER ACTION ERROR] applyForJobAction:", err);
-    return { success: false, error: err.message || "Failed to submit job application." };
+    return {
+      success: false,
+      error: err.message?.includes("already applied")
+        ? "You have already applied for this opening."
+        : "Failed to submit job application. Please try again.",
+    };
   }
 }
 
@@ -586,11 +585,10 @@ export async function getMyHouseholdApplicationsAction(): Promise<{
       return { success: false, applications: [], error: "Household not found." };
     }
 
-    const allApps: JobApplication[] = [];
-    for (const m of household.members) {
-      const apps = await db.getJobApplicationsByApplicant(m.id);
-      allApps.push(...apps);
-    }
+    const nested = await Promise.all(
+      household.members.map((m: any) => db.getJobApplicationsByApplicant(m.id))
+    );
+    const allApps = nested.flat();
 
     return { success: true, applications: allApps };
   } catch (err: any) {

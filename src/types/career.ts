@@ -66,7 +66,7 @@ export interface CareerProfile {
   state?: string;
   country?: string;
   nativePlace?: string;
-  serialNo?: number;
+  serialNo?: string;
   householdCode?: string;
   photoUrl?: string;
 }

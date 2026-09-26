@@ -123,7 +123,7 @@ export default function CareerProfileDetailPage() {
                   <h1 className="text-xl sm:text-2xl font-extrabold text-brand-primary">
                     {profile.fullName || "Community Member"}
                   </h1>
-                  {typeof profile.serialNo === "number" && !isNaN(profile.serialNo) && profile.serialNo > 0 ? (
+                  {profile.serialNo && profile.serialNo !== "NaN" && (typeof profile.serialNo === "string" ? !profile.serialNo.includes("NaN") : !isNaN(profile.serialNo)) ? (
                     <span className="text-xs font-mono font-bold bg-canvas-warm px-2 py-0.5 rounded-md border border-brand-accent/30 text-brand-primary">
                       #{profile.serialNo}
                     </span>

@@ -120,24 +120,18 @@ export default function JobDetailPage() {
     );
   }
 
-  const formatJobType = (t: string) => {
-    switch (t) {
-      case "full_time": return "Full Time";
-      case "internship": return "Internship";
-      case "part_time": return "Part Time";
-      case "contract": return "Contract";
-      case "advisory": return "Advisory";
-      default: return t;
-    }
+  const JOB_TYPE_LABELS: Record<string, string> = {
+    full_time: "Full Time",
+    internship: "Internship",
+    part_time: "Part Time",
+    contract: "Contract",
+    advisory: "Advisory",
   };
 
-  const formatWorkplace = (w: string) => {
-    switch (w) {
-      case "hybrid": return "Hybrid";
-      case "remote": return "Remote";
-      case "on_site": return "Onsite";
-      default: return w;
-    }
+  const WORKPLACE_LABELS: Record<string, string> = {
+    hybrid: "Hybrid",
+    remote: "Remote",
+    on_site: "Onsite",
   };
 
   return (
@@ -161,10 +155,10 @@ export default function JobDetailPage() {
                   {job.industry}
                 </span>
                 <span className="px-3 py-1 bg-slate-700 text-slate-300 text-xs font-semibold rounded-full">
-                  {formatJobType(job.jobType)}
+                  {JOB_TYPE_LABELS[job.jobType] || job.jobType}
                 </span>
                 <span className="px-3 py-1 bg-slate-700 text-slate-300 text-xs font-semibold rounded-full">
-                  📍 {formatWorkplace(job.workplaceType)}
+                  📍 {WORKPLACE_LABELS[job.workplaceType] || job.workplaceType}
                 </span>
                 {job.isVerifiedEnterprise && (
                   <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold rounded-full flex items-center gap-1">
