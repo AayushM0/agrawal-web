@@ -32,6 +32,11 @@ export default function TopNavBar() {
                 Business Network
               </Link>
             </li>
+            <li className="hidden xl:inline">
+              <Link href="/careers" className="hover:text-white hover:underline transition-colors">
+                Careers Network
+              </Link>
+            </li>
             <li>
               <Link href="/guide" className="hover:text-white hover:underline transition-colors">
                 User Guide

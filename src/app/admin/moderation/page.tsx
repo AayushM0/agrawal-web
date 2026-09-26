@@ -21,6 +21,8 @@ import {
 import { getIncompleteRegistrations } from "@/actions/draft";
 import { Household } from "@/types/household";
 import type { BusinessProfile } from "@/types/business";
+import { getLiveJobPostingsAction } from "@/actions/career";
+import type { JobPosting } from "@/types/career";
 import { gotras } from "@/data/gotras";
 
 export default function ModerationQueuePage() {
@@ -29,10 +31,11 @@ export default function ModerationQueuePage() {
   const [inquiries, setInquiries] = useState<any[]>([]);
   const [drafts, setDrafts] = useState<any[]>([]);
   const [pendingBusinesses, setPendingBusinesses] = useState<BusinessProfile[]>([]);
+  const [liveJobs, setLiveJobs] = useState<JobPosting[]>([]);
   const [awardVerifiedMap, setAwardVerifiedMap] = useState<Record<string, boolean>>({});
   const [rejectingBusinessId, setRejectingBusinessId] = useState<string | null>(null);
   const [businessRejectReason, setBusinessRejectReason] = useState("");
-  const [filter, setFilter] = useState<"pending" | "approved" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue" | "businesses">("pending");
+  const [filter, setFilter] = useState<"pending" | "approved" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue" | "businesses" | "careers">("pending");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGotra, setSelectedGotra] = useState("all");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -72,13 +75,14 @@ export default function ModerationQueuePage() {
 
   const loadQueue = async () => {
     setIsLoading(true);
-    const [data, repRes, inqRes, draftRes, qRes, bizRes] = await Promise.all([
+    const [data, repRes, inqRes, draftRes, qRes, bizRes, jobsRes] = await Promise.all([
       getModerationHouseholds(),
       getMessageReports(),
       getAdminSupportInquiries(),
       getIncompleteRegistrations(),
       getEmailQueueStatusAction(),
       getPendingBusinessProfilesAction(),
+      getLiveJobPostingsAction(),
     ]);
     setHouseholds(data);
     if (repRes.success) {
@@ -96,6 +100,9 @@ export default function ModerationQueuePage() {
     }
     if (bizRes.success) {
       setPendingBusinesses(bizRes.profiles || []);
+    }
+    if (jobsRes.success) {
+      setLiveJobs(jobsRes.jobs || []);
     }
     setIsLoading(false);
   };
@@ -412,6 +419,19 @@ export default function ModerationQueuePage() {
 
           <button
             type="button"
+            onClick={() => setFilter("careers")}
+            className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
+              filter === "careers"
+                ? "bg-indigo-50/90 border-indigo-400 ring-2 ring-indigo-400/30"
+                : "bg-white border-brand-accent/30 hover:bg-indigo-50/40"
+            }`}
+          >
+            <span className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider block">Careers &amp; Jobs</span>
+            <span className="text-lg font-black text-indigo-700">{liveJobs.length}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setFilter("reports")}
             className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
               filter === "reports"
@@ -532,6 +552,22 @@ export default function ModerationQueuePage() {
               {pendingBusinesses.length > 0 && (
                 <span className="px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded-full text-[10px] font-bold">
                   {pendingBusinesses.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setFilter("careers")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 min-h-[38px] ${
+                filter === "careers"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <span>💼 Jobs &amp; Careers (रोजगार)</span>
+              {liveJobs.length > 0 && (
+                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-900 rounded-full text-[10px] font-bold">
+                  {liveJobs.length}
                 </span>
               )}
             </button>
@@ -1106,6 +1142,69 @@ export default function ModerationQueuePage() {
                 </div>
               )}
             </div>
+          </div>
+        ) : filter === "careers" ? (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-brand-primary uppercase tracking-wider">
+                Jobs &amp; Careers Network Openings ({liveJobs.length})
+              </h2>
+            </div>
+
+            {liveJobs.length === 0 ? (
+              <div className="bg-white border border-brand-accent/30 rounded-3xl p-12 text-center space-y-4 shadow-sm">
+                <div className="w-16 h-16 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-3xl mx-auto">
+                  💼
+                </div>
+                <h3 className="font-serif text-lg font-bold text-brand-primary">
+                  No Job Openings Published
+                </h3>
+                <p className="text-xs text-body-muted max-w-md mx-auto">
+                  There are currently no active enterprise job postings in the community network.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {liveJobs.map((j) => (
+                  <div
+                    key={j.id}
+                    className="bg-white border border-brand-accent/30 rounded-2xl p-5 shadow-warm flex flex-col justify-between space-y-3"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <h3 className="text-sm font-bold text-brand-primary truncate">{j.title}</h3>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                          {j.status}
+                        </span>
+                      </div>
+                      <p className="text-xs font-semibold text-body-heading">{j.companyName}</p>
+                      <p className="text-xs text-body-muted mt-0.5">
+                        {j.industry} • {j.jobType} • {j.workplaceType}
+                        {j.city && ` • ${j.city}`}
+                      </p>
+                      {j.salaryRange && (
+                        <p className="text-xs font-medium text-emerald-700 mt-1">
+                          Compensation: {j.salaryRange}
+                        </p>
+                      )}
+                    </div>
+                    <div className="pt-2 border-t border-brand-accent/10 flex items-center justify-between text-xs">
+                      <span className="text-body-muted text-[11px]">
+                        {j.applicantCount || 0} applications
+                      </span>
+                      <a
+                        href={`/careers/jobs/${j.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-brand-primary hover:underline text-[11px]"
+                      >
+                        Inspect Opening →
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : filter === "businesses" ? (
           <div className="space-y-4">

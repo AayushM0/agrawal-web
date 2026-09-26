@@ -55,11 +55,11 @@ const pillars = [
     number: "4",
     title: "Jobs & Careers",
     hindi: "रोजगार व करियर",
-    status: "COMING SOON",
-    isLive: false,
+    status: "LIVE",
+    isLive: true,
     desc: "Connecting talented Agarwal youth with corporate internships, executive positions, mentorship, and multinational career pathways.",
-    actionText: "Learn More",
-    actionHref: "/about",
+    actionText: "Explore Careers & Jobs →",
+    actionHref: "/careers",
     icon: (
       <svg className="w-5 h-5 sm:w-6 sm:h-6 text-brand-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>

@@ -688,6 +688,102 @@ const GUIDE_TOPICS: GuideTopic[] = [
       },
     ],
   },
+
+  // 9. Global Jobs & Careers Network
+  {
+    id: "careers",
+    icon: "💼",
+    nameEn: "Jobs & Careers Network",
+    nameHi: "रोजगार व करियर संजाल",
+    taglineEn: "How verified Agarwal professionals build career showcases, apply with 1-click, and enterprises hire community talent",
+    taglineHi: "सत्यापित अग्रवाल प्रतिभाओं का करियर प्रदर्शन, एकल-क्लिक आवेदन एवं उपक्रमों द्वारा भर्ती प्रक्रिया",
+    flowchartNodes: [
+      { id: "1", labelEn: "1. Verified Household", labelHi: "सत्यापित परिवार सदस्यता", type: "start" },
+      { id: "2", labelEn: "2. Build Career Profile", labelHi: "करियर प्रोफाइल निर्माण", type: "process" },
+      { id: "3", labelEn: "3. Confidential Mode", labelHi: "गोपनीयता विकल्प (ADR-0004)", type: "decision" },
+      { id: "4", labelEn: "4. Browse Openings", labelHi: "अवसर खोज व 1-क्लिक आवेदन", type: "process" },
+      { id: "5", labelEn: "5. Senior Mentorship", labelHi: "मार्गदर्शन व मेंटरशिप", type: "process" },
+      { id: "6", labelEn: "6. Direct Gated Hiring", labelHi: "सुरक्षित इन-प्लेटफ़ॉर्म संवाद", type: "success" },
+    ],
+    steps: [
+      {
+        stepNumber: 1,
+        titleEn: "Step 1: Verified Household Gating & Authenticity",
+        titleHi: "चरण 1: सत्यापित पारिवारिक सदस्यता एवं प्रमाणिकता",
+        descriptionEn: "To eliminate phantom job listings, corporate headhunter spam, and fraudulent resumes, only approved members of verified households (status = 'live') can publish talent profiles or post employment openings.",
+        descriptionHi: "फर्जी नौकरियों, भर्ती दलालों और नकली बायोडाटा से सुरक्षा हेतु केवल स्वीकृत परिवारों (Live) के सत्यापित सदस्य ही करियर प्रोफाइल बना सकते हैं या रोजगार अवसर पोस्ट कर सकते हैं।",
+        keyPoints: [
+          "100% verified Agarwal lineage backing every candidate and hiring enterprise",
+          "One career profile per member tied to their authentic household directory record",
+          "Public phone numbers and personal emails are permanently masked per ADR-0001",
+        ],
+      },
+      {
+        stepNumber: 2,
+        titleEn: "Step 2: 4-Step Professional Profile Builder & Confidential Mode",
+        titleHi: "चरण 2: 4-चरणीय करियर प्रोफाइल निर्माण एवं गोपनीयता मोड",
+        descriptionEn: "Candidates navigate to /careers/create to highlight domain expertise, seniority level, education, key skills, resume, and workplace preferences. If currently employed, activating 'Confidential Mode' masks current employer name to avoid workplace conflict.",
+        descriptionHi: "/careers/create पर जाकर अपनी कार्यकुशलता, वरिष्ठता स्तर, शिक्षा, मुख्य कौशल और रिज्यूमे जोड़ें। 'Confidential Mode' चालू करने पर वर्तमान कंपनी का नाम सुरक्षित रूप से छिपा रहता है।",
+        keyPoints: [
+          "Supports students, freshers, mid-level leaders, and executive directors",
+          "Zero cold-call recruiting spam: inquiries route strictly via in-platform messaging",
+          "Single-click 'Pause Visibility' hides profile immediately when not actively looking",
+        ],
+      },
+      {
+        stepNumber: 3,
+        titleEn: "Step 3: Enterprise Job Postings & 1-Click Application",
+        titleHi: "चरण 3: संस्थागत रोजगार पोस्टिंग एवं 1-क्लिक आवेदन",
+        descriptionEn: "Verified business owners and household heads can post internships, full-time roles, and board advisory positions at /careers/jobs/create. Community candidates can apply in one click with their verified profile and optional cover note.",
+        descriptionHi: "व्यापार मालिक और परिवार प्रमुख /careers/jobs/create पर नौकरियां व इंटर्नशिप पोस्ट कर सकते हैं। स्वजन बिना किसी बाहरी फॉर्म के अपने सत्यापित प्रोफाइल से 1-क्लिक में आवेदन कर सकते हैं।",
+        keyPoints: [
+          "Enterprise openings can be linked to verified business profiles for high credibility",
+          "Employers track incoming applications and review candidate profiles directly from dashboard",
+          "Candidate resume, Gotra verification, and education are attached automatically",
+        ],
+      },
+      {
+        stepNumber: 4,
+        titleEn: "Step 4: Community Mentorship Bridge",
+        titleHi: "चरण 4: वरिष्ठ स्वजनों द्वारा करियर मार्गदर्शन व मेंटरशिप",
+        descriptionEn: "Accomplished leaders with 10+ years of experience can toggle 'Mentor Availability'. Ambitious community youth and college students can request career guidance, interview prep, and industry advice directly.",
+        descriptionHi: "10+ वर्ष अनुभवी वरिष्ठ उद्योगपति 'Mentor Availability' चालू कर सकते हैं। समुदाय के मेधावी छात्र व युवा उनसे करियर मार्गदर्शन और साक्षात्कार तैयारी हेतु सीधे संपर्क कर सकते हैं।",
+        keyPoints: [
+          "Fosters community youth empowerment in line with Maharaja Agrasen's ideals",
+          "Mentors guide without disclosing private phone numbers or personal communications",
+          "Covers Technology, Finance, Industrial Manufacturing, Retail, Healthcare, and Civil Services",
+        ],
+      },
+    ],
+    primaryCta: {
+      label: "Explore Jobs & Careers Network (रोजगार व करियर संजाल) →",
+      href: "/careers",
+    },
+    secondaryCta: {
+      label: "+ Build Your Career Profile (करियर प्रोफाइल बनाएं)",
+      href: "/careers/create",
+    },
+    faqs: [
+      {
+        qEn: "Will my current employer know I created a career profile?",
+        qHi: "क्या मेरे वर्तमान नियोक्ता को पता चलेगा कि मैंने प्रोफाइल बनाया है?",
+        aEn: "No. You can toggle 'Confidential Mode' at any time. When enabled, your current employer is displayed as 'Confidential Enterprise' in public directories, and only approved members can message you.",
+        aHi: "नहीं। आप कभी भी 'Confidential Mode' सक्रिय कर सकते हैं। ऐसा करने पर आपका वर्तमान कार्यस्थल गुप्त रहता है और केवल स्वीकृत स्वजन ही इन-प्लेटफ़ॉर्म संवाद कर सकते हैं।",
+      },
+      {
+        qEn: "Can college students and fresh graduates apply for internships?",
+        qHi: "क्या कॉलेज के छात्र और फ्रेशर्स इंटर्नशिप के लिए आवेदन कर सकते हैं?",
+        aEn: "Yes! The network features dedicated 'Student / Intern' and 'Fresher' seniority filters, allowing Agarwal enterprises to hire promising interns from within the community.",
+        aHi: "हाँ! मंच पर 'Student / Intern' और 'Fresher' स्तर के लिए विशेष विकल्प हैं, जिससे अग्रवाल उपक्रम अपनी नई पीढ़ी के होनहार युवाओं को अवसर प्रदान कर सकते हैं।",
+      },
+      {
+        qEn: "How do employers contact applicants?",
+        qHi: "नियोक्ता आवेदकों से कैसे संपर्क करते हैं?",
+        aEn: "Employers view verified candidate profiles directly from their dashboard and initiate secure in-platform chat. Neither party's private phone number or email is publicly exposed.",
+        aHi: "नियोक्ता अपने डैशबोर्ड से सत्यापित प्रोफाइल देख सकते हैं और सुरक्षित इन-प्लेटफ़ॉर्म चैट शुरू कर सकते हैं। किसी का भी व्यक्तिगत फ़ोन नंबर या ईमेल सार्वजनिक नहीं किया जाता।",
+      },
+    ],
+  },
 ];
 
 export default function UserGuidePage() {

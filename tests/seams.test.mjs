@@ -651,4 +651,66 @@ test("Seam 24: Global Agarwal Business Network adheres to all contracts and inva
   assert.ok(businessBuilder.includes("createBusinessProfile"), "Builder must consume createBusinessProfile");
 });
 
+// --- SEAM 25: Global Agarwal Jobs & Careers Network Contract Suite ---
+test("Seam 25: Global Agarwal Jobs & Careers Network adheres to all contracts and invariants", () => {
+  const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+  const dbLib = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const careerTypes = fs.readFileSync(path.join(webRoot, "src/types/career.ts"), "utf8");
+  const careerActions = fs.readFileSync(path.join(webRoot, "src/actions/career.ts"), "utf8");
+  const topNav = fs.readFileSync(path.join(webRoot, "src/components/layout/TopNavBar.tsx"), "utf8");
+  const mainHeader = fs.readFileSync(path.join(webRoot, "src/components/layout/MainHeader.tsx"), "utf8");
+  const mainFooter = fs.readFileSync(path.join(webRoot, "src/components/layout/MainFooter.tsx"), "utf8");
+  const pillarsGrid = fs.readFileSync(path.join(webRoot, "src/components/home/SevenPillarsGrid.tsx"), "utf8");
+  const guidePage = fs.readFileSync(path.join(webRoot, "src/app/guide/page.tsx"), "utf8");
+  const careerDirectory = fs.readFileSync(path.join(webRoot, "src/app/careers/page.tsx"), "utf8");
+  const careerProfile = fs.readFileSync(path.join(webRoot, "src/app/careers/[id]/page.tsx"), "utf8");
+  const careerBuilder = fs.readFileSync(path.join(webRoot, "src/app/careers/create/page.tsx"), "utf8");
+  const jobCreate = fs.readFileSync(path.join(webRoot, "src/app/careers/jobs/create/page.tsx"), "utf8");
+  const jobDetail = fs.readFileSync(path.join(webRoot, "src/app/careers/jobs/[id]/page.tsx"), "utf8");
+  const dashboardPage = fs.readFileSync(path.join(webRoot, "src/app/dashboard/page.tsx"), "utf8");
+
+  // 1. Schema & RLS enablement for career_profiles, job_postings, job_applications
+  assert.ok(schemaSql.includes("CREATE TABLE IF NOT EXISTS career_profiles"), "schema.sql must define career_profiles");
+  assert.ok(schemaSql.includes("CREATE TABLE IF NOT EXISTS job_postings"), "schema.sql must define job_postings");
+  assert.ok(schemaSql.includes("CREATE TABLE IF NOT EXISTS job_applications"), "schema.sql must define job_applications");
+  assert.ok(schemaSql.includes("ALTER TABLE career_profiles ENABLE ROW LEVEL SECURITY;"), "schema.sql must enable RLS on career_profiles");
+  assert.ok(schemaSql.includes("ALTER TABLE job_postings ENABLE ROW LEVEL SECURITY;"), "schema.sql must enable RLS on job_postings");
+  assert.ok(schemaSql.includes("ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;"), "schema.sql must enable RLS on job_applications");
+
+  // 2. Types export
+  assert.ok(careerTypes.includes("export interface CareerProfile"), "career.ts types must export CareerProfile");
+  assert.ok(careerTypes.includes("export interface JobPosting"), "career.ts types must export JobPosting");
+  assert.ok(careerTypes.includes("export interface JobApplication"), "career.ts types must export JobApplication");
+
+  // 3. Server actions
+  assert.ok(careerActions.includes("createCareerProfileAction"), "Must export createCareerProfileAction");
+  assert.ok(careerActions.includes("getLiveCareerProfilesAction"), "Must export getLiveCareerProfilesAction");
+  assert.ok(careerActions.includes("createJobPostingAction"), "Must export createJobPostingAction");
+  assert.ok(careerActions.includes("applyForJobAction"), "Must export applyForJobAction");
+
+  // 4. Navigation links to /careers across Header, Nav, and Footer
+  assert.ok(topNav.includes("/careers"), "TopNavBar must link to /careers");
+  assert.ok(mainHeader.includes("/careers"), "MainHeader must link to /careers");
+  assert.ok(mainFooter.includes("/careers"), "MainFooter must link to /careers");
+
+  // 5. Pillar 4 in SevenPillarsGrid is LIVE
+  assert.ok(pillarsGrid.includes("/careers"), "SevenPillarsGrid must link to /careers");
+
+  // 6. Topic 9 in Guide
+  assert.ok(guidePage.includes("careers") && (guidePage.includes("रोजगार व करियर") || guidePage.includes("Jobs & Careers")), "Guide page must contain Topic 9 for Jobs & Careers");
+  assert.ok(guidePage.includes("/careers"), "Guide page must link to /careers");
+
+  // 7. Pages wire up actions
+  assert.ok(careerDirectory.includes("getLiveCareerProfilesAction"), "Directory must call getLiveCareerProfilesAction");
+  assert.ok(careerProfile.includes("getCareerProfileByIdAction"), "Profile must call getCareerProfileByIdAction");
+  assert.ok(careerBuilder.includes("createCareerProfileAction"), "Builder must call createCareerProfileAction");
+  assert.ok(jobCreate.includes("createJobPostingAction"), "Job create must call createJobPostingAction");
+  assert.ok(jobDetail.includes("applyForJobAction"), "Job detail must call applyForJobAction");
+
+  // 8. Dashboard integration
+  assert.ok(dashboardPage.includes("/careers/create"), "Dashboard must link to career create");
+  assert.ok(dashboardPage.includes("/careers/jobs/create"), "Dashboard must link to job create");
+});
+
+
 

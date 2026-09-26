@@ -78,6 +78,9 @@ export default function MainFooter() {
                 <Link href="/businesses" className="hover:text-brand-primary transition-colors font-medium text-brand-primary">🏢 Business Network (व्यापार मंच)</Link>
               </li>
               <li>
+                <Link href="/careers" className="hover:text-brand-primary transition-colors font-medium text-brand-primary">💼 Jobs & Careers (रोजगार मंच)</Link>
+              </li>
+              <li>
                 <Link href="/claim" className="hover:text-brand-primary transition-colors">Claim Member Profile</Link>
               </li>
             </ul>

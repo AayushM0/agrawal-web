@@ -394,6 +394,27 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
                     </div>
                   </Link>
 
+                  <Link
+                    href="/careers"
+                    onClick={() => setShowCommunityMenu(false)}
+                    className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-canvas-warm transition text-left group"
+                  >
+                    <div className="p-2 rounded-lg bg-blue-50 text-blue-700 shrink-0 group-hover:bg-blue-100 transition">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-gray-900 group-hover:text-brand-primary">
+                        Jobs & Careers Network
+                      </div>
+                      <div className="text-[11px] text-body-muted leading-tight mt-0.5">
+                        रोजगार व करियर • verified talent & hiring
+                      </div>
+                    </div>
+                  </Link>
+
                   <div className="my-1 border-t border-brand-accent/20"></div>
 
                   <Link
@@ -863,6 +884,23 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
                       <path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01" />
                     </svg>
                     <span>Business Network (व्यापार संजाल)</span>
+                  </div>
+                  <span>→</span>
+                </Link>
+
+                <Link
+                  href="/careers"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all ${
+                    pathname.startsWith("/careers") ? "bg-brand-primary text-white" : "text-body-heading hover:bg-canvas-warm"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <svg className="w-4 h-4 text-blue-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                    </svg>
+                    <span>Jobs & Careers (रोजगार व करियर)</span>
                   </div>
                   <span>→</span>
                 </Link>
