@@ -24,11 +24,11 @@ const pillars = [
     number: "2",
     title: "Global Business Network",
     hindi: "वैश्विक व्यापार नेटवर्क",
-    status: "COMING SOON",
-    isLive: false,
+    status: "LIVE",
+    isLive: true,
     desc: "Connecting entrepreneurs, industrialists, traders, and investors globally. Facilitating international sourcing, referrals, and trade partnerships.",
-    actionText: "Learn More",
-    actionHref: "/about",
+    actionText: "Explore Business Directory →",
+    actionHref: "/businesses",
     icon: (
       <svg className="w-5 h-5 sm:w-6 sm:h-6 text-brand-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>

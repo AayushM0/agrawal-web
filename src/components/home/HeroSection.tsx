@@ -25,7 +25,7 @@ export default function HeroSection() {
             Built on the enduring principles of Maharaja Agrasen — Dharma, Seva, Sanskaar, Education, and Community Upliftment. A secure, trusted, and verified global platform where Agarwal families connect, collaborate, and grow together. Registration is completely <strong>FREE OF CHARGE</strong>.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:gap-4">
             <Link
               href="/signup"
               className="inline-flex items-center justify-center px-6 sm:px-7 py-3 sm:py-3.5 rounded-full text-xs sm:text-sm font-extrabold text-white va-btn-join shadow-goldCta text-center"
@@ -41,6 +41,13 @@ export default function HeroSection() {
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
               </svg>
               <span>Search Directory</span>
+            </Link>
+            <Link
+              href="/businesses"
+              className="inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-full text-xs sm:text-sm font-bold text-brand-primary bg-white border border-brand-accent/50 hover:bg-canvas-warm transition-all text-center shadow-xs"
+            >
+              <span>🏢</span>
+              <span>Business Network</span>
             </Link>
             <Link
               href="/matrimony"
