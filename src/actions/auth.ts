@@ -6,10 +6,22 @@ import { normalizePhoneNumber } from "@/lib/phone";
 import { db } from "@/lib/db";
 import { verifyPassword, evaluateLockout, validatePassword, hashPassword } from "@/lib/auth-crypto";
 import { sendOtp, verifyOtp } from "@/actions/otp";
-import { getSession, createSession, clearSession, type SessionData } from "./session";
+import { getSession as sessionGetSession, createSession as sessionCreateSession, clearSession as sessionClearSession, type SessionData } from "./session";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 
-export { getSession, createSession, clearSession, type SessionData };
+export async function getSession(): Promise<SessionData | null> {
+  return sessionGetSession();
+}
+
+export async function createSession(data: SessionData) {
+  return sessionCreateSession(data);
+}
+
+export async function clearSession() {
+  return sessionClearSession();
+}
+
+export type { SessionData };
 
 export async function verifyAdminPassword(password: string): Promise<{ success: boolean; error?: string }> {
   const reqHeaders = await headers();

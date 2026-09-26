@@ -8,7 +8,7 @@ import { gotras } from "@/data/gotras";
 import { Member } from "@/types/household";
 import { registerHousehold, checkContactRegistration } from "@/actions/register";
 import { checkContactAvailability } from "@/actions/claim";
-import { getSession } from "@/actions/auth";
+import { getSession } from "@/actions/session";
 import { saveRegistrationDraft, discardRegistrationDraft } from "@/actions/draft";
 import LocationSelector from "@/components/LocationSelector";
 import PhoneInputWithCountry from "@/components/PhoneInputWithCountry";
@@ -47,19 +47,45 @@ export default function SignupPage() {
 
   // Guard: Automatically redirect authenticated users away from signup page
   useEffect(() => {
-    async function loadAuth() {
-      const session = await getSession();
-      if (session) {
-        if (session.role === "admin") {
-          router.replace("/admin/moderation");
-        } else {
-          router.replace("/dashboard");
-        }
-      } else {
+    let isMounted = true;
+
+    // Safety timeout: Release UI if session check takes > 500ms
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) {
         setIsAuthChecking(false);
       }
+    }, 500);
+
+    async function loadAuth() {
+      try {
+        const session = await getSession();
+        if (!isMounted) return;
+
+        if (session) {
+          if (session.role === "admin") {
+            router.replace("/admin/moderation");
+            return;
+          } else {
+            router.replace("/dashboard");
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("[AUTH GUARD NOTICE] Session verification skipped on signup:", err);
+      } finally {
+        if (isMounted) {
+          clearTimeout(safetyTimer);
+          setIsAuthChecking(false);
+        }
+      }
     }
+
     loadAuth();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimer);
+    };
   }, [router]);
 
   // Step 1: Contact Verification & Password Setup State
