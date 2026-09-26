@@ -21,6 +21,7 @@ import {
 import { getIncompleteRegistrations } from "@/actions/draft";
 import { Household } from "@/types/household";
 import type { BusinessProfile } from "@/types/business";
+import { gotras } from "@/data/gotras";
 
 export default function ModerationQueuePage() {
   const [households, setHouseholds] = useState<Household[]>([]);
@@ -31,7 +32,9 @@ export default function ModerationQueuePage() {
   const [awardVerifiedMap, setAwardVerifiedMap] = useState<Record<string, boolean>>({});
   const [rejectingBusinessId, setRejectingBusinessId] = useState<string | null>(null);
   const [businessRejectReason, setBusinessRejectReason] = useState("");
-  const [filter, setFilter] = useState<"pending" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue" | "businesses">("pending");
+  const [filter, setFilter] = useState<"pending" | "approved" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue" | "businesses">("pending");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedGotra, setSelectedGotra] = useState("all");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -261,9 +264,33 @@ export default function ModerationQueuePage() {
   };
 
   const pendingHouseholds = households.filter((h) => h.status === "pending_review");
+  const approvedHouseholds = households.filter((h) => h.status === "live");
+  const rejectedHouseholds = households.filter((h) => h.status === "rejected");
+
   const filteredHouseholds = households.filter((h) => {
-    if (filter === "pending") return h.status === "pending_review";
-    if (filter === "rejected") return h.status === "rejected";
+    if (filter === "pending" && h.status !== "pending_review") return false;
+    if (filter === "approved" && h.status !== "live") return false;
+    if (filter === "rejected" && h.status !== "rejected") return false;
+
+    // Gotra filter
+    if (selectedGotra !== "all" && h.gotra !== selectedGotra) return false;
+
+    // Search filter
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      const matchHead = h.headName?.toLowerCase().includes(q);
+      const matchGotra = h.gotra?.toLowerCase().includes(q);
+      const matchCity = h.city?.toLowerCase().includes(q);
+      const matchContact = h.verifiedContact?.toLowerCase().includes(q);
+      const matchSerial = h.serialNo?.toLowerCase().includes(q) || h.householdCode?.toLowerCase().includes(q);
+      const matchMembers = h.members?.some((m: any) =>
+        m.fullName?.toLowerCase().includes(q) || m.serialNo?.toLowerCase().includes(q) || m.phone?.includes(q)
+      );
+      if (!matchHead && !matchGotra && !matchCity && !matchContact && !matchSerial && !matchMembers) {
+        return false;
+      }
+    }
+
     return true;
   });
 
@@ -271,141 +298,374 @@ export default function ModerationQueuePage() {
     ? queueLogs.filter((log) => log.status === "failed")
     : queueLogs;
 
+  const isHouseholdTab = filter === "pending" || filter === "approved" || filter === "all" || filter === "rejected";
+
   return (
-    <main className="py-12 bg-canvas-page">
-      <div className="max-w-6xl mx-auto px-4">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <main className="py-10 bg-canvas-page">
+      <div className="max-w-6xl mx-auto px-4 space-y-6">
+        {/* Header Row */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <span className="text-xs font-bold uppercase va-badge-maroon px-3 py-1 rounded-full mb-1 inline-block">
+            <span className="text-xs font-bold uppercase va-badge-maroon px-3 py-1 rounded-full mb-1.5 inline-block">
               Moderation Portal • सत्यापन दल
             </span>
             <h1 className="text-2xl sm:text-3xl font-black text-brand-primary">
               Community Moderation Queue
             </h1>
-            <p className="text-xs text-body-muted mt-0.5">
-              Review and approve incoming family registrations before they go live on the global directory.
+            <p className="text-xs text-body-muted mt-1 max-w-2xl leading-relaxed">
+              Review and approve incoming family registrations, business listings, message reports, and monitor outbound email dispatch.
             </p>
           </div>
 
-          {/* Action Buttons & Filter Tabs */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-2.5 shrink-0 self-start md:self-auto">
+            <button
+              type="button"
+              onClick={loadQueue}
+              disabled={isLoading}
+              className="px-3.5 py-2 rounded-2xl text-xs font-bold text-body-heading bg-white hover:bg-canvas-warm border border-brand-accent/30 shadow-xs transition flex items-center gap-1.5 min-h-[38px]"
+              title="Refresh queue data from database"
+            >
+              <span>🔄</span>
+              <span>Refresh</span>
+            </button>
+
             {pendingHouseholds.length > 0 && (
               <button
                 type="button"
                 onClick={handleApproveAll}
                 disabled={isApprovingAll}
-                className="px-4 py-2 rounded-2xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 shadow-warm transition-all flex items-center justify-center gap-1.5 min-h-[38px] shrink-0"
+                className="px-4 py-2 rounded-2xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 shadow-warm transition-all flex items-center justify-center gap-1.5 min-h-[38px]"
               >
                 <span>✓</span>
                 <span>{isApprovingAll ? "Approving All..." : `Approve All (${pendingHouseholds.length})`}</span>
               </button>
             )}
-
-            <div className="w-full overflow-x-auto no-scrollbar pb-1">
-              <div className="min-w-max flex items-center gap-1.5 bg-white p-1 rounded-2xl border border-brand-accent/30">
-                <button
-                  onClick={() => setFilter("pending")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center ${
-                    filter === "pending"
-                      ? "bg-brand-primary text-white"
-                      : "text-body-muted hover:text-brand-primary"
-                  }`}
-                >
-                  Pending ({pendingHouseholds.length})
-                </button>
-                <button
-                  onClick={() => setFilter("all")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center ${
-                    filter === "all"
-                      ? "bg-brand-primary text-white"
-                      : "text-body-muted hover:text-brand-primary"
-                  }`}
-                >
-                  All ({households.length})
-                </button>
-                <button
-                  onClick={() => setFilter("rejected")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center ${
-                    filter === "rejected"
-                      ? "bg-brand-primary text-white"
-                      : "text-body-muted hover:text-brand-primary"
-                  }`}
-                >
-                  Rejected ({households.filter((h) => h.status === "rejected").length})
-                </button>
-                <button
-                  onClick={() => setFilter("reports")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center ${
-                    filter === "reports"
-                      ? "bg-brand-primary text-white"
-                      : "text-body-muted hover:text-brand-primary"
-                  }`}
-                >
-                  🚩 Message Reports ({reports.filter((r) => r.status === "pending").length})
-                </button>
-                <button
-                  onClick={() => setFilter("inquiries")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center ${
-                    filter === "inquiries"
-                      ? "bg-brand-primary text-white"
-                      : "text-body-muted hover:text-brand-primary"
-                  }`}
-                >
-                  📩 Inquiries ({inquiries.filter((i) => i.status === "open").length})
-                </button>
-                <button
-                  onClick={() => setFilter("incomplete")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center ${
-                    filter === "incomplete"
-                      ? "bg-brand-primary text-white"
-                      : "text-body-muted hover:text-brand-primary"
-                  }`}
-                >
-                  📝 Incomplete Signups ({drafts.length})
-                </button>
-                <button
-                  onClick={() => {
-                    setFilter("queue");
-                    loadQueueStats();
-                  }}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 min-h-[38px] ${
-                    filter === "queue"
-                      ? "bg-brand-primary text-white"
-                      : "text-body-muted hover:text-brand-primary"
-                  }`}
-                >
-                  <span>📬 Email Queue</span>
-                  {queueStats && queueStats.failed > 0 && (
-                    <span className="px-1.5 py-0.5 bg-red-600 text-white rounded-full text-[10px] font-bold">
-                      {queueStats.failed}
-                    </span>
-                  )}
-                  {queueStats && queueStats.pending > 0 && (
-                    <span className="px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded-full text-[10px] font-bold">
-                      {queueStats.pending}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={() => setFilter("businesses")}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 min-h-[38px] ${
-                    filter === "businesses"
-                      ? "bg-brand-primary text-white"
-                      : "text-body-muted hover:text-brand-primary"
-                  }`}
-                >
-                  <span>🏢 Business Directory (व्यापार)</span>
-                  {pendingBusinesses.length > 0 && (
-                    <span className="px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded-full text-[10px] font-bold">
-                      {pendingBusinesses.length}
-                    </span>
-                  )}
-                </button>
-              </div>
-            </div>
           </div>
         </div>
+
+        {/* Executive Metrics Overview Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+          <button
+            type="button"
+            onClick={() => setFilter("pending")}
+            className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
+              filter === "pending"
+                ? "bg-amber-50/90 border-amber-400 ring-2 ring-amber-400/30"
+                : "bg-white border-brand-accent/30 hover:bg-amber-50/40"
+            }`}
+          >
+            <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">Pending</span>
+            <span className="text-lg font-black text-amber-700">{pendingHouseholds.length}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilter("approved")}
+            className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
+              filter === "approved"
+                ? "bg-emerald-50/90 border-emerald-400 ring-2 ring-emerald-400/30"
+                : "bg-white border-brand-accent/30 hover:bg-emerald-50/40"
+            }`}
+          >
+            <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">Live Directory</span>
+            <span className="text-lg font-black text-emerald-700">{approvedHouseholds.length}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilter("all")}
+            className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
+              filter === "all"
+                ? "bg-amber-100/60 border-brand-accent ring-2 ring-brand-accent/30"
+                : "bg-white border-brand-accent/30 hover:bg-canvas-warm/50"
+            }`}
+          >
+            <span className="text-[10px] font-bold text-body-muted uppercase tracking-wider block">Total</span>
+            <span className="text-lg font-black text-brand-primary">{households.length}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilter("rejected")}
+            className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
+              filter === "rejected"
+                ? "bg-red-50/90 border-red-400 ring-2 ring-red-400/30"
+                : "bg-white border-brand-accent/30 hover:bg-red-50/40"
+            }`}
+          >
+            <span className="text-[10px] font-bold text-red-800 uppercase tracking-wider block">Rejected</span>
+            <span className="text-lg font-black text-red-700">{rejectedHouseholds.length}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilter("businesses")}
+            className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
+              filter === "businesses"
+                ? "bg-purple-50/90 border-purple-400 ring-2 ring-purple-400/30"
+                : "bg-white border-brand-accent/30 hover:bg-purple-50/40"
+            }`}
+          >
+            <span className="text-[10px] font-bold text-purple-800 uppercase tracking-wider block">Businesses</span>
+            <span className="text-lg font-black text-purple-700">{pendingBusinesses.length}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilter("reports")}
+            className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
+              filter === "reports"
+                ? "bg-rose-50/90 border-rose-400 ring-2 ring-rose-400/30"
+                : "bg-white border-brand-accent/30 hover:bg-rose-50/40"
+            }`}
+          >
+            <span className="text-[10px] font-bold text-rose-800 uppercase tracking-wider block">Reports</span>
+            <span className="text-lg font-black text-rose-700">{reports.filter((r) => r.status === "pending").length}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilter("inquiries")}
+            className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
+              filter === "inquiries"
+                ? "bg-blue-50/90 border-blue-400 ring-2 ring-blue-400/30"
+                : "bg-white border-brand-accent/30 hover:bg-blue-50/40"
+            }`}
+          >
+            <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider block">Inquiries</span>
+            <span className="text-lg font-black text-blue-700">{inquiries.filter((i) => i.status === "open").length}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setFilter("queue");
+              loadQueueStats();
+            }}
+            className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
+              filter === "queue"
+                ? "bg-teal-50/90 border-teal-400 ring-2 ring-teal-400/30"
+                : "bg-white border-brand-accent/30 hover:bg-teal-50/40"
+            }`}
+          >
+            <span className="text-[10px] font-bold text-teal-800 uppercase tracking-wider block">Email Queue</span>
+            <span className="text-lg font-black text-teal-700">{queueStats?.failed ? `${queueStats.failed} err` : (queueStats?.pending ?? 0)}</span>
+          </button>
+        </div>
+
+        {/* Tab Navigation Bar */}
+        <div className="w-full overflow-x-auto no-scrollbar pb-1">
+          <div className="min-w-max flex items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-brand-accent/30 shadow-xs">
+            <button
+              onClick={() => setFilter("pending")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center gap-1.5 ${
+                filter === "pending"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <span>Pending</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                filter === "pending" ? "bg-white/20 text-white" : "bg-amber-100 text-amber-800"
+              }`}>
+                {pendingHouseholds.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setFilter("approved")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center gap-1.5 ${
+                filter === "approved"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <span>Approved / Live</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                filter === "approved" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+              }`}>
+                {approvedHouseholds.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setFilter("all")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center gap-1.5 ${
+                filter === "all"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <span>All</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                filter === "all" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-700"
+              }`}>
+                {households.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setFilter("rejected")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center gap-1.5 ${
+                filter === "rejected"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <span>Rejected</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                filter === "rejected" ? "bg-white/20 text-white" : "bg-red-100 text-red-800"
+              }`}>
+                {rejectedHouseholds.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setFilter("businesses")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 min-h-[38px] ${
+                filter === "businesses"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <span>🏢 Business Directory (व्यापार)</span>
+              {pendingBusinesses.length > 0 && (
+                <span className="px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded-full text-[10px] font-bold">
+                  {pendingBusinesses.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setFilter("reports")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center gap-1.5 ${
+                filter === "reports"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <span>🚩 Message Reports</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                filter === "reports" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-800"
+              }`}>
+                {reports.filter((r) => r.status === "pending").length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setFilter("inquiries")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center gap-1.5 ${
+                filter === "inquiries"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <span>📩 Inquiries</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                filter === "inquiries" ? "bg-white/20 text-white" : "bg-blue-100 text-blue-800"
+              }`}>
+                {inquiries.filter((i) => i.status === "open").length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setFilter("incomplete")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center gap-1.5 ${
+                filter === "incomplete"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <span>📝 Incomplete Signups</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                filter === "incomplete" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-700"
+              }`}>
+                {drafts.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setFilter("queue");
+                loadQueueStats();
+              }}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 min-h-[38px] ${
+                filter === "queue"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <span>📬 Email Queue</span>
+              {queueStats && queueStats.failed > 0 && (
+                <span className="px-1.5 py-0.5 bg-red-600 text-white rounded-full text-[10px] font-bold">
+                  {queueStats.failed}
+                </span>
+              )}
+              {queueStats && queueStats.pending > 0 && (
+                <span className="px-1.5 py-0.5 bg-amber-400 text-amber-950 rounded-full text-[10px] font-bold">
+                  {queueStats.pending}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Live Search & Filter Bar (Household views) */}
+        {isHouseholdTab && households.length > 0 && (
+          <div className="bg-white p-3.5 rounded-2xl border border-brand-accent/30 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex-1 relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-body-muted text-xs">🔍</span>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by name, gotra, mobile, city, or serial no..."
+                className="w-full pl-9 pr-4 py-2 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[38px]"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-body-muted hover:text-brand-primary"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedGotra}
+                onChange={(e) => setSelectedGotra(e.target.value)}
+                className="px-3 py-2 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[38px]"
+              >
+                <option value="all">All 18 Gotras</option>
+                {gotras.map((g) => (
+                  <option key={g.name} value={g.name}>
+                    {g.name} ({g.devanagari})
+                  </option>
+                ))}
+              </select>
+
+              {(searchTerm || selectedGotra !== "all") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setSelectedGotra("all");
+                  }}
+                  className="px-3 py-2 text-xs font-bold text-brand-primary bg-amber-50 hover:bg-amber-100 border border-brand-accent/40 rounded-xl transition min-h-[38px]"
+                >
+                  Reset
+                </button>
+              )}
+
+              <span className="text-[11px] font-semibold text-body-muted px-2 hidden sm:inline">
+                {filteredHouseholds.length} match{filteredHouseholds.length === 1 ? "" : "es"}
+              </span>
+            </div>
+          </div>
+        )}
 
         {statusMessage && (
           <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-xs font-bold text-emerald-900 animate-in fade-in">
@@ -1153,29 +1413,35 @@ export default function ModerationQueuePage() {
                               <span>Download Pass ▾</span>
                             </button>
                             {downloadingHouseholdId === h.id && (
-                              <div className="absolute right-0 sm:right-0 left-0 sm:left-auto mt-1 w-full sm:w-64 bg-white rounded-2xl shadow-xl border border-brand-accent/30 p-2 z-20 animate-in fade-in zoom-in-95">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-body-muted px-2.5 py-1">
-                                  Select Member Pass
+                              <>
+                                <div
+                                  className="fixed inset-0 z-10"
+                                  onClick={() => setDownloadingHouseholdId(null)}
+                                />
+                                <div className="absolute right-0 sm:right-0 left-0 sm:left-auto mt-1 w-full sm:w-64 bg-white rounded-2xl shadow-xl border border-brand-accent/30 p-2 z-20 animate-in fade-in zoom-in-95">
+                                  <div className="text-[10px] font-bold uppercase tracking-wider text-body-muted px-2.5 py-1">
+                                    Select Member Pass
+                                  </div>
+                                  <div className="max-h-56 overflow-y-auto space-y-1">
+                                    {h.members.map((m) => (
+                                      <a
+                                        key={m.id}
+                                        href={`/api/pass/pdf?memberId=${m.id}`}
+                                        download
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={() => setDownloadingHouseholdId(null)}
+                                        className="flex items-center justify-between px-2.5 py-2 rounded-xl hover:bg-amber-50 text-xs text-brand-primary font-medium transition min-h-[34px]"
+                                      >
+                                        <span className="truncate">
+                                          {m.fullName} ({m.relationToHead === "self" ? "Head" : m.relationToHead})
+                                        </span>
+                                        <span className="text-[10px] font-bold text-body-muted shrink-0 ml-1">📥 PDF</span>
+                                      </a>
+                                    ))}
+                                  </div>
                                 </div>
-                                <div className="max-h-56 overflow-y-auto space-y-1">
-                                  {h.members.map((m) => (
-                                    <a
-                                      key={m.id}
-                                      href={`/api/pass/pdf?memberId=${m.id}`}
-                                      download
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      onClick={() => setDownloadingHouseholdId(null)}
-                                      className="flex items-center justify-between px-2.5 py-2 rounded-xl hover:bg-amber-50 text-xs text-brand-primary font-medium transition min-h-[34px]"
-                                    >
-                                      <span className="truncate">
-                                        {m.fullName} ({m.relationToHead === "self" ? "Head" : m.relationToHead})
-                                      </span>
-                                      <span className="text-[10px] font-bold text-body-muted shrink-0 ml-1">📥 PDF</span>
-                                    </a>
-                                  ))}
-                                </div>
-                              </div>
+                              </>
                             )}
                           </div>
                         )}
@@ -1237,17 +1503,21 @@ export default function ModerationQueuePage() {
                           key={m.id || idx}
                           className="p-3 rounded-2xl bg-canvas-warm/30 border border-brand-accent/20 flex items-start gap-3 text-xs"
                         >
-                          {m.photoUrl ? (
-                            <img
-                              src={m.photoUrl}
-                              alt={m.fullName}
-                              className="w-10 h-10 rounded-full object-cover border border-brand-accent shrink-0"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-brand-primary/10 text-brand-primary font-bold flex items-center justify-center shrink-0">
-                              {m.fullName?.charAt(0)}
-                            </div>
-                          )}
+                          <div className="relative w-10 h-10 rounded-full bg-brand-primary/10 text-brand-primary font-bold flex items-center justify-center shrink-0 border border-brand-accent/30 overflow-hidden">
+                            <span className="select-none text-xs font-bold">
+                              {m.fullName?.charAt(0)?.toUpperCase() || "A"}
+                            </span>
+                            {m.photoUrl ? (
+                              <img
+                                src={m.photoUrl}
+                                alt={m.fullName}
+                                className="absolute inset-0 w-full h-full object-cover rounded-full"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = "none";
+                                }}
+                              />
+                            ) : null}
+                          </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-1.5 flex-wrap">
                               <span className="font-bold text-brand-primary truncate">
@@ -1276,7 +1546,7 @@ export default function ModerationQueuePage() {
                               </div>
                             </div>
                             <p className="text-[11px] text-body-heading mt-0.5">
-                              {m.maritalStatus === "Married" &&
+                              {m.maritalStatus?.toLowerCase() === "married" &&
                               (m.gender === "Female" || m.relationToHead === "spouse")
                                 ? `Father/Husband: ${m.fatherName || "N/A"}`
                                 : `Father: ${m.fatherName || "N/A"}`}
@@ -1288,7 +1558,7 @@ export default function ModerationQueuePage() {
                                 {m.companyName ? ` at ${m.companyName}` : ""}
                               </p>
                             )}
-                            {m.maritalStatus === "Married" && m.anniversaryDate && (
+                            {m.maritalStatus?.toLowerCase() === "married" && m.anniversaryDate && (
                               <p className="text-[11px] text-brand-gold mt-0.5">
                                 💍 Anniversary: {String(m.anniversaryDate).split("T")[0]}
                               </p>
