@@ -22,6 +22,13 @@ import {
   deleteBusinessProfile,
 } from "@/actions/business";
 import type { BusinessProfile } from "@/types/business";
+import {
+  getCareerProfileByMemberIdAction,
+  getMyHouseholdApplicationsAction,
+  getMyHouseholdJobPostingsAction,
+  toggleCareerProfileVisibilityAction,
+} from "@/actions/career";
+import type { CareerProfile, JobPosting, JobApplication } from "@/types/career";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -34,6 +41,10 @@ export default function DashboardPage() {
   const [canCreateBusiness, setCanCreateBusiness] = useState(false);
   const [isTogglingBusiness, setIsTogglingBusiness] = useState<string | null>(null);
   const [isDeletingBusiness, setIsDeletingBusiness] = useState<string | null>(null);
+  const [householdCareers, setHouseholdCareers] = useState<CareerProfile[]>([]);
+  const [householdApplications, setHouseholdApplications] = useState<JobApplication[]>([]);
+  const [householdJobPostings, setHouseholdJobPostings] = useState<JobPosting[]>([]);
+  const [isTogglingCareer, setIsTogglingCareer] = useState<string | null>(null);
 
   // Edit Member Modal State
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -233,6 +244,28 @@ export default function DashboardPage() {
       } catch (err) {
         console.error("Failed to load household businesses:", err);
       }
+      try {
+        const careerProfilesList: CareerProfile[] = [];
+        for (const m of res.household.members || []) {
+          const cpRes = await getCareerProfileByMemberIdAction(m.id);
+          if (cpRes.success && cpRes.profile) {
+            careerProfilesList.push(cpRes.profile);
+          }
+        }
+        setHouseholdCareers(careerProfilesList);
+
+        const appsRes = await getMyHouseholdApplicationsAction();
+        if (appsRes.success && appsRes.applications) {
+          setHouseholdApplications(appsRes.applications);
+        }
+
+        const jobsRes = await getMyHouseholdJobPostingsAction();
+        if (jobsRes.success && jobsRes.jobs) {
+          setHouseholdJobPostings(jobsRes.jobs);
+        }
+      } catch (err) {
+        console.error("Failed to load household career data:", err);
+      }
     } else {
       setHousehold(null);
       setSessionContact(res.sessionContact);
@@ -240,6 +273,22 @@ export default function DashboardPage() {
     }
     setIsLoading(false);
   }
+
+  const handleToggleCareerVisibility = async (careerId: string) => {
+    setIsTogglingCareer(careerId);
+    try {
+      const res = await toggleCareerProfileVisibilityAction(careerId);
+      if (res.success && res.newStatus) {
+        setHouseholdCareers((prev) =>
+          prev.map((c) => (c.id === careerId ? { ...c, status: res.newStatus! } : c))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to toggle career visibility:", err);
+    } finally {
+      setIsTogglingCareer(null);
+    }
+  };
 
   const handleToggleBusiness = async (biz: BusinessProfile) => {
     setIsTogglingBusiness(biz.id);
@@ -965,6 +1014,210 @@ export default function DashboardPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Career & Jobs Management Card (Pillar 4) */}
+        <div className="bg-white border border-brand-accent/30 rounded-3xl p-5 sm:p-8 shadow-warm mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-brand-accent/20">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl">💼</span>
+                <h2 className="text-base sm:text-lg font-extrabold text-brand-primary">
+                  Career &amp; Jobs / रोजगार व करियर
+                </h2>
+              </div>
+              <p className="text-xs text-body-muted mt-0.5">
+                Manage individual verified professional profiles, monitor job applications, and post enterprise hiring openings.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/careers/create"
+                className="px-4 py-2 rounded-full text-xs font-bold text-white va-btn-join transition-all shadow-goldCta flex items-center gap-1.5 shrink-0"
+              >
+                <span>+</span>
+                <span>Build Career Profile</span>
+              </Link>
+              <Link
+                href="/careers/jobs/create"
+                className="px-4 py-2 rounded-full text-xs font-bold text-brand-primary border border-brand-accent/50 bg-white hover:bg-canvas-warm transition-all flex items-center gap-1.5 shrink-0"
+              >
+                <span>🏢</span>
+                <span>Post Job Opening</span>
+              </Link>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {/* 1. Household Talent Profiles */}
+            <div>
+              <h3 className="text-xs font-bold uppercase text-brand-primary tracking-wider mb-3">
+                Verified Candidate Profiles ({householdCareers.length})
+              </h3>
+              {householdCareers.length === 0 ? (
+                <div className="text-center py-6 px-4 rounded-2xl border border-dashed border-brand-accent/40 bg-canvas-warm/10">
+                  <p className="text-sm font-semibold text-brand-primary mb-1">No career profiles built yet.</p>
+                  <p className="text-xs text-body-muted max-w-md mx-auto mb-4">
+                    Household members can build verified career showcases highlighting education, domain expertise, skills, and mentor availability without publishing phone numbers or emails.
+                  </p>
+                  <Link
+                    href="/careers/create"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold text-brand-primary border border-brand-accent/50 bg-white hover:bg-canvas-warm transition-all"
+                  >
+                    <span>💼</span>
+                    <span>Create Your Talent Profile</span>
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {householdCareers.map((c) => {
+                    const isProfileLive = c.status === "live";
+                    const memberName = household.members?.find((m) => m.id === c.memberId)?.fullName || c.fullName || "Member";
+
+                    return (
+                      <div
+                        key={c.id}
+                        className="p-4 rounded-2xl border border-brand-accent/30 bg-canvas-warm/20 flex flex-col justify-between space-y-3"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <h4 className="text-sm font-bold text-brand-primary truncate">{memberName}</h4>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${
+                                isProfileLive
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-gray-100 text-gray-700 border border-gray-300"
+                              }`}
+                            >
+                              {isProfileLive ? "Live & Searchable" : "Paused"}
+                            </span>
+                          </div>
+                          <p className="text-xs font-semibold text-body-heading line-clamp-1">{c.headline}</p>
+                          <p className="text-xs text-body-muted mt-0.5">
+                            {c.primaryDomain} • {c.yearsOfExperience} yrs exp
+                            {c.isMentorAvailable && (
+                              <span className="ml-1 text-amber-700 font-semibold">• 🤝 Mentor</span>
+                            )}
+                            {c.isConfidentialMode && (
+                              <span className="ml-1 text-indigo-700 font-semibold">• 🔒 Confidential</span>
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-brand-accent/10 flex items-center justify-between gap-2">
+                          <Link
+                            href={`/careers/${c.id}`}
+                            className="text-xs font-semibold text-brand-primary hover:underline"
+                          >
+                            View Public Profile →
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCareerVisibility(c.id)}
+                            disabled={isTogglingCareer === c.id}
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                              isProfileLive
+                                ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                                : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+                            }`}
+                          >
+                            {isTogglingCareer === c.id
+                              ? "Updating..."
+                              : isProfileLive
+                              ? "Pause Visibility"
+                              : "Make Live"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 2. Submitted Job Applications */}
+            {householdApplications.length > 0 && (
+              <div className="pt-4 border-t border-brand-accent/20">
+                <h3 className="text-xs font-bold uppercase text-brand-primary tracking-wider mb-3">
+                  Submitted Job Applications ({householdApplications.length})
+                </h3>
+                <div className="space-y-2">
+                  {householdApplications.map((app) => (
+                    <div
+                      key={app.id}
+                      className="p-3 rounded-xl border border-brand-accent/20 bg-white flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div>
+                        <strong className="text-brand-primary block">{app.applicantName || "Applicant"}</strong>
+                        <span className="text-body-muted">{app.applicantHeadline || "Agarwal Candidate"}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                            app.status === "shortlisted"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : app.status === "reviewed"
+                              ? "bg-blue-50 text-blue-700 border border-blue-200"
+                              : app.status === "declined"
+                              ? "bg-red-50 text-red-700 border border-red-200"
+                              : "bg-amber-50 text-amber-700 border border-amber-200"
+                          }`}
+                        >
+                          {app.status}
+                        </span>
+                        <Link
+                          href={`/careers/jobs/${app.jobPostingId}`}
+                          className="font-semibold text-brand-primary hover:underline text-[11px]"
+                        >
+                          View Job →
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 3. Posted Enterprise Job Openings */}
+            {householdJobPostings.length > 0 && (
+              <div className="pt-4 border-t border-brand-accent/20">
+                <h3 className="text-xs font-bold uppercase text-brand-primary tracking-wider mb-3">
+                  Your Posted Job Openings ({householdJobPostings.length})
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {householdJobPostings.map((job) => (
+                    <div
+                      key={job.id}
+                      className="p-3.5 rounded-xl border border-brand-accent/20 bg-white flex flex-col justify-between space-y-2 text-xs"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <h4 className="font-bold text-brand-primary truncate">{job.title}</h4>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 uppercase">
+                            {job.status}
+                          </span>
+                        </div>
+                        <p className="text-body-muted text-[11px] truncate">
+                          {job.companyName} • {job.industry}
+                        </p>
+                      </div>
+                      <div className="pt-2 border-t border-brand-accent/10 flex items-center justify-between">
+                        <span className="text-body-muted text-[11px]">
+                          {job.applicantCount || 0} applicants
+                        </span>
+                        <Link
+                          href={`/careers/jobs/${job.id}`}
+                          className="font-semibold text-brand-primary hover:underline text-[11px]"
+                        >
+                          View Opening →
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
