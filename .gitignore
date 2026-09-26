@@ -37,9 +37,12 @@ yarn-error.log*
 next-env.d.ts
 
 # local scratch scripts & agent working files
+.scratch/
 refactor-*.mjs
 fix-ts.mjs
 scripts/clean-db.mjs
+scripts/inspect-target-members.mjs
+scripts/download-id-cards-for-emails.mjs
 ACTIVITY_LOG.md
 changes.md
 tasks/
