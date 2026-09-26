@@ -42,3 +42,13 @@ test("Issue 047 - Task 3: server actions strictly enforce PII contact masking an
   assert.ok(content.includes("Confidential Enterprise"), "Must mask company with 'Confidential Enterprise' when confidential mode is active");
   assert.ok(!content.includes("verifiedContact: profile.verifiedContact"), "Must not expose raw verifiedContact in sanitized model");
 });
+
+test("Issue 047 - Frontend Enhancements: /careers/[id] renders photoUrl, suppresses NaN, and ensures absolute URL external links", () => {
+  const showPath = path.join(webRoot, "src/app/careers/[id]/page.tsx");
+  const content = fs.readFileSync(showPath, "utf8");
+
+  assert.ok(content.includes("profile.photoUrl"), "Showcase page must render photoUrl when available");
+  assert.ok(content.includes("!isNaN"), "Showcase page must guard against NaN when displaying serial number");
+  assert.ok(content.includes("startsWith(\"http\")"), "Showcase page must ensure external links use absolute URL scheme");
+});
+

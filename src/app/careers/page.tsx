@@ -283,8 +283,16 @@ export default function CareerDirectoryPage() {
                       {/* Card Header: Avatar & Verified Badges */}
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-11 h-11 rounded-full bg-brand-primary/10 text-brand-primary font-bold flex items-center justify-center shrink-0 border border-brand-accent/30 text-sm">
-                            {p.fullName?.charAt(0)?.toUpperCase() || "A"}
+                          <div className="w-11 h-11 rounded-full bg-brand-primary/10 text-brand-primary font-bold flex items-center justify-center shrink-0 border border-brand-accent/30 text-sm overflow-hidden">
+                            {p.photoUrl ? (
+                              <img
+                                src={p.photoUrl}
+                                alt={p.fullName || "Candidate"}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              p.fullName?.charAt(0)?.toUpperCase() || "A"
+                            )}
                           </div>
                           <div className="min-w-0">
                             <h3 className="text-sm font-bold text-brand-primary truncate">
@@ -296,11 +304,11 @@ export default function CareerDirectoryPage() {
                                   {p.gotra}
                                 </span>
                               )}
-                              {p.serialNo && (
+                              {typeof p.serialNo === "number" && !isNaN(p.serialNo) && p.serialNo > 0 ? (
                                 <span className="font-mono bg-canvas-warm px-1.5 py-0.5 rounded border border-brand-accent/30">
                                   #{p.serialNo}
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                         </div>

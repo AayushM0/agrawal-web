@@ -1075,7 +1075,9 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {householdCareers.map((c) => {
                     const isProfileLive = c.status === "live";
-                    const memberName = household.members?.find((m) => m.id === c.memberId)?.fullName || c.fullName || "Member";
+                    const memberRecord = household.members?.find((m) => m.id === c.memberId);
+                    const memberName = memberRecord?.fullName || c.fullName || "Member";
+                    const memberPhoto = memberRecord?.photoUrl || c.photoUrl;
 
                     return (
                       <div
@@ -1084,7 +1086,16 @@ export default function DashboardPage() {
                       >
                         <div>
                           <div className="flex items-center justify-between gap-2 mb-1.5">
-                            <h4 className="text-sm font-bold text-brand-primary truncate">{memberName}</h4>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-8 h-8 rounded-full bg-brand-primary/10 text-brand-primary font-bold flex items-center justify-center text-xs shrink-0 border border-brand-accent/30 overflow-hidden">
+                                {memberPhoto ? (
+                                  <img src={memberPhoto} alt={memberName} className="w-full h-full object-cover" />
+                                ) : (
+                                  memberName.charAt(0).toUpperCase()
+                                )}
+                              </div>
+                              <h4 className="text-sm font-bold text-brand-primary truncate">{memberName}</h4>
+                            </div>
                             <span
                               className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase shrink-0 ${
                                 isProfileLive

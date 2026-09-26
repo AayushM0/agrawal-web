@@ -68,6 +68,7 @@ export interface CareerProfile {
   nativePlace?: string;
   serialNo?: number;
   householdCode?: string;
+  photoUrl?: string;
 }
 
 export interface CreateCareerProfileInput {

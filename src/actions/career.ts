@@ -12,6 +12,32 @@ import type {
   JobApplication,
 } from "@/types/career";
 
+function formatAndSanitizeUrl(url?: string): string | undefined {
+  if (!url) return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  if (/^(javascript|vbscript|data):/i.test(trimmed)) {
+    return undefined;
+  }
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+}
+
+function sanitizeResumeUrl(url?: string): string | undefined {
+  if (!url) return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  if (/^data:application\/pdf/i.test(trimmed) || /^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  if (/^(javascript|vbscript|data:text\/html):/i.test(trimmed)) {
+    return undefined;
+  }
+  return `https://${trimmed}`;
+}
+
 /**
  * Sanitize candidate profile for public display, masking confidential details.
  */
@@ -22,6 +48,9 @@ function sanitizeCareerProfile(profile: CareerProfile): CareerProfile {
     currentCompany: profile.isConfidentialMode ? "Confidential Enterprise" : profile.currentCompany,
     skills: Array.isArray(profile.skills) ? profile.skills : [],
     preferredLocations: Array.isArray(profile.preferredLocations) ? profile.preferredLocations : [],
+    linkedinUrl: formatAndSanitizeUrl(profile.linkedinUrl),
+    portfolioUrl: formatAndSanitizeUrl(profile.portfolioUrl),
+    resumeUrl: sanitizeResumeUrl(profile.resumeUrl),
   };
 }
 
@@ -96,10 +125,10 @@ export async function createCareerProfileAction(input: CreateCareerProfileInput)
       seekingStatus: input.seekingStatus || "open_to_offers",
       preferredLocations: cleanLocations,
       workplacePreference: input.workplacePreference || "flexible",
-      resumeUrl: input.resumeUrl?.trim() || undefined,
+      resumeUrl: sanitizeResumeUrl(input.resumeUrl),
       bio: input.bio?.trim() || undefined,
-      linkedinUrl: input.linkedinUrl?.trim() || undefined,
-      portfolioUrl: input.portfolioUrl?.trim() || undefined,
+      linkedinUrl: formatAndSanitizeUrl(input.linkedinUrl),
+      portfolioUrl: formatAndSanitizeUrl(input.portfolioUrl),
       isMentorAvailable: Boolean(input.isMentorAvailable),
       isConfidentialMode: Boolean(input.isConfidentialMode),
     });
@@ -110,7 +139,7 @@ export async function createCareerProfileAction(input: CreateCareerProfileInput)
     };
   } catch (err: any) {
     console.error("[CAREER ACTION ERROR] createCareerProfileAction:", err);
-    return { success: false, error: err.message || "Failed to create career profile." };
+    return { success: false, error: "Failed to create career profile. Please check your inputs." };
   }
 }
 
@@ -202,14 +231,25 @@ export async function updateCareerProfileAction(
       return { success: false, error: "You are not authorized to edit this profile." };
     }
 
-    const updated = await db.updateCareerProfile(id, updates);
+    const cleanUpdates = { ...updates };
+    if (updates.linkedinUrl !== undefined) {
+      cleanUpdates.linkedinUrl = formatAndSanitizeUrl(updates.linkedinUrl);
+    }
+    if (updates.portfolioUrl !== undefined) {
+      cleanUpdates.portfolioUrl = formatAndSanitizeUrl(updates.portfolioUrl);
+    }
+    if (updates.resumeUrl !== undefined) {
+      cleanUpdates.resumeUrl = sanitizeResumeUrl(updates.resumeUrl);
+    }
+
+    const updated = await db.updateCareerProfile(id, cleanUpdates);
     return {
       success: true,
       profile: updated ? sanitizeCareerProfile(updated) : undefined,
     };
   } catch (err: any) {
     console.error("[CAREER ACTION ERROR] updateCareerProfileAction:", err);
-    return { success: false, error: err.message || "Failed to update profile." };
+    return { success: false, error: "Failed to update profile. Please verify your details." };
   }
 }
 

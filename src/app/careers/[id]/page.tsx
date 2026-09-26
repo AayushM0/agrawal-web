@@ -106,8 +106,16 @@ export default function CareerProfileDetailPage() {
           {/* Header Identity Row */}
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6 pb-6 border-b border-brand-accent/20">
             <div className="flex items-start gap-4">
-              <div className="w-16 h-16 rounded-full bg-brand-primary/10 text-brand-primary font-bold flex items-center justify-center text-xl shrink-0 border-2 border-brand-accent/40 shadow-xs">
-                {profile.fullName?.charAt(0)?.toUpperCase() || "A"}
+              <div className="w-16 h-16 rounded-full bg-brand-primary/10 text-brand-primary font-bold flex items-center justify-center text-xl shrink-0 border-2 border-brand-accent/40 shadow-xs overflow-hidden">
+                {profile.photoUrl ? (
+                  <img
+                    src={profile.photoUrl}
+                    alt={profile.fullName || "Candidate"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  profile.fullName?.charAt(0)?.toUpperCase() || "A"
+                )}
               </div>
 
               <div>
@@ -115,11 +123,11 @@ export default function CareerProfileDetailPage() {
                   <h1 className="text-xl sm:text-2xl font-extrabold text-brand-primary">
                     {profile.fullName || "Community Member"}
                   </h1>
-                  {profile.serialNo && (
+                  {typeof profile.serialNo === "number" && !isNaN(profile.serialNo) && profile.serialNo > 0 ? (
                     <span className="text-xs font-mono font-bold bg-canvas-warm px-2 py-0.5 rounded-md border border-brand-accent/30 text-brand-primary">
                       #{profile.serialNo}
                     </span>
-                  )}
+                  ) : null}
                   {profile.gotra && (
                     <span className="text-xs font-bold va-badge-gold px-2.5 py-0.5 rounded-full">
                       Gotra: {profile.gotra}
@@ -256,7 +264,7 @@ export default function CareerProfileDetailPage() {
             <div className="pt-4 border-t border-brand-accent/20 flex items-center gap-4 flex-wrap">
               {profile.linkedinUrl && (
                 <a
-                  href={profile.linkedinUrl}
+                  href={profile.linkedinUrl.startsWith("http") ? profile.linkedinUrl : `https://${profile.linkedinUrl}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:underline"
@@ -266,7 +274,7 @@ export default function CareerProfileDetailPage() {
               )}
               {profile.portfolioUrl && (
                 <a
-                  href={profile.portfolioUrl}
+                  href={profile.portfolioUrl.startsWith("http") ? profile.portfolioUrl : `https://${profile.portfolioUrl}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-primary hover:underline"

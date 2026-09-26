@@ -3762,6 +3762,25 @@ export const db = {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+
+      const households: any[] = (globalThis as any).__memoryHouseholds || [];
+      const hh = households.find((h: any) => h.id === p.householdId);
+      const mem = hh?.members?.find((m: any) => m.id === p.memberId);
+      if (mem) {
+        newProfile.fullName = mem.fullName;
+        newProfile.gender = mem.gender;
+        newProfile.photoUrl = mem.photoUrl;
+        newProfile.serialNo = mem.serialNo;
+        if (hh) {
+          newProfile.gotra = hh.gotra;
+          newProfile.city = hh.city;
+          newProfile.state = hh.state;
+          newProfile.country = hh.country;
+          newProfile.nativePlace = hh.nativePlace;
+          newProfile.householdCode = hh.householdCode;
+        }
+      }
+
       list.unshift(newProfile);
       return newProfile;
     }
@@ -3840,7 +3859,7 @@ export const db = {
       return list.find((p) => p.id === id) || null;
     }
     const query = `
-      SELECT cp.*, m.full_name, m.gender, m.serial_no, h.gotra, h.city, h.state, h.country, h.native_place, h.household_code
+      SELECT cp.*, m.full_name, m.gender, m.serial_no, m.photo_url, h.gotra, h.city, h.state, h.country, h.native_place, h.household_code
       FROM career_profiles cp
       JOIN members m ON cp.member_id = m.id
       JOIN households h ON cp.household_id = h.id
@@ -3856,7 +3875,7 @@ export const db = {
       return list.find((p) => p.memberId === memberId) || null;
     }
     const query = `
-      SELECT cp.*, m.full_name, m.gender, m.serial_no, h.gotra, h.city, h.state, h.country, h.native_place, h.household_code
+      SELECT cp.*, m.full_name, m.gender, m.serial_no, m.photo_url, h.gotra, h.city, h.state, h.country, h.native_place, h.household_code
       FROM career_profiles cp
       JOIN members m ON cp.member_id = m.id
       JOIN households h ON cp.household_id = h.id
@@ -3925,12 +3944,12 @@ export const db = {
       ${whereClause};
     `, values);
 
-    const limit = filter.limit || 50;
-    const offset = filter.offset || 0;
+    const limit = Math.min(Math.max(1, Number(filter.limit) || 50), 100);
+    const offset = Math.max(0, Number(filter.offset) || 0);
     values.push(limit, offset);
 
     const query = `
-      SELECT cp.*, m.full_name, m.gender, m.serial_no, h.gotra, h.city, h.state, h.country, h.native_place, h.household_code
+      SELECT cp.*, m.full_name, m.gender, m.serial_no, m.photo_url, h.gotra, h.city, h.state, h.country, h.native_place, h.household_code
       FROM career_profiles cp
       JOIN members m ON cp.member_id = m.id
       JOIN households h ON cp.household_id = h.id
@@ -4449,12 +4468,15 @@ function mapCareerProfileRow(row: any): CareerProfile {
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || new Date().toISOString()),
     fullName: row.full_name || row.fullName || undefined,
     gender: row.gender || undefined,
+    photoUrl: row.photo_url || row.photoUrl || undefined,
     gotra: row.gotra || undefined,
     city: row.city || undefined,
     state: row.state || undefined,
     country: row.country || undefined,
     nativePlace: row.native_place || row.nativePlace || undefined,
-    serialNo: row.serial_no ? parseInt(row.serial_no, 10) : undefined,
+    serialNo: (row.serial_no != null && row.serial_no !== "" && !isNaN(parseInt(String(row.serial_no), 10)))
+      ? parseInt(String(row.serial_no), 10)
+      : undefined,
     householdCode: row.household_code || row.householdCode || undefined,
   };
 }
