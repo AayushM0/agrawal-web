@@ -22,43 +22,19 @@ export default function TopNavBar() {
                 Home
               </Link>
             </li>
-            <li className="hidden xl:inline">
-              <Link href="/#pillars" className="hover:text-white hover:underline transition-colors">
-                7 Strategic Pillars
-              </Link>
-            </li>
             <li>
               <Link href="/directory" className="hover:text-white hover:underline transition-colors">
                 18 Gotras Directory
               </Link>
             </li>
-            <li>
-              <Link href="/matrimony" className="hover:text-white hover:underline transition-colors flex items-center gap-1">
-                <span>💍</span>
-                <span>Matrimony (वैवाहिक मंच)</span>
-              </Link>
-            </li>
-            <li>
-              <Link href="/businesses" className="hover:text-white hover:underline transition-colors flex items-center gap-1">
-                <span>🏢</span>
-                <span>Business Network (व्यापार मंच)</span>
-              </Link>
-            </li>
             <li className="hidden lg:inline">
-              <Link href="/dashboard/messages" className="hover:text-white hover:underline transition-colors flex items-center gap-1">
-                <span>💬</span>
-                <span>Messages</span>
+              <Link href="/businesses" className="hover:text-white hover:underline transition-colors">
+                Business Network
               </Link>
             </li>
             <li>
-              <Link href="/guide" className="hover:text-white hover:underline transition-colors flex items-center gap-1">
-                <span>📖</span>
-                <span>User Guide</span>
-              </Link>
-            </li>
-            <li className="hidden xl:inline">
-              <Link href="/#appeal" className="hover:text-white hover:underline transition-colors">
-                Founder&apos;s Appeal
+              <Link href="/guide" className="hover:text-white hover:underline transition-colors">
+                User Guide
               </Link>
             </li>
             <span className="w-px h-3 bg-white/20"></span>
