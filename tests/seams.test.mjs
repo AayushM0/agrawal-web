@@ -745,5 +745,51 @@ test("Seam 26: Admin-Assisted Delegated Profile Creation adheres to contracts an
   assert.ok(compCode.includes("matrimony") && compCode.includes("career") && compCode.includes("business"), "AdminAssistedProfilesCreator must support matrimony, career, and business profiles");
 });
 
+test("Seam 27: Nullable DOB and non-mandatory photos across schema and helpers", () => {
+  const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+  const dbCode = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+
+  // Schema must not enforce NOT NULL on dob
+  assert.ok(!schemaSql.includes("dob DATE NOT NULL"), "schema.sql must not enforce NOT NULL on dob");
+  assert.ok(dbCode.includes("ALTER TABLE members ALTER COLUMN dob DROP NOT NULL"), "db.ts must idempotently drop NOT NULL on members.dob");
+  assert.ok(dbCode.includes("ALTER TABLE matrimonial_profiles ALTER COLUMN dob DROP NOT NULL"), "db.ts must idempotently drop NOT NULL on matrimonial_profiles.dob");
+});
+
+test("Seam 28: Signup page allows DOB to be omitted or marked as Not specified", () => {
+  const signupCode = fs.readFileSync(path.join(webRoot, "src/app/signup/page.tsx"), "utf8");
+
+  // Step 2 Head DOB validation must not block when empty
+  assert.ok(!signupCode.includes('Please enter a valid Date of Birth (जन्म तिथि) for the Head of Household.'), "Head DOB must not be blocking");
+  // Step 3 Member DOB validation must not block when empty
+  assert.ok(!signupCode.includes('Please enter Date of Birth for ${m.fullName'), "Member DOB must not be blocking");
+  // UI must include Not specified control
+  assert.ok(signupCode.includes("Not specified") || signupCode.includes("ज्ञात नहीं"), "Must render Not specified control");
+});
+
+test("Seam 29: Matrimony profile allows optional photos and optional DOB", () => {
+  const matrimonyActionCode = fs.readFileSync(path.join(webRoot, "src/actions/matrimony.ts"), "utf8");
+  const matrimonyCreateCode = fs.readFileSync(path.join(webRoot, "src/app/matrimony/create/page.tsx"), "utf8");
+
+  // Server action must not require DOB or photos
+  assert.ok(!matrimonyActionCode.includes('return { success: false, error: "Date of Birth is required." };'), "Matrimony action must not enforce DOB required");
+  // UI must not block submit when photos.length === 0
+  assert.ok(!matrimonyCreateCode.includes('Please upload at least 1 portrait photograph for the matrimonial biodata.'), "Matrimony form must not enforce photo upload");
+  // UI must not have mandatory asterisks on photos or DOB
+  assert.ok(!matrimonyCreateCode.includes('Candidate Photographs (2-3 तस्वीरें) *'), "Photo section must not have asterisk");
+  assert.ok(!matrimonyCreateCode.includes('Date of Birth *'), "DOB section must not have asterisk");
+});
+
+test("Seam 30: Dashboard and guide support Not specified DOB and optional photos", () => {
+  const dashboardCode = fs.readFileSync(path.join(webRoot, "src/app/dashboard/page.tsx"), "utf8");
+  const guideCode = fs.readFileSync(path.join(webRoot, "src/app/guide/page.tsx"), "utf8");
+
+  assert.ok(dashboardCode.includes("Not specified") || dashboardCode.includes("ज्ञात नहीं"), "Dashboard must provide Not specified DOB toggle");
+  assert.ok(!guideCode.includes("photograph is required for each member to generate their official ID card"), "Guide must not claim photo is strictly required");
+});
+
+
+
+
+
 
 

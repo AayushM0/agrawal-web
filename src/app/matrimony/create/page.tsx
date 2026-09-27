@@ -285,10 +285,6 @@ function CreateMatrimonyProfileForm() {
       setErrorMessage("This member already has an active matrimonial profile.");
       return;
     }
-    if (photos.length === 0) {
-      setErrorMessage("Please upload at least 1 portrait photograph for the matrimonial biodata.");
-      return;
-    }
     if (!fatherName.trim() || !motherName.trim()) {
       setErrorMessage("Both Father's name and Mother's name are required.");
       return;
@@ -609,15 +605,25 @@ function CreateMatrimonyProfileForm() {
 
               <div>
                 <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
-                  Date of Birth *
+                  Date of Birth
                 </label>
                 <input
                   type="date"
                   value={dob}
                   onChange={(e) => setDob(e.target.value)}
-                  required
                   className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 bg-canvas-warm/30 font-semibold"
                 />
+                <label className="flex items-center gap-1.5 text-[11px] text-body-muted cursor-pointer mt-1.5 select-none">
+                  <input
+                    type="checkbox"
+                    checked={!dob}
+                    onChange={(e) => {
+                      if (e.target.checked) setDob("");
+                    }}
+                    className="rounded border-gray-300 text-brand-primary focus:ring-brand-primary h-3.5 w-3.5"
+                  />
+                  <span>Not specified (जन्म तिथि ज्ञात नहीं)</span>
+                </label>
               </div>
 
               <div>
@@ -1234,7 +1240,7 @@ function CreateMatrimonyProfileForm() {
           <div className="bg-white border border-brand-accent/30 rounded-3xl p-6 sm:p-8 shadow-warm space-y-4">
             <div className="border-b border-brand-accent/20 pb-3">
               <h2 className="font-serif text-lg font-bold text-brand-primary">
-                6. Candidate Photographs (2-3 तस्वीरें) *
+                6. Candidate Photographs (2-3 तस्वीरें)
               </h2>
               <p className="text-xs text-body-muted mt-0.5">
                 Upload 1 to 3 recent, clear photographs (Portrait close-up, formal/traditional, and casual). Images are compressed automatically for fast browsing.

@@ -267,9 +267,9 @@ export default function MatrimonyDetailPage() {
                   <div className="p-3 rounded-2xl bg-canvas-warm/40 border border-brand-accent/20">
                     <span className="text-body-muted block text-[11px]">Age &amp; Birth</span>
                     <strong className="text-brand-primary text-sm">
-                      {profile.age !== undefined ? `${profile.age} yrs` : "N/A"}
+                      {profile.age !== undefined && profile.age !== null ? `${profile.age} yrs` : "Not specified"}
                     </strong>
-                    <span className="block text-[10px] text-body-muted mt-0.5">{profile.dob}</span>
+                    <span className="block text-[10px] text-body-muted mt-0.5">{profile.dob || "Not specified"}</span>
                   </div>
 
                   <div className="p-3 rounded-2xl bg-canvas-warm/40 border border-brand-accent/20">

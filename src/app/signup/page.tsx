@@ -647,12 +647,6 @@ export default function SignupPage() {
       }
     }
 
-    if (!headDob.trim()) {
-      const msg = "Please enter a valid Date of Birth (जन्म तिथि) for the Head of Household.";
-      setStep2Error(msg);
-      showToast(msg, "error");
-      return;
-    }
     if (!headProfessionTitle.trim() || headProfessionTitle.trim().length < 2) {
       const msg = "Profession Title (व्यवसाय / पद) is required.";
       setStep2Error(msg);
@@ -827,12 +821,6 @@ export default function SignupPage() {
         showToast(msg, "error");
         return;
       }
-      if (!m.dob || !m.dob.trim()) {
-        const msg = `Please enter Date of Birth for ${m.fullName || `Member #${i + 1}`}.`;
-        setStep3Error(msg);
-        showToast(msg, "error");
-        return;
-      }
       if (m.aadhaarNumber && m.aadhaarNumber.trim()) {
         const cleanAadhaar = m.aadhaarNumber.replace(/[^0-9]/g, "");
         if (cleanAadhaar.length !== 12) {
@@ -923,7 +911,7 @@ export default function SignupPage() {
       photoUrl: headPhotoUrl || undefined,
       phone: effectiveHeadPhone,
       email: effectiveHeadEmail,
-      dob: headDob.trim(),
+      dob: headDob.trim() || undefined,
       gender: headGender as any,
       maritalStatus: headMaritalStatus as any,
       currentCity: city.trim() || nativePlace.trim(),
@@ -954,7 +942,7 @@ export default function SignupPage() {
       photoUrl: m.photoUrl || undefined,
       phone: m.phone ? m.phone.trim() : undefined,
       email: m.email ? m.email.trim() : undefined,
-      dob: m.dob.trim(),
+      dob: m.dob?.trim() || undefined,
       companyName: m.companyName?.trim() || undefined,
       anniversaryDate: m.maritalStatus === "Married" && m.anniversaryDate ? m.anniversaryDate.trim() : undefined,
       hasCustomAddress: m.hasCustomAddress || false,
@@ -1458,21 +1446,39 @@ export default function SignupPage() {
                     <div>
                       <div className="flex items-center justify-between mb-1">
                         <label className="block text-xs font-bold text-body-heading">
-                          Date of Birth (जन्म तिथि) *
+                          Date of Birth (जन्म तिथि)
                         </label>
-                        {headAge !== null && (
-                          <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded">
-                            {headAge} yrs
-                          </span>
+                        {headDob ? (
+                          headAge !== null && (
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded">
+                              {headAge} yrs
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-[10px] text-body-muted">Not specified</span>
                         )}
                       </div>
-                      <input
-                        type="date"
-                        required
-                        value={headDob}
-                        onChange={(e) => setHeadDob(e.target.value)}
-                        className="w-full px-3.5 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
-                      />
+                      <div className="space-y-1.5">
+                        <input
+                          type="date"
+                          value={headDob}
+                          onChange={(e) => setHeadDob(e.target.value)}
+                          className="w-full px-3.5 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
+                        />
+                        <label className="flex items-center gap-1.5 text-[11px] text-body-muted cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={!headDob}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setHeadDob("");
+                              }
+                            }}
+                            className="rounded border-gray-300 text-brand-primary focus:ring-brand-primary h-3.5 w-3.5"
+                          />
+                          <span>Not specified (जन्म तिथि ज्ञात नहीं)</span>
+                        </label>
+                      </div>
                     </div>
 
                     <div>
@@ -1877,21 +1883,39 @@ export default function SignupPage() {
                           <div className="min-w-0">
                             <div className="flex items-center justify-between mb-1">
                               <label className="block text-[11px] font-bold text-body-heading">
-                                Date of Birth *
+                                Date of Birth
                               </label>
-                              {memberAge !== null && (
-                                <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded">
-                                  {memberAge} yrs
-                                </span>
+                              {member.dob ? (
+                                memberAge !== null && (
+                                  <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded">
+                                    {memberAge} yrs
+                                  </span>
+                                )
+                              ) : (
+                                <span className="text-[10px] text-body-muted">Not specified</span>
                               )}
                             </div>
-                            <input
-                              type="date"
-                              required
-                              value={member.dob || ""}
-                              onChange={(e) => updateAdditionalMember(member.id, "dob", e.target.value)}
-                              className="w-full px-3 py-1.5 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                            />
+                            <div className="space-y-1">
+                              <input
+                                type="date"
+                                value={member.dob || ""}
+                                onChange={(e) => updateAdditionalMember(member.id, "dob", e.target.value)}
+                                className="w-full px-3 py-1.5 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                              />
+                              <label className="flex items-center gap-1.5 text-[10px] text-body-muted cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={!member.dob}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      updateAdditionalMember(member.id, "dob", "");
+                                    }
+                                  }}
+                                  className="rounded border-gray-300 text-brand-primary focus:ring-brand-primary h-3 w-3"
+                                />
+                                <span>Not specified (ज्ञात नहीं)</span>
+                              </label>
+                            </div>
                           </div>
 
                           {/* 5. Gender */}
@@ -2290,7 +2314,11 @@ export default function SignupPage() {
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-brand-primary">{idx + 1}. {m.fullName}</span>
                               <span className="text-body-muted text-[11px] capitalize">({m.relationToHead})</span>
-                              {m.dob && <span className="text-body-muted text-[11px]">• Born {m.dob.split("-")[0]}</span>}
+                              {m.dob ? (
+                                <span className="text-body-muted text-[11px]">• Born {m.dob.split("-")[0]}</span>
+                              ) : (
+                                <span className="text-body-muted text-[11px]">• DOB: Not specified</span>
+                              )}
                             </div>
                             <p className="text-[11px] text-body-heading">
                               {m.maritalStatus === "Married" && (m.gender === "Female" || m.relationToHead === "spouse")
