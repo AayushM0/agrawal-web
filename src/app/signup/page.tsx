@@ -686,8 +686,9 @@ export default function SignupPage() {
 
     if (isIndia) {
       if (aadhaarNumber.trim()) {
+        const isMasked = /^XXXX-XXXX-[0-9]{4}$/i.test(aadhaarNumber.trim());
         const cleanAadhaar = aadhaarNumber.replace(/[^0-9]/g, "");
-        if (cleanAadhaar.length !== 12) {
+        if (!isMasked && cleanAadhaar.length !== 12) {
           const msg = "Please enter a valid 12-digit Aadhaar Number (आधार नंबर).";
           setStep2Error(msg);
           showToast(msg, "error");
@@ -822,8 +823,9 @@ export default function SignupPage() {
         return;
       }
       if (m.aadhaarNumber && m.aadhaarNumber.trim()) {
+        const isMasked = /^XXXX-XXXX-[0-9]{4}$/i.test(m.aadhaarNumber.trim());
         const cleanAadhaar = m.aadhaarNumber.replace(/[^0-9]/g, "");
-        if (cleanAadhaar.length !== 12) {
+        if (!isMasked && cleanAadhaar.length !== 12) {
           const msg = `Aadhaar Number for ${m.fullName || `Member #${i + 1}`} must be exactly 12 digits.`;
           setStep3Error(msg);
           showToast(msg, "error");
@@ -1618,7 +1620,7 @@ export default function SignupPage() {
                       🛡️ Government Identity Verification (पहचान प्रमाणन)
                     </h3>
                     <span className="text-[10px] font-semibold text-brand-gold uppercase tracking-wider">
-                      {isIndia ? "India (Aadhaar + PAN)" : "International (Passport + ID)"}
+                      {isIndia ? "India (Identity Verification)" : "International (Passport + ID)"}
                     </span>
                   </div>
 
@@ -1628,14 +1630,25 @@ export default function SignupPage() {
                         <label className="block text-[11px] font-bold text-body-heading mb-1">
                           Aadhaar Number (12-Digit)
                         </label>
-                        <input
-                          type="text"
-                          maxLength={14}
-                          value={aadhaarNumber}
-                          onChange={(e) => setAadhaarNumber(e.target.value)}
-                          placeholder="e.g. 1234 5678 9012"
-                          className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none font-mono"
-                        />
+                        <div className="relative">
+                          <input
+                            type="text"
+                            maxLength={14}
+                            value={aadhaarNumber}
+                            onChange={(e) => setAadhaarNumber(e.target.value)}
+                            placeholder="e.g. 1234 5678 9012"
+                            className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none font-mono"
+                          />
+                          {aadhaarNumber ? (
+                            <button
+                              type="button"
+                              onClick={() => setAadhaarNumber("")}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-body-muted hover:text-brand-primary px-1 font-semibold"
+                            >
+                              ✕ Clear
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-body-heading mb-1">
@@ -2083,14 +2096,25 @@ export default function SignupPage() {
                             <label className="block text-[11px] font-bold text-body-heading mb-1">
                               Aadhaar Card Number (आधार नंबर)
                             </label>
-                            <input
-                              type="text"
-                              maxLength={14}
-                              value={member.aadhaarNumber || ""}
-                              onChange={(e) => updateAdditionalMember(member.id, "aadhaarNumber", e.target.value)}
-                              placeholder="12-digit Aadhaar Number"
-                              className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
-                            />
+                            <div className="relative">
+                              <input
+                                type="text"
+                                maxLength={14}
+                                value={member.aadhaarNumber || ""}
+                                onChange={(e) => updateAdditionalMember(member.id, "aadhaarNumber", e.target.value)}
+                                placeholder="12-digit Aadhaar Number"
+                                className="w-full px-3 py-2 rounded-lg border border-brand-accent/40 text-xs bg-white focus:ring-1 focus:ring-brand-primary"
+                              />
+                              {member.aadhaarNumber ? (
+                                <button
+                                  type="button"
+                                  onClick={() => updateAdditionalMember(member.id, "aadhaarNumber", "")}
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-body-muted hover:text-brand-primary px-1 font-semibold"
+                                >
+                                  ✕ Clear
+                                </button>
+                              ) : null}
+                            </div>
                           </div>
 
                           {/* 14. PAN Number */}

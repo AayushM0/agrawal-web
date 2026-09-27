@@ -153,23 +153,27 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
 
   // Country-Specific Government ID Validation
   const isIndia = country.toLowerCase() === "india" || country.toUpperCase() === "IN";
-  const cleanAadhaar = input.aadhaarNumber?.replace(/[^0-9]/g, "") || head.aadhaarNumber?.replace(/[^0-9]/g, "");
+  const rawHeadAadhaar = (input.aadhaarNumber || head.aadhaarNumber || "").trim();
+  const isHeadMasked = /^XXXX-XXXX-[0-9]{4}$/i.test(rawHeadAadhaar);
+  const cleanAadhaar = rawHeadAadhaar.replace(/[^0-9]/g, "");
   const cleanPan = input.panNumber?.trim().toUpperCase() || head.panNumber?.trim().toUpperCase();
   const cleanPassport = input.passportNumber?.trim().toUpperCase() || head.passportNumber?.trim().toUpperCase();
   const cleanGovtId = input.govtIdNumber?.trim().toUpperCase() || head.govtIdNumber?.trim().toUpperCase();
 
   if (isIndia) {
     if (cleanAadhaar) {
-      if (cleanAadhaar.length !== 12) {
+      if (!isHeadMasked && cleanAadhaar.length !== 12) {
         return { success: false, error: "A valid 12-digit Aadhaar Number is required if provided." };
       }
-      const aadhaarHash = hashGovtId(cleanAadhaar);
-      const existingAadhaar = await db.getHouseholdByAadhaarHash(aadhaarHash);
-      if (existingAadhaar) {
-        return {
-          success: false,
-          error: "A household registration already exists under this Aadhaar Number.",
-        };
+      if (!isHeadMasked) {
+        const aadhaarHash = hashGovtId(cleanAadhaar);
+        const existingAadhaar = await db.getHouseholdByAadhaarHash(aadhaarHash);
+        if (existingAadhaar) {
+          return {
+            success: false,
+            error: "A household registration already exists under this Aadhaar Number.",
+          };
+        }
       }
     }
     if (cleanPan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
@@ -247,8 +251,9 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
 
     // Validation for member Aadhaar & PAN when provided
     if (m.aadhaarNumber && m.aadhaarNumber.trim()) {
+      const isMemberMasked = /^XXXX-XXXX-[0-9]{4}$/i.test(m.aadhaarNumber.trim());
       const cleanMemberAadhaar = m.aadhaarNumber.replace(/[^0-9]/g, "");
-      if (cleanMemberAadhaar.length !== 12) {
+      if (!isMemberMasked && cleanMemberAadhaar.length !== 12) {
         return {
           success: false,
           error: `Aadhaar Number for ${memberName} must be exactly 12 digits.`,
@@ -326,7 +331,11 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
         }
       }
 
-      const rawMemberAadhaar = idx === 0 ? cleanAadhaar : (m.aadhaarNumber ? m.aadhaarNumber.replace(/[^0-9]/g, "") : undefined);
+      const memberAadhaarRaw = (m.aadhaarNumber || "").trim();
+      const isMemMasked = /^XXXX-XXXX-[0-9]{4}$/i.test(memberAadhaarRaw);
+      const rawMemberAadhaar = idx === 0 
+        ? (isHeadMasked ? undefined : cleanAadhaar) 
+        : (isMemMasked ? undefined : (memberAadhaarRaw ? memberAadhaarRaw.replace(/[^0-9]/g, "") : undefined));
 
       return {
         ...m,
@@ -347,8 +356,12 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
         companyName: m.companyName?.trim() || undefined,
         anniversaryDate: m.anniversaryDate?.trim() || undefined,
         hasCustomAddress: Boolean(m.hasCustomAddress),
-        aadhaarNumber: rawMemberAadhaar ? maskAadhaar(rawMemberAadhaar) : undefined,
-        aadhaarHash: rawMemberAadhaar ? hashGovtId(rawMemberAadhaar) : undefined,
+        aadhaarNumber: idx === 0
+          ? (isHeadMasked ? rawHeadAadhaar : (cleanAadhaar ? maskAadhaar(cleanAadhaar) : undefined))
+          : (isMemMasked ? memberAadhaarRaw : (rawMemberAadhaar ? maskAadhaar(rawMemberAadhaar) : undefined)),
+        aadhaarHash: idx === 0
+          ? (cleanAadhaar && !isHeadMasked ? hashGovtId(cleanAadhaar) : undefined)
+          : (rawMemberAadhaar ? hashGovtId(rawMemberAadhaar) : undefined),
         panNumber: idx === 0 ? cleanPan : (m.panNumber ? m.panNumber.trim().toUpperCase() : undefined),
         passportNumber: idx === 0 ? cleanPassport : (m.passportNumber?.trim().toUpperCase() || undefined),
         govtIdNumber: idx === 0 ? cleanGovtId : (m.govtIdNumber?.trim().toUpperCase() || undefined),
@@ -377,8 +390,8 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
     state,
     city,
     fullAddress,
-    aadhaarNumber: isIndia && cleanAadhaar ? maskAadhaar(cleanAadhaar) : undefined,
-    aadhaarHash: isIndia && cleanAadhaar ? hashGovtId(cleanAadhaar) : undefined,
+    aadhaarNumber: isIndia ? (isHeadMasked ? rawHeadAadhaar : (cleanAadhaar ? maskAadhaar(cleanAadhaar) : undefined)) : undefined,
+    aadhaarHash: isIndia && cleanAadhaar && !isHeadMasked ? hashGovtId(cleanAadhaar) : undefined,
     panNumber: isIndia ? cleanPan : undefined,
     passportNumber: !isIndia ? cleanPassport : undefined,
     govtIdNumber: !isIndia ? cleanGovtId : undefined,
