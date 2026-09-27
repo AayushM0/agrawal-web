@@ -159,19 +159,21 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
   const cleanGovtId = input.govtIdNumber?.trim().toUpperCase() || head.govtIdNumber?.trim().toUpperCase();
 
   if (isIndia) {
-    if (!cleanAadhaar || cleanAadhaar.length !== 12) {
-      return { success: false, error: "A valid 12-digit Aadhaar Number is required for Indian residents." };
+    if (cleanAadhaar) {
+      if (cleanAadhaar.length !== 12) {
+        return { success: false, error: "A valid 12-digit Aadhaar Number is required if provided." };
+      }
+      const aadhaarHash = hashGovtId(cleanAadhaar);
+      const existingAadhaar = await db.getHouseholdByAadhaarHash(aadhaarHash);
+      if (existingAadhaar) {
+        return {
+          success: false,
+          error: "A household registration already exists under this Aadhaar Number.",
+        };
+      }
     }
     if (cleanPan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
       return { success: false, error: "A valid 10-character PAN Number (e.g. ABCDE1234F) is required if provided." };
-    }
-    const aadhaarHash = hashGovtId(cleanAadhaar);
-    const existingAadhaar = await db.getHouseholdByAadhaarHash(aadhaarHash);
-    if (existingAadhaar) {
-      return {
-        success: false,
-        error: "A household registration already exists under this Aadhaar Number.",
-      };
     }
   } else {
     if (!cleanPassport || cleanPassport.length < 5) {
@@ -232,23 +234,15 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
       return { success: false, error: `Invalid marital status '${m.maritalStatus}' for member #${i + 1}.` };
     }
 
-    // Profile photo is strictly mandatory for Head and all members
-    if (!m.photoUrl || !m.photoUrl.trim() || m.photoUrl.trim().length < 10) {
-      return {
-        success: false,
-        error:
-          i === 0
-            ? "A recent profile photograph is mandatory for the Head of Household (मुखिया का फोटो अनिवार्य है)."
-            : `A profile photograph is mandatory for ${memberName} (फोटो अनिवार्य है).`,
-      };
-    }
-
-    const photoCheck = validateProfileImage(m.photoUrl);
-    if (!photoCheck.valid) {
-      return {
-        success: false,
-        error: `Invalid photograph for ${memberName}: ${photoCheck.error || "Please upload a standard JPEG, PNG, or WebP image under 5MB."}`,
-      };
+    // Profile photo validation when provided
+    if (m.photoUrl && m.photoUrl.trim() && m.photoUrl.trim().length >= 10) {
+      const photoCheck = validateProfileImage(m.photoUrl);
+      if (!photoCheck.valid) {
+        return {
+          success: false,
+          error: `Invalid photograph for ${memberName}: ${photoCheck.error || "Please upload a standard JPEG, PNG, or WebP image under 5MB."}`,
+        };
+      }
     }
 
     // Validation for member Aadhaar & PAN when provided

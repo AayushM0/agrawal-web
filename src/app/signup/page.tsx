@@ -599,12 +599,6 @@ export default function SignupPage() {
     e.preventDefault();
     setStep2Error("");
 
-    if (!headPhotoUrl || !headPhotoUrl.trim()) {
-      const msg = "A profile photograph is mandatory for the Head of Household (मुखिया का फोटो अपलोड करना अनिवार्य है).";
-      setStep2Error(msg);
-      showToast(msg, "error");
-      return;
-    }
     if (!headName.trim() || headName.trim().length < 2) {
       const msg = "Please enter the Head of Household's full name (मुखिया का नाम).";
       setStep2Error(msg);
@@ -697,12 +691,14 @@ export default function SignupPage() {
     }
 
     if (isIndia) {
-      const cleanAadhaar = aadhaarNumber.replace(/[^0-9]/g, "");
-      if (cleanAadhaar.length !== 12) {
-        const msg = "Please enter a valid 12-digit Aadhaar Number (आधार नंबर).";
-        setStep2Error(msg);
-        showToast(msg, "error");
-        return;
+      if (aadhaarNumber.trim()) {
+        const cleanAadhaar = aadhaarNumber.replace(/[^0-9]/g, "");
+        if (cleanAadhaar.length !== 12) {
+          const msg = "Please enter a valid 12-digit Aadhaar Number (आधार नंबर).";
+          setStep2Error(msg);
+          showToast(msg, "error");
+          return;
+        }
       }
       const cleanPan = panNumber.trim().toUpperCase();
       if (cleanPan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(cleanPan)) {
@@ -819,12 +815,6 @@ export default function SignupPage() {
       const m = additionalMembers[i];
       if (!m.fullName.trim() || m.fullName.trim().length < 2) {
         const msg = `Please enter a valid Full Name for Additional Family Member #${i + 1}.`;
-        setStep3Error(msg);
-        showToast(msg, "error");
-        return;
-      }
-      if (!m.photoUrl || !m.photoUrl.trim()) {
-        const msg = `A profile photograph is mandatory for ${m.fullName || `Member #${i + 1}`} (फोटो अपलोड करना अनिवार्य है).`;
         setStep3Error(msg);
         showToast(msg, "error");
         return;
@@ -1355,13 +1345,13 @@ export default function SignupPage() {
                       </div>
                       <div className="sm:hidden flex-1 min-w-0">
                         <label className="block text-xs font-bold text-body-heading leading-tight">
-                          Profile Photo <span className="text-[11px] font-normal text-body-muted block">(मुखिया का फोटो) *</span>
+                          Profile Photo <span className="text-[11px] font-normal text-body-muted block">(मुखिया का फोटो)</span>
                         </label>
                       </div>
                     </div>
                     <div className="flex-1 min-w-0 w-full">
                       <label className="hidden sm:block text-xs font-bold text-body-heading mb-1">
-                        Profile Photo (मुखिया का फोटो) *
+                        Profile Photo (मुखिया का फोटो)
                       </label>
                       <input
                         type="file"
@@ -1369,11 +1359,6 @@ export default function SignupPage() {
                         onChange={handleHeadPhotoUpload}
                         className="block w-full max-w-full text-xs text-body-muted file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-canvas-warm file:text-brand-primary hover:file:bg-white truncate cursor-pointer"
                       />
-                      {!headPhotoUrl && (
-                        <span className="text-[10px] text-amber-700 font-semibold block mt-1">
-                          ⚠️ Photo upload is mandatory for official ID pass
-                        </span>
-                      )}
                     </div>
                   </div>
 
@@ -1624,7 +1609,7 @@ export default function SignupPage() {
                 <div className="p-4 rounded-2xl border border-brand-accent/30 bg-canvas-warm/30 space-y-3">
                   <div className="flex items-center justify-between pb-1 border-b border-brand-accent/20">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-brand-primary">
-                      🛡️ Government Identity Verification (पहचान प्रमाणन) *
+                      🛡️ Government Identity Verification (पहचान प्रमाणन)
                     </h3>
                     <span className="text-[10px] font-semibold text-brand-gold uppercase tracking-wider">
                       {isIndia ? "India (Aadhaar + PAN)" : "International (Passport + ID)"}
@@ -1635,7 +1620,7 @@ export default function SignupPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] font-bold text-body-heading mb-1">
-                          Aadhaar Number (12-Digit) *
+                          Aadhaar Number (12-Digit)
                         </label>
                         <input
                           type="text"
@@ -1795,13 +1780,13 @@ export default function SignupPage() {
                             </div>
                             <div className="sm:hidden flex-1 min-w-0">
                               <label className="block text-xs font-bold text-body-heading leading-tight">
-                                Member Profile Photo <span className="text-[11px] font-normal text-body-muted block">(सदस्य का फोटो) *</span>
+                                Member Profile Photo <span className="text-[11px] font-normal text-body-muted block">(सदस्य का फोटो)</span>
                               </label>
                             </div>
                           </div>
                           <div className="flex-1 min-w-0 w-full">
                             <label className="hidden sm:block text-xs font-bold text-body-heading mb-1">
-                              Member Profile Photo (सदस्य का फोटो) *
+                              Member Profile Photo (सदस्य का फोटो)
                             </label>
                             <input
                               type="file"
@@ -1809,11 +1794,6 @@ export default function SignupPage() {
                               onChange={(e) => handleMemberPhoto(member.id, e)}
                               className="block w-full max-w-full text-xs text-body-muted file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-canvas-warm file:text-brand-primary hover:file:bg-white truncate cursor-pointer"
                             />
-                            {!member.photoUrl && (
-                              <span className="text-[10px] text-amber-700 font-semibold block mt-1">
-                                ⚠️ Photo upload is mandatory for ID pass generation
-                              </span>
-                            )}
                           </div>
                         </div>
 
@@ -2269,11 +2249,13 @@ export default function SignupPage() {
                       <p className="text-body-muted">
                         Address: <strong>{fullAddress}, {city}, {state} ({country}) - {postalCode}</strong>
                       </p>
-                      <p className="text-brand-primary font-mono text-[11px] font-bold pt-1">
-                        {isIndia
-                          ? `Aadhaar: ${maskGovtId(aadhaarNumber)}${panNumber.trim() ? ` • PAN: ${maskGovtId(panNumber)}` : ""}`
-                          : `Passport: ${maskGovtId(passportNumber)}${govtIdNumber.trim() ? ` • Govt ID: ${maskGovtId(govtIdNumber)}` : ""}`}
-                      </p>
+                      {((isIndia && (aadhaarNumber.trim() || panNumber.trim())) || (!isIndia && (passportNumber.trim() || govtIdNumber.trim()))) && (
+                        <p className="text-brand-primary font-mono text-[11px] font-bold pt-1">
+                          {isIndia
+                            ? `${aadhaarNumber.trim() ? `Aadhaar: ${maskGovtId(aadhaarNumber)}` : ""}${aadhaarNumber.trim() && panNumber.trim() ? " • " : ""}${panNumber.trim() ? `PAN: ${maskGovtId(panNumber)}` : ""}`
+                            : `Passport: ${maskGovtId(passportNumber)}${govtIdNumber.trim() ? ` • Govt ID: ${maskGovtId(govtIdNumber)}` : ""}`}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
