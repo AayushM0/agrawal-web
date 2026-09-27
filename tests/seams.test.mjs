@@ -779,6 +779,15 @@ test("Seam 29: Matrimony profile allows optional photos and optional DOB", () =>
   assert.ok(!matrimonyCreateCode.includes('Date of Birth *'), "DOB section must not have asterisk");
 });
 
+test("Seam 30: Dashboard and guide support Not specified DOB and optional photos", () => {
+  const dashboardCode = fs.readFileSync(path.join(webRoot, "src/app/dashboard/page.tsx"), "utf8");
+  const guideCode = fs.readFileSync(path.join(webRoot, "src/app/guide/page.tsx"), "utf8");
+
+  assert.ok(dashboardCode.includes("Not specified") || dashboardCode.includes("ज्ञात नहीं"), "Dashboard must provide Not specified DOB toggle");
+  assert.ok(!guideCode.includes("photograph is required for each member to generate their official ID card"), "Guide must not claim photo is strictly required");
+});
+
+
 
 
 

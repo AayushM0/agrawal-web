@@ -96,8 +96,8 @@ const GUIDE_TOPICS: GuideTopic[] = [
         stepNumber: 3,
         titleEn: "Step 3: Add Family Members & Profile Photos",
         titleHi: "चरण 3: परिवार के सदस्य जोड़ना एवं फोटो अपलोड",
-        descriptionEn: "Add each family member (spouse, children, parents) with their relationship to the head, date of birth, and profession. A clear passport-style photograph is required for each member to generate their official ID card.",
-        descriptionHi: "परिवार के प्रत्येक सदस्य (पत्नी/पति, बच्चे, माता-पिता) का विवरण, जन्मतिथि और व्यवसाय दर्ज करें। आधिकारिक डिजिटल पहचान पत्र हेतु प्रत्येक सदस्य का स्पष्ट फोटो आवश्यक है।",
+        descriptionEn: "Add each family member (spouse, children, parents) with their relationship to the head, optional date of birth, and profession. A clear passport-style photograph is recommended (optional) for each member to display on their official pass.",
+        descriptionHi: "परिवार के प्रत्येक सदस्य (पत्नी/पति, बच्चे, माता-पिता) का विवरण, जन्मतिथि (ऐच्छिक) और व्यवसाय दर्ज करें। आधिकारिक डिजिटल पहचान पत्र हेतु सदस्य का फोटो ऐच्छिक है।",
         keyPoints: [
           "Upload clear front-facing portrait photos (JPEG, PNG, WebP up to 5MB)",
           "Adult members with their own mobile/email can later claim and manage their own profile",
@@ -250,8 +250,8 @@ const GUIDE_TOPICS: GuideTopic[] = [
         stepNumber: 1,
         titleEn: "Step 1: Adding a Family Member from Dashboard",
         titleHi: "चरण 1: डैशबोर्ड से नया परिवार सदस्य जोड़ना",
-        descriptionEn: "The Head of Household logs into the dashboard and clicks 'Add Family Member'. Enter their full name, relation (Spouse, Son, Daughter, Parent), date of birth, profession, and photo.",
-        descriptionHi: "परिवार के मुखिया डैशबोर्ड में लॉगिन कर 'Add Family Member' पर क्लिक करें। सदस्य का नाम, संबंध (पत्नी, पुत्र, पुत्री, माता-पिता), जन्मतिथि, व्यवसाय और फोटो दर्ज करें।",
+        descriptionEn: "The Head of Household logs into the dashboard and clicks 'Add Family Member'. Enter their full name, relation (Spouse, Son, Daughter, Parent), date of birth (or not specified), profession, and optional photo.",
+        descriptionHi: "परिवार के मुखिया डैशबोर्ड में लॉगिन कर 'Add Family Member' पर क्लिक करें। सदस्य का नाम, संबंध (पत्नी, पुत्र, पुत्री, माता-पिता), जन्मतिथि (या अज्ञात), व्यवसाय और ऐच्छिक फोटो दर्ज करें।",
         keyPoints: [
           "Initially, new members are marked as 'Managed by Head'",
           "Head can edit details, address, and photo on their behalf",

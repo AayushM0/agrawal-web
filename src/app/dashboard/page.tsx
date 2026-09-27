@@ -1469,15 +1469,31 @@ export default function DashboardPage() {
 
                 {/* Date of Birth */}
                 <div>
-                  <label className="block text-xs font-bold text-body-heading mb-1">
-                    Date of Birth (जन्म तिथि)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-body-heading">
+                      Date of Birth (जन्म तिथि)
+                    </label>
+                    {!editingMember.dob && (
+                      <span className="text-[10px] text-body-muted">Not specified</span>
+                    )}
+                  </div>
                   <input
                     type="date"
                     value={editingMember.dob ? String(editingMember.dob).split("T")[0] : ""}
                     onChange={(e) => setEditingMember({ ...editingMember, dob: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   />
+                  <label className="flex items-center gap-1.5 text-[11px] text-body-muted cursor-pointer mt-1 select-none">
+                    <input
+                      type="checkbox"
+                      checked={!editingMember.dob}
+                      onChange={(e) => {
+                        if (e.target.checked) setEditingMember({ ...editingMember, dob: "" });
+                      }}
+                      className="rounded border-gray-300 text-brand-primary focus:ring-brand-primary h-3.5 w-3.5"
+                    />
+                    <span>Not specified (जन्म तिथि ज्ञात नहीं)</span>
+                  </label>
                 </div>
 
                 {/* Gender */}
@@ -1944,15 +1960,31 @@ export default function DashboardPage() {
               {/* Date of Birth & Anniversary */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-body-heading mb-1">
-                    Date of Birth (जन्म तिथि)
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-body-heading">
+                      Date of Birth (जन्म तिथि)
+                    </label>
+                    {!newMemberForm.dob && (
+                      <span className="text-[10px] text-body-muted">Not specified</span>
+                    )}
+                  </div>
                   <input
                     type="date"
                     value={newMemberForm.dob}
                     onChange={(e) => setNewMemberForm((prev) => ({ ...prev, dob: e.target.value }))}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary"
                   />
+                  <label className="flex items-center gap-1.5 text-[11px] text-body-muted cursor-pointer mt-1 select-none">
+                    <input
+                      type="checkbox"
+                      checked={!newMemberForm.dob}
+                      onChange={(e) => {
+                        if (e.target.checked) setNewMemberForm((prev) => ({ ...prev, dob: "" }));
+                      }}
+                      className="rounded border-gray-300 text-brand-primary focus:ring-brand-primary h-3.5 w-3.5"
+                    />
+                    <span>Not specified (जन्म तिथि ज्ञात नहीं)</span>
+                  </label>
                 </div>
                 {newMemberForm.maritalStatus === "Married" && (
                   <div>
