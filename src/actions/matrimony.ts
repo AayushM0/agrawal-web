@@ -218,10 +218,7 @@ export async function createMatrimonialProfile(input: CreateMatrimonialProfileIn
     }
 
     const gender = (candidateMember.gender || "").toLowerCase() === "female" ? "female" : "male";
-    const dob = candidateMember.dob || input.dob;
-    if (!dob) {
-      return { success: false, error: "Date of Birth is required." };
-    }
+    const dob = (candidateMember.dob || input.dob)?.trim() || null;
 
     if (!input.highestEducation || !input.highestEducation.trim()) {
       return { success: false, error: "Highest Education is required." };

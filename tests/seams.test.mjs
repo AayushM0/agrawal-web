@@ -766,6 +766,20 @@ test("Seam 28: Signup page allows DOB to be omitted or marked as Not specified",
   assert.ok(signupCode.includes("Not specified") || signupCode.includes("ज्ञात नहीं"), "Must render Not specified control");
 });
 
+test("Seam 29: Matrimony profile allows optional photos and optional DOB", () => {
+  const matrimonyActionCode = fs.readFileSync(path.join(webRoot, "src/actions/matrimony.ts"), "utf8");
+  const matrimonyCreateCode = fs.readFileSync(path.join(webRoot, "src/app/matrimony/create/page.tsx"), "utf8");
+
+  // Server action must not require DOB or photos
+  assert.ok(!matrimonyActionCode.includes('return { success: false, error: "Date of Birth is required." };'), "Matrimony action must not enforce DOB required");
+  // UI must not block submit when photos.length === 0
+  assert.ok(!matrimonyCreateCode.includes('Please upload at least 1 portrait photograph for the matrimonial biodata.'), "Matrimony form must not enforce photo upload");
+  // UI must not have mandatory asterisks on photos or DOB
+  assert.ok(!matrimonyCreateCode.includes('Candidate Photographs (2-3 तस्वीरें) *'), "Photo section must not have asterisk");
+  assert.ok(!matrimonyCreateCode.includes('Date of Birth *'), "DOB section must not have asterisk");
+});
+
+
 
 
 
