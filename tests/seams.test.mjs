@@ -787,6 +787,24 @@ test("Seam 30: Dashboard and guide support Not specified DOB and optional photos
   assert.ok(!guideCode.includes("photograph is required for each member to generate their official ID card"), "Guide must not claim photo is strictly required");
 });
 
+test("Seam 31: Nullable DOB/photo updates in db.ts and dashboard isHeadUser permission scoping", () => {
+  const dbCode = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const profileActionCode = fs.readFileSync(path.join(webRoot, "src/actions/profile.ts"), "utf8");
+  const dashboardCode = fs.readFileSync(path.join(webRoot, "src/app/dashboard/page.tsx"), "utf8");
+
+  // 1. db.ts supports clearing photo_url and dob to NULL conditionally
+  assert.ok(dbCode.includes("photo_url = CASE WHEN $20::boolean THEN $4 ELSE photo_url END"), "db.ts must conditionally clear photo_url when explicitly passed");
+  assert.ok(dbCode.includes("dob = CASE WHEN $21::boolean THEN $5 ELSE dob END"), "db.ts must conditionally clear dob when explicitly passed");
+
+  // 2. profile.ts sends null when dob or photoUrl is cleared
+  assert.ok(profileActionCode.includes("photoUrl?: string | null") && profileActionCode.includes("dob?: string | null"), "profile.ts UpdateProfileInput must allow null for photoUrl and dob");
+
+  // 3. dashboard/page.tsx enforces isHeadUser permission scoping
+  assert.ok(dashboardCode.includes("const isHeadUser = Boolean("), "dashboard/page.tsx must calculate isHeadUser");
+  assert.ok(dashboardCode.includes("canEditThisMember = isHeadUser ?"), "dashboard/page.tsx must guard canEditThisMember using isHeadUser");
+  assert.ok(dashboardCode.includes("canInviteThisMember = isHeadUser"), "dashboard/page.tsx must restrict Invite to Claim to isHeadUser");
+});
+
 
 
 

@@ -1918,16 +1918,16 @@ export const db = {
     }
   },
 
-  async updateMemberProfile(memberId: string, updates: Partial<Member>): Promise<boolean> {
+  async updateMemberProfile(memberId: string, updates: Omit<Partial<Member>, "dob" | "photoUrl"> & { dob?: string | null; photoUrl?: string | null }): Promise<boolean> {
     if (!pool) return true;
     try {
-      const safeDob = updates.dob ? sanitizeDate(updates.dob) : null;
+      const safeDob = updates.dob !== undefined ? (updates.dob ? sanitizeDate(updates.dob) : null) : undefined;
       const res = await pool.query(
         `UPDATE members 
          SET full_name = COALESCE($2, full_name),
              father_name = COALESCE($3, father_name),
-             photo_url = COALESCE($4, photo_url),
-             dob = COALESCE($5, dob),
+             photo_url = CASE WHEN $20::boolean THEN $4 ELSE photo_url END,
+             dob = CASE WHEN $21::boolean THEN $5 ELSE dob END,
              gender = COALESCE($6, gender),
              marital_status = COALESCE($7, marital_status),
              current_city = COALESCE($8, current_city),
@@ -1948,8 +1948,8 @@ export const db = {
           memberId,
           updates.fullName?.trim() || null,
           updates.fatherName?.trim() || null,
-          updates.photoUrl !== undefined ? updates.photoUrl : null,
-          safeDob,
+          updates.photoUrl !== undefined ? (updates.photoUrl ? updates.photoUrl.trim() : null) : null,
+          safeDob !== undefined ? safeDob : null,
           updates.gender || null,
           updates.maritalStatus || null,
           updates.currentCity?.trim() || null,
@@ -1964,6 +1964,8 @@ export const db = {
           updates.visibility?.dob || null,
           updates.visibility?.photo || null,
           updates.relationToHead ? updates.relationToHead.toLowerCase() : null,
+          updates.photoUrl !== undefined,
+          updates.dob !== undefined,
         ]
       );
       if (res.rows.length > 0 && updates.fullName && updates.relationToHead === "self") {

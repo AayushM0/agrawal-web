@@ -9,8 +9,8 @@ export interface UpdateProfileInput {
   memberId: string;
   fullName: string;
   fatherName?: string;
-  photoUrl?: string;
-  dob?: string;
+  photoUrl?: string | null;
+  dob?: string | null;
   gender?: string;
   maritalStatus?: string;
   companyName?: string;
@@ -84,8 +84,8 @@ export async function saveMemberProfile(input: UpdateProfileInput) {
   const success = await db.updateMemberProfile(input.memberId, {
     fullName: input.fullName.trim(),
     fatherName: input.fatherName?.trim() || undefined,
-    photoUrl: finalPhotoUrl,
-    dob: input.dob?.trim() || undefined,
+    photoUrl: input.photoUrl !== undefined ? (finalPhotoUrl && finalPhotoUrl.trim() ? finalPhotoUrl.trim() : null) : undefined,
+    dob: input.dob !== undefined ? (input.dob && input.dob.trim() && input.dob !== "Not specified" ? input.dob.trim() : null) : undefined,
     gender: input.gender,
     maritalStatus: input.maritalStatus,
     companyName: input.companyName?.trim() || undefined,

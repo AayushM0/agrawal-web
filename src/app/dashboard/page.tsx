@@ -642,6 +642,19 @@ export default function DashboardPage() {
   const headMember = household.members?.find((m) => m.relationToHead === "self") || household.members?.[0];
   const primarySerial = headMember?.serialNo || household.serialNo || household.householdCode;
 
+  const cleanSessionContact = (sessionContact || "").trim().toLowerCase();
+  const cleanHeadVerified = (household.verifiedContact || "").trim().toLowerCase();
+  const cleanHeadEmail = (headMember?.email || "").trim().toLowerCase();
+  const cleanHeadPhone = (headMember?.phone || "").replace(/[^0-9]/g, "");
+  const sessionPhoneDigits = cleanSessionContact.replace(/[^0-9]/g, "");
+
+  const isHeadUser = Boolean(
+    !cleanSessionContact ||
+    cleanSessionContact === cleanHeadVerified ||
+    (cleanHeadEmail && cleanSessionContact === cleanHeadEmail) ||
+    (cleanHeadPhone && sessionPhoneDigits && (cleanHeadPhone === sessionPhoneDigits || cleanHeadPhone.endsWith(sessionPhoneDigits) || sessionPhoneDigits.endsWith(cleanHeadPhone)))
+  );
+
   return (
     <main className="py-8 sm:py-12 bg-canvas-page min-h-[85vh]">
       <div className="max-w-5xl mx-auto px-4">
@@ -1245,14 +1258,16 @@ export default function DashboardPage() {
                 You can edit personal details, profession, bio, and privacy settings anytime. Phone &amp; Email are permanently masked.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => requireActivation(openAddMemberModal)}
-              className="self-start sm:self-center px-4 py-2 rounded-full text-xs font-bold text-white va-btn-join transition-all shadow-goldCta flex items-center gap-1.5 shrink-0"
-            >
-              <span>+</span>
-              <span>Add Family Member</span>
-            </button>
+            {isHeadUser && (
+              <button
+                type="button"
+                onClick={() => requireActivation(openAddMemberModal)}
+                className="self-start sm:self-center px-4 py-2 rounded-full text-xs font-bold text-white va-btn-join transition-all shadow-goldCta flex items-center gap-1.5 shrink-0"
+              >
+                <span>+</span>
+                <span>Add Family Member</span>
+              </button>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -1261,8 +1276,15 @@ export default function DashboardPage() {
             ) : (
               household.members.map((m) => {
                 const isClaimedBySelf = !!m.ownerLocked;
-                const isCurrentLoggedInMember = (sessionContact && (m.phone === sessionContact || m.email === sessionContact)) || (m.relationToHead === "self");
-                const canEditThisMember = isCurrentLoggedInMember || !m.ownerLocked;
+                const isCurrentMemberSelf = Boolean(
+                  cleanSessionContact && (
+                    (m.email && cleanSessionContact === m.email.trim().toLowerCase()) ||
+                    (sessionPhoneDigits && m.phone && m.phone.replace(/[^0-9]/g, "").endsWith(sessionPhoneDigits))
+                  )
+                );
+                const isCurrentLoggedInMember = isHeadUser ? m.relationToHead === "self" : isCurrentMemberSelf;
+                const canEditThisMember = isHeadUser ? (!m.ownerLocked || m.relationToHead === "self") : isCurrentMemberSelf;
+                const canInviteThisMember = isHeadUser && !m.ownerLocked && m.relationToHead !== "self";
                 const age = calculateAge(m.dob);
 
                 return (
@@ -1326,7 +1348,7 @@ export default function DashboardPage() {
                         </button>
                       )}
 
-                      {!m.ownerLocked && m.relationToHead !== "self" && (
+                      {canInviteThisMember && (
                         <button
                           type="button"
                           onClick={() => requireActivation(() => handleCopyClaimLink(m.id))}
