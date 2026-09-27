@@ -37,7 +37,7 @@ export interface MatrimonialProfile {
   fullName: string;
   createdFor: "Self" | "Son" | "Daughter" | "Brother" | "Sister" | "Relative" | "Guardian";
   maritalStatus: "Never Married" | "Divorced" | "Widowed" | "Awaiting Divorce" | "Annulled";
-  dob: string;
+  dob?: string;
   placeOfBirth?: string;
   heightCm?: number;
   heightDisplay?: string; // e.g. 5' 9" (175 cm)
@@ -127,7 +127,7 @@ export interface CreateMatrimonialProfileInput {
   memberId: string;
   createdFor: "Self" | "Son" | "Daughter" | "Brother" | "Sister" | "Relative" | "Guardian";
   maritalStatus: "Never Married" | "Divorced" | "Widowed" | "Awaiting Divorce" | "Annulled";
-  dob: string;
+  dob?: string;
   placeOfBirth?: string;
   heightCm?: number;
   heightDisplay?: string;
@@ -185,7 +185,7 @@ export interface EligibleHouseholdMember {
   fullName: string;
   relationToHead: string;
   gender: string;
-  dob: string;
+  dob?: string;
   maritalStatus: string;
   currentCity: string;
   currentCountry: string;

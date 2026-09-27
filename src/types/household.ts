@@ -10,7 +10,7 @@ export interface Member {
   id: string;
   fullName: string;
   relationToHead: "self" | "spouse" | "son" | "daughter" | "parent" | "other";
-  dob: string;
+  dob?: string;
   gender: string;
   maritalStatus: string;
   currentCity: string;

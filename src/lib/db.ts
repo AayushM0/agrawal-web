@@ -78,9 +78,9 @@ if (!pool && process.env.DATABASE_URL) {
 
 
 // Safe helper to sanitize dates for PostgreSQL DATE columns
-function sanitizeDate(dob?: string): string {
-  if (!dob || !dob.trim()) {
-    return "1990-01-01";
+function sanitizeDate(dob?: string): string | null {
+  if (!dob || !dob.trim() || dob.trim().toLowerCase() === "not specified") {
+    return null;
   }
   const clean = dob.trim();
   // If it's already YYYY-MM-DD
@@ -101,7 +101,7 @@ function sanitizeDate(dob?: string): string {
   if (!isNaN(parsed.getTime())) {
     return parsed.toISOString().split("T")[0];
   }
-  return "1990-01-01";
+  return null;
 }
 
 // Safe helper to map extended relations into schema member_relation enum
@@ -147,6 +147,8 @@ async function ensureSchema(client: any) {
       ALTER TABLE members ADD COLUMN IF NOT EXISTS govt_id_number TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS password_hash TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS serial_no VARCHAR(32) UNIQUE;
+      ALTER TABLE members ALTER COLUMN dob DROP NOT NULL;
+      ALTER TABLE matrimonial_profiles ALTER COLUMN dob DROP NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_members_serial_no ON members(serial_no);
       CREATE INDEX IF NOT EXISTS idx_members_aadhaar_hash ON members(aadhaar_hash);
 
@@ -334,7 +336,7 @@ async function ensureSchema(client: any) {
           full_name VARCHAR(150) NOT NULL,
           created_for VARCHAR(50) NOT NULL DEFAULT 'Self',
           marital_status VARCHAR(50) NOT NULL DEFAULT 'Never Married',
-          dob DATE NOT NULL,
+          dob DATE,
           place_of_birth VARCHAR(150),
           height_cm INT,
           height_display VARCHAR(30),
@@ -2681,7 +2683,7 @@ export const db = {
       p.fullName,
       p.createdFor || "Self",
       p.maritalStatus || "Never Married",
-      p.dob,
+      p.dob ? sanitizeDate(p.dob) : null,
       p.placeOfBirth || null,
       p.heightCm ? parseInt(p.heightCm, 10) : null,
       p.heightDisplay || null,

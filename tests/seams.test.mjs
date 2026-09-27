@@ -745,5 +745,16 @@ test("Seam 26: Admin-Assisted Delegated Profile Creation adheres to contracts an
   assert.ok(compCode.includes("matrimony") && compCode.includes("career") && compCode.includes("business"), "AdminAssistedProfilesCreator must support matrimony, career, and business profiles");
 });
 
+test("Seam 27: Nullable DOB and non-mandatory photos across schema and helpers", () => {
+  const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+  const dbCode = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+
+  // Schema must not enforce NOT NULL on dob
+  assert.ok(!schemaSql.includes("dob DATE NOT NULL"), "schema.sql must not enforce NOT NULL on dob");
+  assert.ok(dbCode.includes("ALTER TABLE members ALTER COLUMN dob DROP NOT NULL"), "db.ts must idempotently drop NOT NULL on members.dob");
+  assert.ok(dbCode.includes("ALTER TABLE matrimonial_profiles ALTER COLUMN dob DROP NOT NULL"), "db.ts must idempotently drop NOT NULL on matrimonial_profiles.dob");
+});
+
+
 
 
