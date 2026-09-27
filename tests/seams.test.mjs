@@ -805,6 +805,38 @@ test("Seam 31: Nullable DOB/photo updates in db.ts and dashboard isHeadUser perm
   assert.ok(dashboardCode.includes("canInviteThisMember = isHeadUser"), "dashboard/page.tsx must restrict Invite to Claim to isHeadUser");
 });
 
+// --- SEAM 32: Non-mandatory Aadhaar and Photo for Head & Member Registration ---
+test("Seam 32: Non-mandatory Aadhaar and profile photo for Head and all family members", () => {
+  const registerActionCode = fs.readFileSync(path.join(webRoot, "src/actions/register.ts"), "utf8");
+  const signupPageCode = fs.readFileSync(path.join(webRoot, "src/app/signup/page.tsx"), "utf8");
+
+  // 1. Aadhaar is not mandatory in signup Step 2 (Head)
+  assert.ok(!signupPageCode.includes('Aadhaar Number (12-Digit) *'), "Head Aadhaar label must not have asterisk");
+  assert.ok(signupPageCode.includes('if (aadhaarNumber.trim())'), "Head Aadhaar validation must only run if provided");
+  assert.ok(!signupPageCode.includes('!aadhaarNumber.trim()'), "Head Aadhaar must not block when empty");
+
+  // 2. Aadhaar is not mandatory in signup Step 3 (Members)
+  assert.ok(!signupPageCode.includes('Aadhaar Card Number (आधार नंबर) *'), "Member Aadhaar label must not have asterisk");
+  assert.ok(signupPageCode.includes('if (m.aadhaarNumber && m.aadhaarNumber.trim())'), "Member Aadhaar validation must only run if provided");
+
+  // 3. Backend register.ts enforces Aadhaar as strictly optional
+  assert.ok(registerActionCode.includes('if (cleanAadhaar)'), "Backend Head Aadhaar check must be conditional on presence");
+  assert.ok(registerActionCode.includes('if (m.aadhaarNumber && m.aadhaarNumber.trim())'), "Backend Member Aadhaar check must be conditional on presence");
+  assert.ok(!registerActionCode.includes('Aadhaar Number is required for Head'), "Backend must not require Head Aadhaar");
+  assert.ok(!registerActionCode.includes('Aadhaar Number is required for member'), "Backend must not require Member Aadhaar");
+
+  // 4. Photo is not mandatory in signup Step 2 (Head) & Step 3 (Members)
+  assert.ok(!signupPageCode.includes('Profile Photo (मुखिया का फोटो) *'), "Head Photo must not have asterisk");
+  assert.ok(!signupPageCode.includes('Member Profile Photo (सदस्य का फोटो) *'), "Member Photo must not have asterisk");
+  assert.ok(!signupPageCode.includes('!headPhotoUrl.trim()'), "Head photo must not block Step 2 submission");
+  assert.ok(!signupPageCode.includes('!m.photoUrl.trim()'), "Member photo must not block Step 3 submission");
+
+  // 5. Backend register.ts enforces Photo as strictly optional
+  assert.ok(registerActionCode.includes('if (m.photoUrl && m.photoUrl.trim()'), "Backend photo check must be conditional on presence");
+  assert.ok(!registerActionCode.includes('A recent profile photograph is mandatory'), "Backend must not enforce mandatory photo");
+});
+
+
 
 
 

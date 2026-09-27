@@ -152,14 +152,19 @@ test("Issue 3.5: Contact uniqueness, DB checks, and auto-claim for family member
   assert.ok(claimActionCode.includes("does not require separate claiming"), "Claim must reject auto-claimed members without separate contacts");
 });
 
-test("Issue 3.6: Mandatory profile photograph for Head and all family members", () => {
+test("Issue 3.6: Non-mandatory profile photograph and Aadhaar for Head and all family members", () => {
   const registerActionCode = fs.readFileSync(path.join(webRoot, "src/actions/register.ts"), "utf8");
   const signupPageCode = fs.readFileSync(path.join(webRoot, "src/app/signup/page.tsx"), "utf8");
 
-  assert.ok(registerActionCode.includes("A recent profile photograph is mandatory for the Head of Household"), "Backend must require Head photo");
-  assert.ok(registerActionCode.includes("A profile photograph is mandatory for"), "Backend must require member photos");
-  assert.ok(signupPageCode.includes("headPhotoUrl.trim()"), "Signup Step 2 must enforce Head photo upload");
-  assert.ok(signupPageCode.includes("m.photoUrl.trim()"), "Signup Step 3 must enforce member photo upload");
+  // Profile photo is non-mandatory
+  assert.ok(!registerActionCode.includes("A recent profile photograph is mandatory for the Head of Household"), "Backend must not require Head photo");
+  assert.ok(!registerActionCode.includes("A profile photograph is mandatory for"), "Backend must not require member photos");
+  assert.ok(!signupPageCode.includes("!headPhotoUrl.trim()"), "Signup Step 2 must not block on empty Head photo");
+
+  // Aadhaar is non-mandatory
+  assert.ok(!registerActionCode.includes("Aadhaar Number is required for Head"), "Backend must not enforce Aadhaar as mandatory");
+  assert.ok(!signupPageCode.includes("!aadhaarNumber.trim()"), "Signup Step 2 must not block on empty Aadhaar");
+  assert.ok(!signupPageCode.includes("!m.aadhaarNumber"), "Signup Step 3 must not block on empty Member Aadhaar");
 });
 
 test("Issue 3.7: Both Mobile Phone and Email Address are strictly mandatory for Head of Household", () => {
