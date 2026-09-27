@@ -61,7 +61,15 @@ export async function saveMemberProfile(input: UpdateProfileInput) {
   }
 
   const isSelf = existing.id === session.userId || (existing.phone && existing.phone === session.contact) || (existing.email && existing.email === session.contact) || (household.headUserId === session.userId && existing.relationToHead === "self");
-  const isHead = household.headUserId === session.userId || household.verifiedContact === session.contact;
+  const isHead =
+    session.role === "head" ||
+    household.headUserId === session.userId ||
+    household.verifiedContact === session.contact ||
+    household.members?.some(
+      (m) =>
+        m.relationToHead === "self" &&
+        (m.id === session.userId || m.phone === session.contact || m.email === session.contact)
+    );
 
   if (!isSelf && (!isHead || existing.ownerLocked)) {
     return { success: false, error: "You do not have permission to modify this locked profile." };
@@ -125,7 +133,15 @@ export async function saveHouseholdInfo(householdId: string, updates: { nativePl
     return { success: false, error: "Associated household not found." };
   }
 
-  const isHead = household.headUserId === session.userId || household.verifiedContact === session.contact;
+  const isHead =
+    session.role === "head" ||
+    household.headUserId === session.userId ||
+    household.verifiedContact === session.contact ||
+    household.members?.some(
+      (m) =>
+        m.relationToHead === "self" &&
+        (m.id === session.userId || m.phone === session.contact || m.email === session.contact)
+    );
   if (!isHead && session.role !== "admin") {
     return { success: false, error: "Only Head of Household or Admin can modify family origin/gotra." };
   }

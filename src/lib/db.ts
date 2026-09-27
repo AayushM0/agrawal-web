@@ -1942,7 +1942,7 @@ export const db = {
              visibility_dob = COALESCE($17, visibility_dob),
              visibility_photo = COALESCE($18, visibility_photo),
              relation_to_head = COALESCE($19, relation_to_head)
-         WHERE id::text = $1 OR id = $1
+         WHERE id::text = $1
          RETURNING id, household_id;`,
         [
           memberId,

@@ -391,35 +391,41 @@ export default function DashboardPage() {
     setMemberSaveError("");
     setMemberSaveSuccess("");
 
-    const res = await saveMemberProfile({
-      memberId: editingMember.id,
-      fullName: editingMember.fullName,
-      relationToHead: editingMember.relationToHead,
-      fatherName: editingMember.fatherName,
-      photoUrl: editingMember.photoUrl,
-      dob: editingMember.dob,
-      gender: editingMember.gender,
-      maritalStatus: editingMember.maritalStatus,
-      companyName: editingMember.companyName,
-      anniversaryDate: editingMember.anniversaryDate,
-      currentCity: editingMember.currentCity,
-      currentCountry: editingMember.currentCountry,
-      profession: editingMember.professionTitle || editingMember.profession,
-      professionTitle: editingMember.professionTitle,
-      professionDescription: editingMember.professionDescription,
-      bio: editingMember.bio,
-      visibility: editingMember.visibility,
-    });
+    try {
+      const res = await saveMemberProfile({
+        memberId: editingMember.id,
+        fullName: editingMember.fullName,
+        relationToHead: editingMember.relationToHead,
+        fatherName: editingMember.fatherName,
+        photoUrl: editingMember.photoUrl,
+        dob: editingMember.dob,
+        gender: editingMember.gender,
+        maritalStatus: editingMember.maritalStatus,
+        companyName: editingMember.companyName,
+        anniversaryDate: editingMember.anniversaryDate,
+        currentCity: editingMember.currentCity,
+        currentCountry: editingMember.currentCountry,
+        profession: editingMember.professionTitle || editingMember.profession,
+        professionTitle: editingMember.professionTitle,
+        professionDescription: editingMember.professionDescription,
+        bio: editingMember.bio,
+        visibility: editingMember.visibility,
+      });
 
-    setIsSavingMember(false);
-    if (res.success) {
-      setMemberSaveSuccess("Profile updated successfully!");
-      setTimeout(() => {
-        setEditingMember(null);
-        loadData();
-      }, 1000);
-    } else {
-      setMemberSaveError(res.error || "Failed to update profile details.");
+      setIsSavingMember(false);
+      if (res.success) {
+        setMemberSaveSuccess("Profile updated successfully!");
+        setTimeout(() => {
+          setEditingMember(null);
+          loadData();
+        }, 1000);
+      } else {
+        setMemberSaveError(res.error || "Failed to update profile details.");
+      }
+    } catch (err: any) {
+      console.error("handleSaveMember error:", err);
+      setIsSavingMember(false);
+      setMemberSaveError(err?.message || "An unexpected error occurred while saving profile.");
     }
   };
 
@@ -429,17 +435,23 @@ export default function DashboardPage() {
     setIsSavingHousehold(true);
     setHouseholdSaveError("");
 
-    const res = await saveHouseholdInfo(household.id, {
-      gotra: householdGotra,
-      nativePlace: householdNativePlace,
-    });
+    try {
+      const res = await saveHouseholdInfo(household.id, {
+        gotra: householdGotra,
+        nativePlace: householdNativePlace,
+      });
 
-    setIsSavingHousehold(false);
-    if (res.success) {
-      setIsEditingHousehold(false);
-      loadData();
-    } else {
-      setHouseholdSaveError(res.error || "Failed to update family origin.");
+      setIsSavingHousehold(false);
+      if (res.success) {
+        setIsEditingHousehold(false);
+        loadData();
+      } else {
+        setHouseholdSaveError(res.error || "Failed to update family origin.");
+      }
+    } catch (err: any) {
+      console.error("handleSaveHousehold error:", err);
+      setIsSavingHousehold(false);
+      setHouseholdSaveError(err?.message || "An unexpected error occurred while updating family origin.");
     }
   };
 
