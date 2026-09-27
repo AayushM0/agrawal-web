@@ -408,6 +408,9 @@ async function ensureSchema(client: any) {
           offerings_summary TEXT,
           registration_type VARCHAR(50),
           registration_number VARCHAR(100),
+          contact_phone VARCHAR(50),
+          contact_email VARCHAR(255),
+          whatsapp_number VARCHAR(50),
           is_verified_badge BOOLEAN NOT NULL DEFAULT FALSE,
           country VARCHAR(100) NOT NULL DEFAULT 'India',
           state VARCHAR(100) NOT NULL,
@@ -428,6 +431,9 @@ async function ensureSchema(client: any) {
       CREATE INDEX IF NOT EXISTS idx_business_profiles_city ON business_profiles(city);
       CREATE INDEX IF NOT EXISTS idx_business_profiles_created_by ON business_profiles(created_by_member_id);
       ALTER TABLE business_profiles ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50);
+      ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255);
+      ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50);
 
       -- Career Profiles Table (Global Jobs & Careers Network - Pillar 4)
       CREATE TABLE IF NOT EXISTS career_profiles (
@@ -3345,16 +3351,20 @@ export const db = {
         household_id, created_by_member_id, status, rejection_reason,
         business_name, legal_name, tagline, industry_sector, business_type,
         year_established, about_business, offerings_summary,
-        registration_type, registration_number, is_verified_badge,
+        registration_type, registration_number,
+        contact_phone, contact_email, whatsapp_number,
+        is_verified_badge,
         country, state, city, pincode, address_line,
         website_url, social_links, photos, custom_fields, linked_directors
       ) VALUES (
         $1, $2, $3, $4,
         $5, $6, $7, $8, $9,
         $10, $11, $12,
-        $13, $14, $15,
-        $16, $17, $18, $19, $20,
-        $21, $22, $23, $24, $25
+        $13, $14,
+        $15, $16, $17,
+        $18,
+        $19, $20, $21, $22, $23,
+        $24, $25, $26, $27, $28
       ) RETURNING *;
     `;
 
@@ -3373,6 +3383,9 @@ export const db = {
       p.offeringsSummary || null,
       p.registrationType || null,
       p.registrationNumber || null,
+      p.contactPhone || null,
+      p.contactEmail || null,
+      p.whatsappNumber || null,
       Boolean(p.isVerifiedBadge),
       p.country || "India",
       p.state,
@@ -3576,6 +3589,18 @@ export const db = {
       if (data.registrationNumber !== undefined) {
         sets.push(`registration_number = $${paramIndex++}`);
         values.push(data.registrationNumber);
+      }
+      if (data.contactPhone !== undefined) {
+        sets.push(`contact_phone = $${paramIndex++}`);
+        values.push(data.contactPhone);
+      }
+      if (data.contactEmail !== undefined) {
+        sets.push(`contact_email = $${paramIndex++}`);
+        values.push(data.contactEmail);
+      }
+      if (data.whatsappNumber !== undefined) {
+        sets.push(`whatsapp_number = $${paramIndex++}`);
+        values.push(data.whatsappNumber);
       }
       if (data.country !== undefined) {
         sets.push(`country = $${paramIndex++}`);
@@ -4424,6 +4449,9 @@ function mapBusinessProfileRow(row: any): BusinessProfile {
     offeringsSummary: row.offerings_summary || row.offeringsSummary || undefined,
     registrationType: row.registration_type || row.registrationType || undefined,
     registrationNumber: row.registration_number || row.registrationNumber || undefined,
+    contactPhone: row.contact_phone || row.contactPhone || undefined,
+    contactEmail: row.contact_email || row.contactEmail || undefined,
+    whatsappNumber: row.whatsapp_number || row.whatsappNumber || undefined,
     isVerifiedBadge: Boolean(row.is_verified_badge),
     country: row.country || "India",
     state: row.state || "",

@@ -16,6 +16,9 @@ export interface CreateBusinessProfileInput {
   offeringsSummary?: string;
   registrationType?: string;
   registrationNumber?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  whatsappNumber?: string;
   country?: string;
   state: string;
   city: string;
@@ -41,7 +44,7 @@ export interface BusinessFilterInput {
 }
 
 /**
- * Sanitize business profile for public display, removing any private/internal credentials.
+ * Sanitize business profile for public display, ensuring array defaults and visible commercial contacts.
  */
 function sanitizeBusinessProfile(profile: BusinessProfile): BusinessProfile {
   return {
@@ -56,6 +59,8 @@ function sanitizeBusinessProfile(profile: BusinessProfile): BusinessProfile {
           name: d.name,
           roleTitle: d.roleTitle,
           isPrimaryContact: Boolean(d.isPrimaryContact),
+          phone: d.phone,
+          email: d.email,
         }))
       : [],
     socialLinks: profile.socialLinks || {},
@@ -151,6 +156,9 @@ export async function createBusinessProfile(input: CreateBusinessProfileInput): 
       offeringsSummary: input.offeringsSummary?.trim() || undefined,
       registrationType: input.registrationType?.trim() || undefined,
       registrationNumber: input.registrationNumber?.trim() || undefined,
+      contactPhone: input.contactPhone?.trim() || undefined,
+      contactEmail: input.contactEmail?.trim() || undefined,
+      whatsappNumber: input.whatsappNumber?.trim() || undefined,
       isVerifiedBadge: false,
       country: input.country?.trim() || "India",
       state: input.state.trim(),

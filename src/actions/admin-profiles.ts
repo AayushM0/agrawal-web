@@ -399,6 +399,9 @@ export interface AdminCreateBusinessInput {
   offeringsSummary?: string;
   registrationType?: string;
   registrationNumber?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  whatsappNumber?: string;
   awardVerifiedBadge?: boolean;
   country: string;
   state: string;
@@ -450,6 +453,8 @@ export async function adminCreateBusinessProfileAction(
             roleTitle: "Founder / Managing Director",
             isPrimaryContact: true,
             serialNo: member.serialNo,
+            phone: member.phone || undefined,
+            email: member.email || undefined,
           },
         ];
 
@@ -467,6 +472,9 @@ export async function adminCreateBusinessProfileAction(
       offeringsSummary: input.offeringsSummary?.trim() || undefined,
       registrationType: input.registrationType || undefined,
       registrationNumber: input.registrationNumber?.trim() || undefined,
+      contactPhone: input.contactPhone?.trim() || member.phone || undefined,
+      contactEmail: input.contactEmail?.trim() || member.email || undefined,
+      whatsappNumber: input.whatsappNumber?.trim() || undefined,
       isVerifiedBadge: Boolean(input.awardVerifiedBadge),
       country: input.country || member.currentCountry || "Singapore",
       state: input.state || member.state || "Central Singapore",

@@ -644,9 +644,10 @@ test("Seam 24: Global Agarwal Business Network adheres to all contracts and inva
   assert.ok(guidePage.includes("Topic 8") || guidePage.includes("अग्रवाल व्यापार संजाल") || guidePage.includes("Business Network"), "Guide page must contain Topic 8 for Business Network");
   assert.ok(guidePage.includes("/businesses"), "Guide page must link to /businesses");
 
-  // 5. In-Platform commercial chat routing & anti-scraping privacy guarantee
+  // 5. In-Platform commercial chat routing & visible commercial contacts
   assert.ok(businessShowcase.includes("initiateBusinessChat"), "Showcase must wire initiateBusinessChat");
-  assert.ok(!businessShowcase.includes("profile.phone"), "Showcase must not expose raw personal phone");
+  assert.ok(!businessShowcase.includes("profile.phone"), "Showcase must not expose raw personal member phone");
+  assert.ok(businessShowcase.includes("profile.contactPhone"), "Showcase must expose commercial contact phone");
   assert.ok(businessDirectory.includes("getLiveBusinessProfiles"), "Directory must consume getLiveBusinessProfiles");
   assert.ok(businessBuilder.includes("createBusinessProfile"), "Builder must consume createBusinessProfile");
 });

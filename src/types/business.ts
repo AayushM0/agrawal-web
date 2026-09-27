@@ -4,6 +4,8 @@ export interface LinkedDirector {
   name: string;
   roleTitle: string;
   isPrimaryContact: boolean;
+  phone?: string;
+  email?: string;
 }
 
 export interface BusinessCustomField {
@@ -35,6 +37,11 @@ export interface BusinessProfile {
   yearEstablished?: number;
   aboutBusiness: string;
   offeringsSummary?: string;
+
+  // Direct Contact & Communication (Fully Visible for Open Trade & Commercial Outreach)
+  contactPhone?: string;
+  contactEmail?: string;
+  whatsappNumber?: string;
 
   // Verification & Compliance
   registrationType?: string;

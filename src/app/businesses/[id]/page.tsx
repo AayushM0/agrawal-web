@@ -187,15 +187,46 @@ export default function BusinessDetailPage() {
               </div>
             </div>
 
-            {/* Commercial Action CTA */}
-            <div className="w-full md:w-auto flex flex-col sm:flex-row md:flex-col gap-3 shrink-0">
+            {/* Commercial Action CTAs (Direct, Unmasked Commercial Contact) */}
+            <div className="w-full md:w-auto flex flex-col gap-2 shrink-0 sm:min-w-[240px]">
+              {profile.contactPhone && (
+                <a
+                  href={`tel:${profile.contactPhone.replace(/\s+/g, '')}`}
+                  className="w-full px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-800 transition flex items-center justify-center gap-2 shadow-xs"
+                >
+                  <span>📞</span> Call: {profile.contactPhone}
+                </a>
+              )}
+
+              {(profile.whatsappNumber || profile.contactPhone) && (
+                <a
+                  href={`https://wa.me/${(profile.whatsappNumber || profile.contactPhone || '').replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                    `Jai Shree Agrasen Ji 🙏\nI am contacting regarding ${profile.businessName} via the Global Agarwal Business Network.`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full px-5 py-2 rounded-full text-xs font-bold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition flex items-center justify-center gap-2 shadow-xs"
+                >
+                  <span>💬</span> WhatsApp Message
+                </a>
+              )}
+
+              {profile.contactEmail && (
+                <a
+                  href={`mailto:${profile.contactEmail}?subject=${encodeURIComponent(`Business Inquiry: ${profile.businessName}`)}`}
+                  className="w-full px-5 py-2 rounded-full text-xs font-semibold text-brand-primary bg-amber-50 hover:bg-amber-100 border border-brand-accent/40 transition flex items-center justify-center gap-1.5"
+                >
+                  <span>✉️</span> {profile.contactEmail}
+                </a>
+              )}
+
               <button
                 onClick={handleCommercialChat}
                 disabled={isInitiatingChat}
-                className="w-full px-6 py-3 rounded-full text-xs sm:text-sm font-bold text-white va-btn-join shadow-goldCta flex items-center justify-center gap-2"
+                className="w-full px-5 py-2 rounded-full text-xs font-semibold text-body-heading bg-canvas-warm hover:bg-amber-50 border border-brand-accent/30 transition flex items-center justify-center gap-1.5"
               >
                 <span>💬</span>
-                <span>{isInitiatingChat ? "Connecting..." : "Connect / Chat with Business"}</span>
+                <span>{isInitiatingChat ? "Connecting..." : "Portal Chat"}</span>
               </button>
 
               {profile.websiteUrl && (
@@ -203,9 +234,9 @@ export default function BusinessDetailPage() {
                   href={profile.websiteUrl.startsWith("http") ? profile.websiteUrl : `https://${profile.websiteUrl}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full px-5 py-2.5 rounded-full text-xs font-semibold text-center text-brand-primary bg-amber-50 hover:bg-amber-100 border border-brand-accent/30 transition flex items-center justify-center gap-1.5"
+                  className="w-full px-5 py-2 rounded-full text-xs font-semibold text-center text-body-muted hover:text-brand-primary hover:bg-amber-50/50 border border-brand-accent/20 transition flex items-center justify-center gap-1.5"
                 >
-                  <span>🌐</span> Visit Website
+                  <span>🌐</span> Visit Website ↗
                 </a>
               )}
             </div>
@@ -213,7 +244,7 @@ export default function BusinessDetailPage() {
 
           {/* Badges & Social Links */}
           <div className="pt-4 border-t border-brand-accent/20 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-brand-burgundy border border-amber-200">
                 Industry: {profile.industrySector}
               </span>
@@ -221,8 +252,10 @@ export default function BusinessDetailPage() {
                 Type: {profile.businessType}
               </span>
               {profile.registrationType && (
-                <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
-                  {profile.registrationType} Registered
+                <span className="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                  <span>✓</span>
+                  <span>{profile.registrationType}:</span>
+                  <strong className="font-mono">{profile.registrationNumber || "Verified"}</strong>
                 </span>
               )}
             </div>
@@ -411,6 +444,27 @@ export default function BusinessDetailPage() {
                         </p>
                       )}
 
+                      {(director.phone || director.email) && (
+                        <div className="space-y-1 text-xs pt-1 border-t border-brand-accent/20">
+                          {director.phone && (
+                            <p className="flex items-center gap-1.5 text-body-heading">
+                              <span>📞</span>
+                              <a href={`tel:${director.phone}`} className="font-mono font-semibold text-brand-primary hover:underline">
+                                {director.phone}
+                              </a>
+                            </p>
+                          )}
+                          {director.email && (
+                            <p className="flex items-center gap-1.5 text-body-muted">
+                              <span>✉️</span>
+                              <a href={`mailto:${director.email}`} className="hover:underline text-body-heading truncate">
+                                {director.email}
+                              </a>
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                       <div className="pt-2 border-t border-brand-accent/20">
                         <Link
                           href={`/directory/${director.memberId}`}
@@ -426,14 +480,60 @@ export default function BusinessDetailPage() {
                 <p className="text-xs text-body-muted italic">No linked leadership specified.</p>
               )}
 
-              {/* Privacy Shield Notice */}
-              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-1.5">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
-                  <span>🛡️</span> Zero Telemarketing Privacy
+              {/* Direct Commercial Outreach & Compliance Card (Fully Visible, No Masking) */}
+              <div className="p-4 rounded-2xl bg-amber-50/70 border border-brand-accent/40 space-y-3">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-brand-primary">
+                  <span>🏢</span> Verified Direct Commercial Contact
                 </div>
-                <p className="text-[11px] text-emerald-900 leading-normal">
-                  Personal phone numbers and emails are masked. Contact is facilitated through verified in-platform chat to prevent web scraping and corporate unsolicited spam.
-                </p>
+                <div className="space-y-2 text-xs">
+                  {profile.contactPhone && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-body-muted">Commercial Phone:</span>
+                      <a href={`tel:${profile.contactPhone.replace(/\s+/g, '')}`} className="font-mono font-bold text-brand-primary hover:underline">
+                        {profile.contactPhone}
+                      </a>
+                    </div>
+                  )}
+
+                  {profile.whatsappNumber && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-body-muted">WhatsApp:</span>
+                      <a
+                        href={`https://wa.me/${profile.whatsappNumber.replace(/[^0-9]/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono font-bold text-emerald-700 hover:underline"
+                      >
+                        {profile.whatsappNumber}
+                      </a>
+                    </div>
+                  )}
+
+                  {profile.contactEmail && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-body-muted">Corporate Email:</span>
+                      <a href={`mailto:${profile.contactEmail}`} className="font-medium text-body-heading hover:underline truncate max-w-[180px]">
+                        {profile.contactEmail}
+                      </a>
+                    </div>
+                  )}
+
+                  {profile.registrationNumber && (
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-brand-accent/20">
+                      <span className="text-body-muted">{profile.registrationType || "Registration"}:</span>
+                      <span className="font-mono font-bold text-emerald-800 uppercase">
+                        {profile.registrationNumber}
+                      </span>
+                    </div>
+                  )}
+
+                  {profile.addressLine && (
+                    <div className="pt-1 border-t border-brand-accent/20 text-[11px] text-body-muted">
+                      <span className="font-semibold text-body-heading">Registered Premises: </span>
+                      {profile.addressLine}, {profile.city}, {profile.state} {profile.pincode ? `- ${profile.pincode}` : ""}, {profile.country}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

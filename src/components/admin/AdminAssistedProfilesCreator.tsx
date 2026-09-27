@@ -118,6 +118,9 @@ export default function AdminAssistedProfilesCreator() {
     pincode: "",
     addressLine: "",
     websiteUrl: "",
+    contactPhone: "",
+    contactEmail: "",
+    whatsappNumber: "",
   });
 
   // Pre-fill fields when a member is selected
@@ -135,6 +138,9 @@ export default function AdminAssistedProfilesCreator() {
       ...prev,
       city: selectedMember.currentCity || prev.city,
       state: selectedMember.state || prev.state,
+      contactPhone: selectedMember.phone || prev.contactPhone,
+      contactEmail: selectedMember.email || prev.contactEmail,
+      whatsappNumber: selectedMember.phone || prev.whatsappNumber,
     }));
 
     setStatusMessage(null);
@@ -981,6 +987,40 @@ export default function AdminAssistedProfilesCreator() {
                     value={businessForm.websiteUrl}
                     onChange={(e) => setBusinessForm({ ...businessForm, websiteUrl: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-brand-accent/30 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-brand-primary mb-1">Commercial Phone / Mobile *</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="e.g. +91 98765 43210"
+                    value={businessForm.contactPhone}
+                    onChange={(e) => setBusinessForm({ ...businessForm, contactPhone: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/30 text-xs font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-brand-primary mb-1">Business Email</label>
+                  <input
+                    type="email"
+                    placeholder="e.g. sales@company.com"
+                    value={businessForm.contactEmail}
+                    onChange={(e) => setBusinessForm({ ...businessForm, contactEmail: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/30 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-brand-primary mb-1">WhatsApp Business Number</label>
+                  <input
+                    type="tel"
+                    placeholder="e.g. +91 98765 43210"
+                    value={businessForm.whatsappNumber}
+                    onChange={(e) => setBusinessForm({ ...businessForm, whatsappNumber: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-brand-accent/30 text-xs font-mono"
                   />
                 </div>
 

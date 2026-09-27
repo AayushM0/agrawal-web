@@ -69,6 +69,9 @@ export default function CreateBusinessPage() {
   const [industrySector, setIndustrySector] = useState(SECTOR_OPTIONS[0]);
   const [businessType, setBusinessType] = useState(BUSINESS_TYPE_OPTIONS[0]);
   const [yearEstablished, setYearEstablished] = useState<string>("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState("");
   const [country, setCountry] = useState("India");
   const [state, setState] = useState("");
   const [city, setCity] = useState("");
@@ -125,8 +128,14 @@ export default function CreateBusinessPage() {
               name: head.fullName,
               roleTitle: "Founder & Director",
               isPrimaryContact: true,
+              phone: head.phone || undefined,
+              email: head.email || undefined,
             },
           ]);
+          if (head.phone) setContactPhone(head.phone);
+          if (head.email) setContactEmail(head.email);
+          if (head.currentCity) setCity(head.currentCity);
+          if (head.state) setState(head.state);
         }
       } catch (err) {
         console.error("Failed to load household dashboard:", err);
@@ -201,6 +210,8 @@ export default function CreateBusinessPage() {
         name: member.fullName,
         roleTitle: "Director",
         isPrimaryContact: linkedDirectors.length === 0,
+        phone: member.phone || undefined,
+        email: member.email || undefined,
       },
     ]);
   };
@@ -233,6 +244,10 @@ export default function CreateBusinessPage() {
     if (step === 1) {
       if (!businessName.trim()) {
         alert("Please enter the Business / Trade Name.");
+        return false;
+      }
+      if (!contactPhone.trim()) {
+        alert("Please provide a Commercial Phone / Mobile Number for direct customer and partner contact.");
         return false;
       }
       if (!state.trim() || !city.trim()) {
@@ -299,6 +314,9 @@ export default function CreateBusinessPage() {
         offeringsSummary: offeringsSummary.trim() || undefined,
         registrationType: registrationType || undefined,
         registrationNumber: registrationNumber.trim() || undefined,
+        contactPhone: contactPhone.trim(),
+        contactEmail: contactEmail.trim() || undefined,
+        whatsappNumber: whatsappNumber.trim() || undefined,
         country,
         state: state.trim(),
         city: city.trim(),
@@ -393,8 +411,8 @@ export default function CreateBusinessPage() {
 
           <div className="p-4 rounded-2xl bg-canvas-warm/50 border border-brand-accent/20 text-xs text-left text-body-heading space-y-1">
             <p>• Track approval status directly in your Member Dashboard.</p>
-            <p>• Commercial inquiries will route via secure in-website chat to your Primary Contact director.</p>
-            <p>• Contact phone and personal emails remain safely shielded from public scrapers.</p>
+            <p>• Direct phone calls, WhatsApp messages, and emails will be enabled for your enterprise.</p>
+            <p>• Your company phone, email, and registration number are openly visible for seamless commercial trade.</p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -650,6 +668,60 @@ export default function CreateBusinessPage() {
                           onChange={(e) => setPincode(e.target.value)}
                           placeholder="e.g. 400093"
                           className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/30 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Direct Commercial Contact Coordinates */}
+                  <div className="pt-2 border-t border-brand-accent/20 space-y-4">
+                    <div>
+                      <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-primary flex items-center gap-1.5">
+                        <span>📞</span> Direct Commercial Contact Coordinates (Fully Visible)
+                      </h3>
+                      <p className="text-[11px] text-body-muted mt-0.5">
+                        These contacts will be openly visible on the Business Network showcase so community members, buyers, and vendors can directly call, WhatsApp, and email your enterprise.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-body-heading mb-1">
+                          Commercial Phone / Mobile *
+                        </label>
+                        <input
+                          type="tel"
+                          required
+                          value={contactPhone}
+                          onChange={(e) => setContactPhone(e.target.value)}
+                          placeholder="e.g. +91 98765 43210"
+                          className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/30 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-body-heading mb-1">
+                          Business Email (Optional)
+                        </label>
+                        <input
+                          type="email"
+                          value={contactEmail}
+                          onChange={(e) => setContactEmail(e.target.value)}
+                          placeholder="e.g. contact@mycompany.com"
+                          className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/30 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-body-heading mb-1">
+                          WhatsApp Business Number
+                        </label>
+                        <input
+                          type="tel"
+                          value={whatsappNumber}
+                          onChange={(e) => setWhatsappNumber(e.target.value)}
+                          placeholder="e.g. +91 98765 43210"
+                          className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/30 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent font-mono"
                         />
                       </div>
                     </div>
