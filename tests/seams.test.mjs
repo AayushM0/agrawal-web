@@ -755,6 +755,18 @@ test("Seam 27: Nullable DOB and non-mandatory photos across schema and helpers",
   assert.ok(dbCode.includes("ALTER TABLE matrimonial_profiles ALTER COLUMN dob DROP NOT NULL"), "db.ts must idempotently drop NOT NULL on matrimonial_profiles.dob");
 });
 
+test("Seam 28: Signup page allows DOB to be omitted or marked as Not specified", () => {
+  const signupCode = fs.readFileSync(path.join(webRoot, "src/app/signup/page.tsx"), "utf8");
+
+  // Step 2 Head DOB validation must not block when empty
+  assert.ok(!signupCode.includes('Please enter a valid Date of Birth (जन्म तिथि) for the Head of Household.'), "Head DOB must not be blocking");
+  // Step 3 Member DOB validation must not block when empty
+  assert.ok(!signupCode.includes('Please enter Date of Birth for ${m.fullName'), "Member DOB must not be blocking");
+  // UI must include Not specified control
+  assert.ok(signupCode.includes("Not specified") || signupCode.includes("ज्ञात नहीं"), "Must render Not specified control");
+});
+
+
 
 
 
