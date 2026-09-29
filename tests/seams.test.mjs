@@ -395,8 +395,9 @@ test("Seam 16: Aadhaar masking, DB search pushdown, serverless rate limits, and 
   assert.ok(matrimonyCode.includes("cleanSubject"), "matrimony.ts must strip newlines to prevent SMTP injection");
 
   // 5. CSP domain pinning
-  assert.ok(!nextConfigCode.includes("'unsafe-eval'"), "next.config.ts must not contain unsafe-eval");
-  assert.ok(!nextConfigCode.includes("script-src 'self' 'unsafe-inline' 'unsafe-eval' https:"), "next.config.ts must not have wildcard https script-src");
+  assert.ok(nextConfigCode.includes('const isDevelopment = process.env.NODE_ENV === "development"'), "next.config.ts must explicitly identify development mode for CSP");
+  assert.ok(nextConfigCode.includes("...(isDevelopment ? [\"'unsafe-eval'\"] : [])"), "development CSP must allow Next.js React Refresh to evaluate its runtime");
+  assert.ok(!nextConfigCode.includes("script-src 'self' 'unsafe-inline' 'unsafe-eval' https:"), "next.config.ts must not have a broad unsafe-eval production script policy");
 });
 
 // --- SEAM 17: Part 2 Cloudflare Turnstile Bot Defense Contract ---

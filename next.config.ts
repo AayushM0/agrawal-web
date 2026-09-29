@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 
+// Next.js development uses React Refresh, which evaluates its runtime. Keep this
+// exception local to `next dev`; production retains the strict CSP.
+const isDevelopment = process.env.NODE_ENV === "development";
+
 const securityHeaders = [
   {
     key: "X-DNS-Prefetch-Control",
@@ -29,7 +33,13 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://js.pusher.com https://static.cloudflareinsights.com",
+      [
+        "script-src 'self' 'unsafe-inline'",
+        ...(isDevelopment ? ["'unsafe-eval'"] : []),
+        "https://challenges.cloudflare.com",
+        "https://js.pusher.com",
+        "https://static.cloudflareinsights.com",
+      ].join(" "),
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: https: blob:",
