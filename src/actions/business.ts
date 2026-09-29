@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/actions/auth";
 import { sendMessage } from "@/actions/chat";
 import type { BusinessProfile, LinkedDirector, BusinessCustomField, BusinessSocialLinks } from "@/types/business";
+import { sanitizeSocialLinks } from "@/lib/external-url";
 
 export interface CreateBusinessProfileInput {
   businessName: string;
@@ -166,7 +167,7 @@ export async function createBusinessProfile(input: CreateBusinessProfileInput): 
       pincode: input.pincode?.trim() || undefined,
       addressLine: input.addressLine?.trim() || undefined,
       websiteUrl: input.websiteUrl?.trim() || undefined,
-      socialLinks: input.socialLinks || {},
+      socialLinks: sanitizeSocialLinks(input.socialLinks),
       photos: Array.isArray(input.photos) ? input.photos.slice(0, 3) : [],
       customFields: Array.isArray(input.customFields) ? input.customFields : [],
       linkedDirectors: directors,
@@ -206,6 +207,7 @@ export async function updateBusinessProfile(
       id,
       {
         ...input,
+        ...(input.socialLinks !== undefined ? { socialLinks: sanitizeSocialLinks(input.socialLinks) } : {}),
         // If rejected, re-editing puts it back into review
         status: existing.status === "rejected" ? "pending_review" : existing.status,
       },

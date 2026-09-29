@@ -53,6 +53,9 @@ export default function DashboardPage() {
   const [memberSaveError, setMemberSaveError] = useState("");
   const [memberSaveSuccess, setMemberSaveSuccess] = useState("");
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [memberPendingRemoval, setMemberPendingRemoval] = useState<Member | null>(null);
+  const [memberRemovalError, setMemberRemovalError] = useState("");
+  const [businessPendingDeletion, setBusinessPendingDeletion] = useState<BusinessProfile | null>(null);
   const [identityMember, setIdentityMember] = useState<Member | null>(null);
   const [identityOtp, setIdentityOtp] = useState("");
   const [identityForm, setIdentityForm] = useState({ aadhaarNumber: "", panNumber: "", passportNumber: "", govtIdNumber: "" });
@@ -227,6 +230,7 @@ export default function DashboardPage() {
 
   async function loadData() {
     setIsLoading(true);
+    try {
     const res = await getCurrentHouseholdDashboard();
     if (res.isPendingApproval) {
       router.push("/pending-approval");
@@ -282,7 +286,12 @@ export default function DashboardPage() {
       setSessionContact(res.sessionContact);
       setIsActivated(res.isActivated || false);
     }
-    setIsLoading(false);
+    } catch (err) {
+      console.error("Failed to load dashboard:", err);
+      setHousehold(null);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   const handleToggleCareerVisibility = async (careerId: string) => {
@@ -320,11 +329,6 @@ export default function DashboardPage() {
   };
 
   const handleDeleteBusiness = async (biz: BusinessProfile) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to permanently delete "${biz.businessName}"? This action cannot be undone.`
-    );
-    if (!confirmed) return;
-
     setIsDeletingBusiness(biz.id);
     try {
       const res = await deleteBusinessProfile(biz.id);
@@ -338,6 +342,7 @@ export default function DashboardPage() {
       alert(err.message || "Failed to delete business.");
     } finally {
       setIsDeletingBusiness(null);
+      setBusinessPendingDeletion(null);
     }
   };
 
@@ -470,12 +475,21 @@ export default function DashboardPage() {
   };
 
   const handleRemoveMember = async (member: Member) => {
-    if (!confirm(`Remove ${member.fullName} from this household? This cannot be undone.`)) return;
     setRemovingMemberId(member.id);
-    const result = await removeHouseholdMember(member.id);
-    setRemovingMemberId(null);
-    if (result.success) loadData();
-    else alert(result.error || "Unable to remove this member.");
+    setMemberRemovalError("");
+    try {
+      const result = await removeHouseholdMember(member.id);
+      if (result.success) {
+        await loadData();
+        setMemberPendingRemoval(null);
+      } else {
+        setMemberRemovalError(result.error || "Unable to remove this member.");
+      }
+    } catch (err: any) {
+      setMemberRemovalError(err.message || "Unable to remove this member.");
+    } finally {
+      setRemovingMemberId(null);
+    }
   };
 
   const openIdentityModal = (member: Member) => {
@@ -500,10 +514,15 @@ export default function DashboardPage() {
       setIsSendingIdentityOtp(false);
       return;
     }
-    const result = await sendOtp({ recipient: identityMember.email, type: "email", turnstileToken: identityTurnstileToken });
-    setIsSendingIdentityOtp(false);
-    if (result.success) setIdentityMessage("A six-digit confirmation code was sent to the member's registered email.");
-    else setIdentityError(result.error || "Unable to send confirmation code.");
+    try {
+      const result = await sendOtp({ recipient: identityMember.email, type: "email", turnstileToken: identityTurnstileToken });
+      if (result.success) setIdentityMessage("A six-digit confirmation code was sent to the member's registered email.");
+      else setIdentityError(result.error || "Unable to send confirmation code.");
+    } catch (err: any) {
+      setIdentityError(err.message || "Unable to send confirmation code.");
+    } finally {
+      setIsSendingIdentityOtp(false);
+    }
   };
 
   const saveIdentityDocuments = async (e: React.FormEvent) => {
@@ -511,6 +530,7 @@ export default function DashboardPage() {
     if (!identityMember) return;
     setIsSavingIdentity(true);
     setIdentityError("");
+    try {
     const result = await updateIdentityDocuments({
       memberId: identityMember.id,
       otp: identityOtp,
@@ -519,11 +539,15 @@ export default function DashboardPage() {
       passportNumber: identityForm.passportNumber || (identityRemove.passportNumber ? null : undefined),
       govtIdNumber: identityForm.govtIdNumber || (identityRemove.govtIdNumber ? null : undefined),
     });
-    setIsSavingIdentity(false);
     if (result.success) {
       setIdentityMessage(result.message || "Identity documents updated.");
       loadData();
     } else setIdentityError(result.error || "Unable to update identity documents.");
+    } catch (err: any) {
+      setIdentityError(err.message || "Unable to update identity documents.");
+    } finally {
+      setIsSavingIdentity(false);
+    }
   };
 
   const openAddMemberModal = () => {
@@ -1102,7 +1126,7 @@ export default function DashboardPage() {
 
                           <button
                             type="button"
-                            onClick={() => handleDeleteBusiness(b)}
+                            onClick={() => setBusinessPendingDeletion(b)}
                             disabled={isDeletingBusiness === b.id}
                             className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-600 hover:text-red-800 hover:bg-red-50 transition"
                           >
@@ -1456,7 +1480,7 @@ export default function DashboardPage() {
                         <button
                           type="button"
                           disabled={removingMemberId === m.id}
-                          onClick={() => requireActivation(() => handleRemoveMember(m))}
+                          onClick={() => requireActivation(() => { setMemberRemovalError(""); setMemberPendingRemoval(m); })}
                           className="flex-1 sm:flex-initial text-center px-3.5 py-1.5 rounded-full text-xs font-bold text-red-700 bg-red-50 border border-red-200 hover:bg-red-100 transition-all disabled:opacity-60"
                         >
                           {removingMemberId === m.id ? "Removing…" : "Remove"}
@@ -1472,13 +1496,13 @@ export default function DashboardPage() {
       </div>
 
       {identityMember && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border-2 border-brand-accent rounded-3xl max-w-lg w-full p-6 shadow-warmLg">
-            <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border-2 border-brand-accent rounded-3xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-warmLg my-4">
+            <div className="flex items-start justify-between gap-4 mb-4 px-6 pt-6 shrink-0">
               <div><h2 className="text-lg font-bold text-brand-primary">Identity documents</h2><p className="text-xs text-body-muted mt-1">Optional and private. Email confirmation protects changes; it does not verify document authenticity or alter the admin-verified badge.</p></div>
-              <button type="button" onClick={() => setIdentityMember(null)} className="text-body-muted">✕</button>
+              <button type="button" aria-label="Close identity documents" onClick={() => setIdentityMember(null)} className="w-10 h-10 -mr-2 -mt-2 rounded-full text-body-muted hover:bg-canvas-warm flex items-center justify-center text-lg">✕</button>
             </div>
-            <form onSubmit={saveIdentityDocuments} className="space-y-3">
+            <form onSubmit={saveIdentityDocuments} className="space-y-3 overflow-y-auto px-6 pb-6">
               {([['aadhaarNumber', 'Aadhaar number'], ['panNumber', 'PAN number'], ['passportNumber', 'Passport number'], ['govtIdNumber', 'Government / tax ID']] as const).map(([field, label]) => (
                 <div key={field}><label className="block text-xs font-bold text-body-heading mb-1">{label} <span className="font-normal text-body-muted">(optional)</span></label><input value={identityForm[field]} onChange={(e) => { setIdentityForm({ ...identityForm, [field]: e.target.value }); setIdentityRemove({ ...identityRemove, [field]: false }); }} className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs" /><label className="mt-1 flex items-center gap-1.5 text-[11px] text-body-muted"><input type="checkbox" checked={identityRemove[field]} onChange={(e) => setIdentityRemove({ ...identityRemove, [field]: e.target.checked })} /> Remove this document</label></div>
               ))}
@@ -1487,8 +1511,26 @@ export default function DashboardPage() {
               <div className="flex gap-2"><button type="button" onClick={sendIdentityOtp} disabled={isSendingIdentityOtp} className="px-3 py-2 rounded-xl text-xs font-bold bg-canvas-warm border border-brand-accent/30">{isSendingIdentityOtp ? "Sending…" : "Send email OTP"}</button><input required maxLength={6} value={identityOtp} onChange={(e) => setIdentityOtp(e.target.value)} placeholder="6-digit OTP" className="flex-1 px-3 py-2 rounded-xl border border-brand-accent/40 text-xs font-mono" /></div>
               {identityError && <p className="text-xs text-red-700">{identityError}</p>}
               {identityMessage && <p className="text-xs text-emerald-700">{identityMessage}</p>}
-              <div className="flex justify-end gap-2"><button type="button" onClick={() => setIdentityMember(null)} className="px-4 py-2 text-xs font-bold">Cancel</button><button disabled={isSavingIdentity} className="px-4 py-2 rounded-full text-xs font-bold text-white va-btn-join">{isSavingIdentity ? "Saving…" : "Save protected changes"}</button></div>
+              <div className="sticky bottom-0 bg-white pt-3 flex justify-end gap-2"><button type="button" onClick={() => setIdentityMember(null)} className="px-4 py-2 text-xs font-bold">Cancel</button><button disabled={isSavingIdentity} className="px-4 py-2 rounded-full text-xs font-bold text-white va-btn-join">{isSavingIdentity ? "Saving…" : "Save protected changes"}</button></div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {(memberPendingRemoval || businessPendingDeletion) && (
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="destructive-action-title">
+          <div className="bg-white border-2 border-red-200 rounded-3xl max-w-md w-full p-6 shadow-warmLg">
+            <h2 id="destructive-action-title" className="text-lg font-bold text-brand-primary">Confirm permanent deletion</h2>
+            <p className="mt-2 text-sm text-body-muted">
+              {memberPendingRemoval
+                ? `Remove ${memberPendingRemoval.fullName} from this household? This cannot be undone.`
+                : `Permanently delete ${businessPendingDeletion?.businessName}? Its business serial will be available for reuse after deletion.`}
+            </p>
+            {memberPendingRemoval && memberRemovalError && <p role="alert" className="mt-3 text-sm text-red-700">{memberRemovalError}</p>}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => { setMemberRemovalError(""); setMemberPendingRemoval(null); setBusinessPendingDeletion(null); }} className="px-4 py-2 text-xs font-bold cursor-pointer">Cancel</button>
+              <button type="button" data-testid="confirm-destructive-delete" disabled={Boolean(memberPendingRemoval && removingMemberId)} onClick={() => memberPendingRemoval ? handleRemoveMember(memberPendingRemoval) : businessPendingDeletion && handleDeleteBusiness(businessPendingDeletion)} className="px-4 py-2 rounded-full text-xs font-bold text-white bg-red-700 hover:bg-red-800 disabled:opacity-60 cursor-pointer min-h-[36px] transition-colors">{memberPendingRemoval && removingMemberId ? "Removing…" : "Delete permanently"}</button>
+            </div>
           </div>
         </div>
       )}

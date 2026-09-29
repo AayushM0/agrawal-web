@@ -201,6 +201,7 @@ export default function SignupPage() {
   const [headPhone, setHeadPhone] = useState("");
   const [headEmail, setHeadEmail] = useState("");
   const [headDob, setHeadDob] = useState("");
+  const [headDobNotSpecified, setHeadDobNotSpecified] = useState(false);
   const [headGender, setHeadGender] = useState("Male");
   const [headMaritalStatus, setHeadMaritalStatus] = useState("Married");
   const [headProfessionTitle, setHeadProfessionTitle] = useState("");
@@ -1464,17 +1465,17 @@ export default function SignupPage() {
                         <input
                           type="date"
                           value={headDob}
-                          onChange={(e) => setHeadDob(e.target.value)}
+                          disabled={headDobNotSpecified}
+                          onChange={(e) => { setHeadDob(e.target.value); setHeadDobNotSpecified(false); }}
                           className="w-full px-3.5 py-2 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-white focus:ring-1 focus:ring-brand-primary outline-none"
                         />
                         <label className="flex items-center gap-1.5 text-[11px] text-body-muted cursor-pointer select-none">
                           <input
                             type="checkbox"
-                            checked={!headDob}
+                            checked={headDobNotSpecified}
                             onChange={(e) => {
-                              if (e.target.checked) {
-                                setHeadDob("");
-                              }
+                              setHeadDobNotSpecified(e.target.checked);
+                              if (e.target.checked) setHeadDob("");
                             }}
                             className="rounded border-gray-300 text-brand-primary focus:ring-brand-primary h-3.5 w-3.5"
                           />

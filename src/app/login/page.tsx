@@ -3,8 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createSession } from "@/actions/session";
-import { verifyAdminPassword, loginWithPassword, activateAccountWithOtp } from "@/actions/auth";
+import { loginAdmin, loginWithPassword, activateAccountWithOtp } from "@/actions/auth";
 import { sendOtp } from "@/actions/otp";
 import { TurnstileWidget } from "@/components/common/TurnstileWidget";
 
@@ -139,20 +138,12 @@ export default function LoginPage() {
         return;
       }
       setIsSubmitting(true);
-      const adminRes = await verifyAdminPassword(adminPassword);
+      const adminRes = await loginAdmin(adminPassword, contact);
       if (!adminRes.success) {
         setIsSubmitting(false);
         setErrorMessage(adminRes.error || "Invalid Admin Master Password. Access denied.");
         return;
       }
-
-      // Create Admin Session
-      await createSession({
-        userId: `admin-${Date.now()}`,
-        role: "admin",
-        contact: contact.trim() || "admin@agarwal-foundation.org",
-        householdStatus: "live",
-      });
 
       setIsSubmitting(false);
       router.push("/admin/moderation");

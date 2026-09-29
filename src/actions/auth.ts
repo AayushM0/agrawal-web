@@ -6,15 +6,12 @@ import { normalizePhoneNumber } from "@/lib/phone";
 import { db } from "@/lib/db";
 import { verifyPassword, evaluateLockout, validatePassword, hashPassword } from "@/lib/auth-crypto";
 import { sendOtp, verifyOtp } from "@/actions/otp";
-import { getSession as sessionGetSession, createSession as sessionCreateSession, clearSession as sessionClearSession, type SessionData } from "./session";
+import { getSession as sessionGetSession, clearSession as sessionClearSession, type SessionData } from "./session";
+import { writeSession as sessionCreateSession } from "@/lib/session-cookie";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
 
 export async function getSession(): Promise<SessionData | null> {
   return sessionGetSession();
-}
-
-export async function createSession(data: SessionData) {
-  return sessionCreateSession(data);
 }
 
 export async function clearSession() {
@@ -53,59 +50,18 @@ export async function verifyAdminPassword(password: string): Promise<{ success: 
   return { success: true };
 }
 
-export async function loginWithVerifiedContact(contact: string): Promise<{ success: boolean; role: "head" | "member"; error?: string }> {
-  if (!contact || contact.trim().length < 5) {
-    return { success: false, role: "head", error: "Valid contact required." };
-  }
+export async function loginAdmin(password: string, contact?: string): Promise<{ success: boolean; error?: string }> {
+  const verification = await verifyAdminPassword(password);
+  if (!verification.success) return verification;
 
-  const clean = contact.trim();
-  const isPhone = !clean.includes("@");
-  const canonicalContact = isPhone ? normalizePhoneNumber(clean) : clean.toLowerCase();
-
-  try {
-    const [member, household] = await Promise.all([
-      db.getMemberByContact(canonicalContact),
-      db.getHouseholdByContact(canonicalContact),
-    ]);
-
-    const effectiveUserId = member?.id || household?.id;
-    if (!effectiveUserId) {
-      return { success: false, role: "head", error: "No registered member found for this contact." };
-    }
-
-    const effectiveHousehold = household || (member?.householdId ? await db.getHouseholdById(member.householdId) : null);
-    const effectiveStatus = effectiveHousehold?.status || "live";
-
-    if (effectiveStatus === "pending_review") {
-      return {
-        success: false,
-        role: "head",
-        error: "Activation Pending: Your family registration is awaiting administrative verification before login can be enabled.",
-      };
-    }
-
-    if (effectiveStatus === "rejected") {
-      return {
-        success: false,
-        role: "head",
-        error: "This registration application was not approved by the administrator.",
-      };
-    }
-
-    const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
-
-    await createSession({
-      userId: String(effectiveUserId),
-      role: effectiveRole,
-      contact: canonicalContact,
-      householdStatus: effectiveStatus,
-    });
-
-    return { success: true, role: effectiveRole };
-  } catch (err: any) {
-    console.error("loginWithVerifiedContact error:", err);
-    return { success: false, role: "head", error: "An unexpected error occurred while establishing your session. Please try again." };
-  }
+  await sessionCreateSession({
+    userId: `admin-${Date.now()}`,
+    role: "admin",
+    contact: contact?.trim() || "admin@agarwal-foundation.org",
+    householdStatus: "live",
+    isActivated: true,
+  });
+  return { success: true };
 }
 
 export async function checkLoginLockout(identifier: string, ip: string) {
@@ -213,7 +169,7 @@ export async function loginWithPassword(params: {
     const effectiveUserId = member?.id || household?.id;
     const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
 
-    await createSession({
+    await sessionCreateSession({
       userId: String(effectiveUserId),
       role: effectiveRole,
       contact: canonicalContact,
@@ -346,7 +302,7 @@ export async function resetPasswordWithOtp(params: {
     const effectiveUserId = member?.id || household?.id;
     const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
 
-    await createSession({
+    await sessionCreateSession({
       userId: String(effectiveUserId),
       role: effectiveRole,
       contact: cleanEmail,
@@ -439,7 +395,7 @@ export async function activateAccountWithOtp(params: {
     const effectiveUserId = member?.id || household?.id;
     const effectiveRole: "head" | "member" = member?.relationToHead === "self" || !member ? "head" : "member";
 
-    await createSession({
+    await sessionCreateSession({
       userId: String(effectiveUserId),
       role: effectiveRole,
       contact: canonicalContact,

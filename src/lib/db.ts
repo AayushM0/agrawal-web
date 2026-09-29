@@ -639,6 +639,20 @@ async function generateNextBusinessSerialNo(client: any): Promise<string> {
   return `MAFLBUS-${value.slice(0, 3)}-${value.slice(3, 6)}-${value.slice(6, 9)}`;
 }
 
+function findLowestAvailableBusinessSerial(profiles: BusinessProfile[]): string {
+  const occupied = new Set(
+    profiles
+      .map((profile) => profile.businessSerialNo)
+      .filter((serial): serial is string => Boolean(serial))
+      .map((serial) => Number(serial.replace(/\D/g, "")))
+      .filter((value) => Number.isSafeInteger(value) && value > 0)
+  );
+  let value = 1;
+  while (occupied.has(value)) value++;
+  const padded = String(value).padStart(9, "0");
+  return `MAFLBUS-${padded.slice(0, 3)}-${padded.slice(3, 6)}-${padded.slice(6, 9)}`;
+}
+
 async function generateNextSerialNo(client: any): Promise<string> {
   return generateNextHouseholdNo(client);
 }
@@ -1107,7 +1121,7 @@ export const db = {
     try {
       const query = `
         SELECT 
-          m.id, m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
+          m.id, m.household_id as "householdId", m.full_name as "fullName", m.relation_to_head as "relationToHead",
           m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
           m.current_country as "currentCountry", m.postal_code as "postalCode", m.state, m.full_address as "fullAddress",
           m.profession_freetext as "profession", m.profession_title as "professionTitle", m.profession_description as "professionDescription",
@@ -1316,7 +1330,7 @@ export const db = {
     try {
       const query = `
         SELECT 
-          m.id, m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
+          m.id, m.household_id as "householdId", m.household_id, m.full_name as "fullName", m.relation_to_head as "relationToHead",
           m.dob, m.gender, m.marital_status as "maritalStatus", m.current_city as "currentCity",
           m.current_country as "currentCountry", m.postal_code as "postalCode", m.state, m.full_address as "fullAddress",
           m.profession_freetext as "profession", m.profession_title as "professionTitle", m.profession_description as "professionDescription",
@@ -1335,6 +1349,7 @@ export const db = {
       const r = res.rows[0];
       return {
         ...r,
+        householdId: String(r.householdId || r.household_id),
         dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
         serialNo: r.serialNo || r.householdSerialNo || r.householdCode,
         householdSerialNo: r.householdSerialNo || r.householdCode,
@@ -1841,6 +1856,7 @@ export const db = {
           return {
             ...r,
             id: String(r.id),
+            householdId: String(r.household_id),
             fullName: r.full_name,
             relationToHead: r.relation_to_head,
             currentCity: r.current_city,
@@ -1866,6 +1882,7 @@ export const db = {
           return {
             ...r,
             id: String(r.id),
+            householdId: String(r.household_id),
             fullName: r.full_name,
             relationToHead: r.relation_to_head,
             currentCity: r.current_city,
@@ -1895,6 +1912,7 @@ export const db = {
           return {
             ...r,
             id: String(r.id),
+            householdId: String(r.household_id),
             fullName: r.full_name,
             relationToHead: r.relation_to_head,
             currentCity: r.current_city,
@@ -1920,6 +1938,7 @@ export const db = {
           return {
             ...r,
             id: String(r.id),
+            householdId: String(r.household_id),
             fullName: r.full_name,
             relationToHead: r.relation_to_head,
             currentCity: r.current_city,
@@ -3794,7 +3813,7 @@ export const db = {
       const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles ||= []);
       const business = list.find((item) => item.id === id);
       if (!business) return { success: false };
-      business.businessSerialNo ||= `MAFLBUS-000-000-${String(list.filter((item) => item.businessSerialNo).length).padStart(3, "0")}`;
+      business.businessSerialNo ||= findLowestAvailableBusinessSerial(list);
       business.status = "live";
       business.isVerifiedBadge = true;
       business.updatedAt = new Date().toISOString();
@@ -3803,6 +3822,7 @@ export const db = {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(8192026)");
       const business = await client.query("SELECT id, business_serial_no FROM business_profiles WHERE id::text = $1 FOR UPDATE", [id]);
       if (!business.rowCount) { await client.query("ROLLBACK"); return { success: false }; }
       const businessSerialNo = business.rows[0].business_serial_no || await generateNextBusinessSerialNo(client);

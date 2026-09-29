@@ -177,18 +177,19 @@ export async function updateIdentityDocuments(input: {
   passportNumber?: string | null;
   govtIdNumber?: string | null;
 }) {
-  const session = await getSession();
-  if (!session?.contact || session.isActivated === false) return { success: false, error: "An activated account is required." };
-  const member = await db.getMemberById(input.memberId);
-  if (!member) return { success: false, error: "Member profile not found." };
-  const household = await db.getHouseholdByContact(session.contact) || await db.getHouseholdById(member.householdId);
-  const isSelf = String(member.id) === String(session.userId) || member.email?.toLowerCase() === session.contact.toLowerCase();
-  if (!isSelf && !(session.role === "head" && household?.id === member.householdId && !member.ownerLocked)) return { success: false, error: "You cannot change this member's identity documents." };
-  const email = member.email?.includes("@") ? member.email.toLowerCase() : (session.contact.includes("@") ? session.contact.toLowerCase() : "");
-  if (!email) return { success: false, error: "A registered email address is required for identity-document changes." };
-  const otp = await verifyOtp({ recipient: email, otp: input.otp });
-  if (!otp.success) return { success: false, error: otp.error || "Invalid or expired email OTP." };
-  const cleanAadhaar = input.aadhaarNumber === undefined ? undefined : input.aadhaarNumber?.replace(/[^0-9]/g, "") || null;
+  try {
+    const session = await getSession();
+    if (!session?.contact || session.isActivated === false) return { success: false, error: "An activated account is required." };
+    const member = await db.getMemberById(input.memberId);
+    if (!member) return { success: false, error: "Member profile not found." };
+    const household = await db.getHouseholdByContact(session.contact) || await db.getHouseholdById(member.householdId);
+    const isSelf = String(member.id) === String(session.userId) || member.email?.toLowerCase() === session.contact.toLowerCase();
+    if (!isSelf && !(session.role === "head" && household?.id === member.householdId && !member.ownerLocked)) return { success: false, error: "You cannot change this member's identity documents." };
+    const email = member.email?.includes("@") ? member.email.toLowerCase() : (session.contact.includes("@") ? session.contact.toLowerCase() : "");
+    if (!email) return { success: false, error: "A registered email address is required for identity-document changes." };
+    const otp = await verifyOtp({ recipient: email, otp: input.otp });
+    if (!otp.success) return { success: false, error: otp.error || "Invalid or expired email OTP." };
+    const cleanAadhaar = input.aadhaarNumber === undefined ? undefined : input.aadhaarNumber?.replace(/[^0-9]/g, "") || null;
   if (cleanAadhaar && cleanAadhaar.length !== 12) return { success: false, error: "Aadhaar must be 12 digits." };
   const pan = input.panNumber === undefined ? undefined : input.panNumber?.trim().toUpperCase() || null;
   if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) return { success: false, error: "PAN format is invalid." };
@@ -203,17 +204,31 @@ export async function updateIdentityDocuments(input: {
     passportNumber: passport === undefined ? undefined : passport ? maskGovtId(passport) : null,
     govtIdNumber: govtId === undefined ? undefined : govtId ? maskGovtId(govtId) : null,
   });
-  return success ? { success: true, message: "Identity documents updated. This does not change admin verification." } : { success: false, error: "Unable to update identity documents." };
+    return success ? { success: true, message: "Identity documents updated. This does not change admin verification." } : { success: false, error: "Unable to update identity documents." };
+  } catch (err) {
+    console.error("[ACTION ERROR] updateIdentityDocuments:", err);
+    return { success: false, error: "Unable to update identity documents. Please try again." };
+  }
 }
 
 export async function removeHouseholdMember(memberId: string) {
+  try {
   const session = await getSession();
   if (!session?.contact || session.isActivated === false) return { success: false, error: "An activated account is required." };
   const household = await db.getHouseholdByContact(session.contact);
   const member = await db.getMemberById(memberId);
-  if (!household || !member || household.id !== member.householdId || session.role !== "head" || member.ownerLocked || member.relationToHead === "self") return { success: false, error: "Only the Head may remove an unclaimed dependent." };
+  const actingMember = await db.getMemberByContact(session.contact);
+  const isHeadByMember = actingMember?.relationToHead === "self" && (actingMember.householdId === household?.id || String(actingMember.householdId) === String(household?.id));
+  const isHeadBySession = session.role === "head" && (household?.verifiedContact?.toLowerCase() === session.contact.toLowerCase() || String(household?.headUserId) === String(session.userId) || !actingMember);
+  const isHouseholdHead = Boolean(isHeadByMember || isHeadBySession);
+  const targetHouseholdId = member?.householdId || member?.household_id;
+  if (!household || !member || (household.id !== member.householdId && String(household.id) !== String(targetHouseholdId)) || !isHouseholdHead || member.ownerLocked || member.relationToHead === "self") return { success: false, error: "Only the Head may remove an unclaimed dependent." };
   if (member.photoUrl) await deleteMemberPhoto(member.photoUrl);
   return (await db.deleteMember(member.id)) ? { success: true } : { success: false, error: "Unable to remove member." };
+  } catch (err) {
+    console.error("[ACTION ERROR] removeHouseholdMember:", err);
+    return { success: false, error: "Unable to remove member. Please try again." };
+  }
 }
 
 export interface AddMemberInput {

@@ -3,7 +3,7 @@
 import { db } from "../lib/db";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { verifyOtp } from "./otp";
-import { createSession } from "./auth";
+import { writeSession } from "@/lib/session-cookie";
 import { maskPhone, maskEmail } from "@/lib/privacy";
 
 function parseMemberIdFromToken(token: string): string | null {
@@ -183,7 +183,7 @@ export async function verifyMemberClaim(input: VerifyMemberClaimInput | string) 
 
     // Establish user session for the newly claimed member
     if (canonicalContact) {
-      await createSession({
+      await writeSession({
         userId: memberId,
         role: "head",
         contact: canonicalContact,

@@ -176,6 +176,7 @@ async function runSeed() {
           {
             fullName: "Vikram Bansal",
             relation: "self",
+            fatherName: "Ramesh Bansal",
             dob: "1972-01-19",
             gender: "male",
             maritalStatus: "married",

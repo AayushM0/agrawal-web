@@ -78,6 +78,18 @@ function BusinessDirectoryContent() {
     fetchProfiles();
   }, [fetchProfiles]);
 
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") fetchProfiles();
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [fetchProfiles]);
+
   const handleResetFilters = () => {
     setQuery("");
     setSelectedSector("All");

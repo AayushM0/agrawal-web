@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { getBusinessProfileById, initiateBusinessChat } from "@/actions/business";
 import type { BusinessProfile } from "@/types/business";
+import { isSafeExternalUrl } from "@/lib/external-url";
 
 export default function BusinessDetailPage() {
   const params = useParams();
@@ -266,7 +267,7 @@ export default function BusinessDetailPage() {
             {/* Social Media Links */}
             {profile.socialLinks && Object.keys(profile.socialLinks).length > 0 && (
               <div className="flex items-center gap-3 text-xs text-body-muted">
-                {profile.socialLinks.linkedin && (
+                {isSafeExternalUrl(profile.socialLinks.linkedin) && (
                   <a
                     href={profile.socialLinks.linkedin}
                     target="_blank"
@@ -276,7 +277,7 @@ export default function BusinessDetailPage() {
                     LinkedIn ↗
                   </a>
                 )}
-                {profile.socialLinks.twitter && (
+                {isSafeExternalUrl(profile.socialLinks.twitter) && (
                   <a
                     href={profile.socialLinks.twitter}
                     target="_blank"
@@ -286,7 +287,7 @@ export default function BusinessDetailPage() {
                     Twitter/X ↗
                   </a>
                 )}
-                {profile.socialLinks.facebook && (
+                {isSafeExternalUrl(profile.socialLinks.facebook) && (
                   <a
                     href={profile.socialLinks.facebook}
                     target="_blank"
@@ -296,7 +297,7 @@ export default function BusinessDetailPage() {
                     Facebook ↗
                   </a>
                 )}
-                {profile.socialLinks.instagram && (
+                {isSafeExternalUrl(profile.socialLinks.instagram) && (
                   <a
                     href={profile.socialLinks.instagram}
                     target="_blank"

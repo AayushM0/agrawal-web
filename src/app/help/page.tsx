@@ -22,7 +22,7 @@ export default function HelpPage() {
     {
       category: "Registration",
       question: "Why is a profile photo and government ID mandatory for the Head of Household?",
-      answer: "To ensure that our community directory remains 100% verified, trusted, and free from duplicate or fraudulent profiles. Government IDs (Aadhaar/PAN/Passport) are hashed securely in the database and checked by moderators. The raw ID is never displayed to other directory members."
+      answer: "To ensure that our community directory remains 100% verified, trusted, and free from duplicate or fraudulent profiles. Government IDs (Aadhaar/PAN/Passport) are protected in the database and checked by moderators. Stored values are write-only: they are never displayed back to directory members or the profile owner."
     },
     {
       category: "Moderation",

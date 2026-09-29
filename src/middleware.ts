@@ -91,9 +91,8 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // 4. Enforce Strict Auth in Production or when ENFORCE_STRICT_AUTH === "true"
-  const isStrictAuth = process.env.NODE_ENV === "production" || process.env.ENFORCE_STRICT_AUTH === "true";
-  if ((isProtectedDirectoryRoute || isProtectedDashboardRoute) && !session && isStrictAuth) {
+  // 4. Dashboard and directory always require a session, including local development.
+  if ((isProtectedDirectoryRoute || isProtectedDashboardRoute) && !session) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("returnUrl", pathname + search);
     return NextResponse.redirect(loginUrl);

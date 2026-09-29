@@ -1,0 +1,53 @@
+[
+  {
+    "verdict": "confirmed",
+    "title": "Arbitrary privileged session minting through exported createSession action",
+    "description": "An unauthenticated caller can directly invoke the exported Server Action with attacker-selected session fields. The action signs and sets a 30-day auth_session cookie, allowing the caller to choose the admin role.",
+    "root_cause": "createSession in src/actions/auth.ts does not restrict direct callers or derive session claims server-side, allowing arbitrary privileged session issuance.",
+    "intended_behavior": "Only completed authentication and authorization flows should create a session using server-derived claims.",
+    "trace": [
+      {"kind":"entrypoint","file":"src/actions/auth.ts","line":16,"scope":"createSession","description":"A Server Action export accepts caller-provided SessionData."},
+      {"kind":"propagation","file":"src/actions/auth.ts","line":17,"scope":"createSession","description":"The caller-provided data is forwarded unchanged to the session writer."},
+      {"kind":"sink","file":"src/actions/session.ts","line":23,"scope":"createSession","description":"A signed auth_session cookie is written with the supplied role and identity claims."}
+    ],
+    "conditions": [],
+    "execution": {"attacker_perspective":"Unauthenticated remote caller.","payloads":["A direct Server Action request with SessionData containing role admin and a chosen identity."],"instructions":["Invoke the exported action directly through the Server Action protocol.","Receive the signed session cookie.","Use the cookie on protected routes."],"expected_result":"The caller receives an authenticated session carrying attacker-chosen authorization claims."},
+    "remediation": {"strategy":"Make session issuance private and derive every claim only after a server-side authentication flow succeeds."},
+    "severity": {"likelihood":{"score":"critical","reason":"The action is remotely dispatchable without authentication."},"impact":{"score":"critical","reason":"An attacker can mint an admin session."},"overall_severity":"critical"},
+    "confidence":{"score":"high","reason":"Source trace and the Next Server Action manifest confirm remote exposure and cookie issuance."}
+  },
+  {
+    "verdict": "confirmed",
+    "title": "Account takeover through loginWithVerifiedContact",
+    "description": "The public Server Action signs in any supplied registered contact without password, OTP, Turnstile, or a prior server-side challenge.",
+    "root_cause": "loginWithVerifiedContact in src/actions/auth.ts does not verify control of the supplied contact before creating a session, allowing account takeover.",
+    "intended_behavior": "A member session should be created only after password or contact-OTP verification.",
+    "trace": [
+      {"kind":"entrypoint","file":"src/actions/auth.ts","line":56,"scope":"loginWithVerifiedContact","description":"The Server Action accepts an arbitrary contact string."},
+      {"kind":"propagation","file":"src/actions/auth.ts","line":64,"scope":"loginWithVerifiedContact","description":"The contact is used to resolve the registered member or household without proof of possession."},
+      {"kind":"sink","file":"src/actions/auth.ts","line":97,"scope":"loginWithVerifiedContact","description":"The action creates a signed session for the resolved account."}
+    ],
+    "conditions": [{"kind":"data_state","description":"The target has a known live registered email address or phone number."}],
+    "execution": {"attacker_perspective":"Unauthenticated caller who knows a target contact.","payloads":["The target's normalized registered email address or phone number."],"instructions":["Invoke the Server Action directly with the target contact.","Receive the session cookie.","Access the target dashboard."],"expected_result":"The caller is authenticated as the target member or household head."},
+    "remediation": {"strategy":"Remove this unauthenticated action or require an already verified server-side OTP challenge bound to the contact."},
+    "severity": {"likelihood":{"score":"high","reason":"Registered contacts are commonly discoverable or known."},"impact":{"score":"high","reason":"The attacker gains target account capabilities."},"overall_severity":"high"},
+    "confidence":{"score":"high","reason":"The action lacks all proof-of-control checks before session creation."}
+  },
+  {
+    "verdict": "confirmed",
+    "title": "Stored XSS through unvalidated business social links",
+    "description": "Business social links are stored without URL validation and rendered as raw public href values. A javascript URL executes when a visitor clicks it.",
+    "root_cause": "createBusinessProfile in src/actions/business.ts does not validate socialLinks before persistence, allowing executable URL schemes to reach public href rendering.",
+    "intended_behavior": "Business profiles should publish only safe external social-network URLs.",
+    "trace": [
+      {"kind":"entrypoint","file":"src/actions/business.ts","line":169,"scope":"createBusinessProfile","description":"Caller-supplied socialLinks are accepted unchanged."},
+      {"kind":"propagation","file":"src/lib/db.ts","line":3681,"scope":"updateBusinessProfile","description":"Social links are JSON-persisted without scheme validation."},
+      {"kind":"sink","file":"src/app/businesses/[id]/page.tsx","line":271,"scope":"BusinessShowcasePage","description":"A stored social link is rendered directly into an href attribute."}
+    ],
+    "conditions": [{"kind":"authentication_level","description":"The attacker can create or edit a business profile that is published."},{"kind":"user_interaction","description":"A public visitor clicks the malicious social link."}],
+    "execution": {"attacker_perspective":"Authenticated business owner.","payloads":["socialLinks.linkedin = javascript:alert(document.domain)"],"instructions":["Store the malicious social URL in a business profile.","Have the profile approved or use a live profile.","Induce a visitor to click the rendered social icon."],"expected_result":"JavaScript executes in the visitor's application-origin browser context."},
+    "remediation": {"strategy":"Allow only canonical HTTPS URLs for approved social hosts at write time and omit non-HTTPS links at render time."},
+    "severity": {"likelihood":{"score":"high","reason":"Any approved business owner can store the payload."},"impact":{"score":"high","reason":"Victim-session JavaScript execution can perform authenticated actions."},"overall_severity":"high"},
+    "confidence":{"score":"high","reason":"The storage and public raw-href trace is directly present in source."}
+  }
+]
