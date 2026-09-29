@@ -167,9 +167,12 @@ export default function BusinessDetailPage() {
                   )}
                 </div>
 
-                {profile.legalName && profile.legalName !== profile.businessName && (
+                    {profile.legalName && profile.legalName !== profile.businessName && (
                   <p className="text-xs text-body-muted">Legal Entity: {profile.legalName}</p>
-                )}
+                    )}
+                    {profile.businessSerialNo && (
+                      <p className="text-xs font-mono font-bold text-brand-burgundy mt-1">Business No: {profile.businessSerialNo}</p>
+                    )}
 
                 {profile.tagline && (
                   <p className="text-xs sm:text-sm italic text-body-muted">

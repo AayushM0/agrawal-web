@@ -7,11 +7,12 @@ import { getCurrentHouseholdDashboard } from "@/actions/dashboard";
 import { createClaimInvite } from "@/actions/claim";
 import { clearSession, activateAccountWithOtp } from "@/actions/auth";
 import { sendOtp } from "@/actions/otp";
-import { saveMemberProfile, saveHouseholdInfo, addHouseholdMember } from "@/actions/profile";
+import { saveMemberProfile, saveHouseholdInfo, addHouseholdMember, removeHouseholdMember, updateIdentityDocuments } from "@/actions/profile";
 import { checkContactRegistration } from "@/actions/register";
 import { gotras } from "@/data/gotras";
 import { Household, Member } from "@/types/household";
 import LocationSelector from "@/components/LocationSelector";
+import { TurnstileWidget } from "@/components/common/TurnstileWidget";
 import { calculateAge, maskContact } from "@/lib/privacy";
 import { optimizeImageForUpload } from "@/lib/image-optimizer";
 import { getMyHouseholdMatrimonialProfiles } from "@/actions/matrimony";
@@ -51,6 +52,16 @@ export default function DashboardPage() {
   const [isSavingMember, setIsSavingMember] = useState(false);
   const [memberSaveError, setMemberSaveError] = useState("");
   const [memberSaveSuccess, setMemberSaveSuccess] = useState("");
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [identityMember, setIdentityMember] = useState<Member | null>(null);
+  const [identityOtp, setIdentityOtp] = useState("");
+  const [identityForm, setIdentityForm] = useState({ aadhaarNumber: "", panNumber: "", passportNumber: "", govtIdNumber: "" });
+  const [identityRemove, setIdentityRemove] = useState({ aadhaarNumber: false, panNumber: false, passportNumber: false, govtIdNumber: false });
+  const [identityMessage, setIdentityMessage] = useState("");
+  const [identityError, setIdentityError] = useState("");
+  const [isSendingIdentityOtp, setIsSendingIdentityOtp] = useState(false);
+  const [isSavingIdentity, setIsSavingIdentity] = useState(false);
+  const [identityTurnstileToken, setIdentityTurnstileToken] = useState("");
 
   // Edit Household Modal State
   const [isEditingHousehold, setIsEditingHousehold] = useState(false);
@@ -405,6 +416,9 @@ export default function DashboardPage() {
         anniversaryDate: editingMember.anniversaryDate,
         currentCity: editingMember.currentCity,
         currentCountry: editingMember.currentCountry,
+        postalCode: editingMember.postalCode,
+        state: editingMember.state,
+        fullAddress: editingMember.fullAddress,
         profession: editingMember.professionTitle || editingMember.profession,
         professionTitle: editingMember.professionTitle,
         professionDescription: editingMember.professionDescription,
@@ -453,6 +467,63 @@ export default function DashboardPage() {
       setIsSavingHousehold(false);
       setHouseholdSaveError(err?.message || "An unexpected error occurred while updating family origin.");
     }
+  };
+
+  const handleRemoveMember = async (member: Member) => {
+    if (!confirm(`Remove ${member.fullName} from this household? This cannot be undone.`)) return;
+    setRemovingMemberId(member.id);
+    const result = await removeHouseholdMember(member.id);
+    setRemovingMemberId(null);
+    if (result.success) loadData();
+    else alert(result.error || "Unable to remove this member.");
+  };
+
+  const openIdentityModal = (member: Member) => {
+    setIdentityMember(member);
+    setIdentityOtp("");
+    setIdentityForm({ aadhaarNumber: "", panNumber: "", passportNumber: "", govtIdNumber: "" });
+    setIdentityRemove({ aadhaarNumber: false, panNumber: false, passportNumber: false, govtIdNumber: false });
+    setIdentityMessage("");
+    setIdentityError("");
+    setIdentityTurnstileToken("");
+  };
+
+  const sendIdentityOtp = async () => {
+    if (!identityMember?.email || !identityMember.email.includes("@")) {
+      setIdentityError("This member needs a registered email address before identity documents can be changed.");
+      return;
+    }
+    setIsSendingIdentityOtp(true);
+    setIdentityError("");
+    if (!identityTurnstileToken) {
+      setIdentityError("Please complete the security challenge before requesting a code.");
+      setIsSendingIdentityOtp(false);
+      return;
+    }
+    const result = await sendOtp({ recipient: identityMember.email, type: "email", turnstileToken: identityTurnstileToken });
+    setIsSendingIdentityOtp(false);
+    if (result.success) setIdentityMessage("A six-digit confirmation code was sent to the member's registered email.");
+    else setIdentityError(result.error || "Unable to send confirmation code.");
+  };
+
+  const saveIdentityDocuments = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!identityMember) return;
+    setIsSavingIdentity(true);
+    setIdentityError("");
+    const result = await updateIdentityDocuments({
+      memberId: identityMember.id,
+      otp: identityOtp,
+      aadhaarNumber: identityForm.aadhaarNumber || (identityRemove.aadhaarNumber ? null : undefined),
+      panNumber: identityForm.panNumber || (identityRemove.panNumber ? null : undefined),
+      passportNumber: identityForm.passportNumber || (identityRemove.passportNumber ? null : undefined),
+      govtIdNumber: identityForm.govtIdNumber || (identityRemove.govtIdNumber ? null : undefined),
+    });
+    setIsSavingIdentity(false);
+    if (result.success) {
+      setIdentityMessage(result.message || "Identity documents updated.");
+      loadData();
+    } else setIdentityError(result.error || "Unable to update identity documents.");
   };
 
   const openAddMemberModal = () => {
@@ -982,6 +1053,9 @@ export default function DashboardPage() {
                           <p className="text-xs text-body-muted">
                             {b.industrySector} • {b.businessType}
                           </p>
+                          <p className="text-[11px] font-mono text-brand-burgundy mt-0.5">
+                            Business No: {b.businessSerialNo || "Pending review"}
+                          </p>
                           <p className="text-xs text-body-muted truncate mt-0.5">
                             📍 {b.city}, {b.state}
                             {b.isVerifiedBadge && (
@@ -1369,6 +1443,25 @@ export default function DashboardPage() {
                           {copiedToken === m.id ? "✓ Link Copied!" : "Invite to Claim"}
                         </button>
                       )}
+                      {canEditThisMember && (
+                        <button
+                          type="button"
+                          onClick={() => requireActivation(() => openIdentityModal(m))}
+                          className="flex-1 sm:flex-initial text-center px-3.5 py-1.5 rounded-full text-xs font-bold text-brand-primary bg-white border border-brand-accent hover:bg-canvas-warm transition-all"
+                        >
+                          Identity documents
+                        </button>
+                      )}
+                      {isHeadUser && !m.ownerLocked && m.relationToHead !== "self" && (
+                        <button
+                          type="button"
+                          disabled={removingMemberId === m.id}
+                          onClick={() => requireActivation(() => handleRemoveMember(m))}
+                          className="flex-1 sm:flex-initial text-center px-3.5 py-1.5 rounded-full text-xs font-bold text-red-700 bg-red-50 border border-red-200 hover:bg-red-100 transition-all disabled:opacity-60"
+                        >
+                          {removingMemberId === m.id ? "Removing…" : "Remove"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -1377,6 +1470,28 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {identityMember && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border-2 border-brand-accent rounded-3xl max-w-lg w-full p-6 shadow-warmLg">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div><h2 className="text-lg font-bold text-brand-primary">Identity documents</h2><p className="text-xs text-body-muted mt-1">Optional and private. Email confirmation protects changes; it does not verify document authenticity or alter the admin-verified badge.</p></div>
+              <button type="button" onClick={() => setIdentityMember(null)} className="text-body-muted">✕</button>
+            </div>
+            <form onSubmit={saveIdentityDocuments} className="space-y-3">
+              {([['aadhaarNumber', 'Aadhaar number'], ['panNumber', 'PAN number'], ['passportNumber', 'Passport number'], ['govtIdNumber', 'Government / tax ID']] as const).map(([field, label]) => (
+                <div key={field}><label className="block text-xs font-bold text-body-heading mb-1">{label} <span className="font-normal text-body-muted">(optional)</span></label><input value={identityForm[field]} onChange={(e) => { setIdentityForm({ ...identityForm, [field]: e.target.value }); setIdentityRemove({ ...identityRemove, [field]: false }); }} className="w-full px-3 py-2 rounded-xl border border-brand-accent/40 text-xs" /><label className="mt-1 flex items-center gap-1.5 text-[11px] text-body-muted"><input type="checkbox" checked={identityRemove[field]} onChange={(e) => setIdentityRemove({ ...identityRemove, [field]: e.target.checked })} /> Remove this document</label></div>
+              ))}
+              <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">Leave a field blank to keep it unchanged. Select “Remove this document” to delete a saved value.</div>
+              <TurnstileWidget onVerify={setIdentityTurnstileToken} onExpire={() => setIdentityTurnstileToken("")} />
+              <div className="flex gap-2"><button type="button" onClick={sendIdentityOtp} disabled={isSendingIdentityOtp} className="px-3 py-2 rounded-xl text-xs font-bold bg-canvas-warm border border-brand-accent/30">{isSendingIdentityOtp ? "Sending…" : "Send email OTP"}</button><input required maxLength={6} value={identityOtp} onChange={(e) => setIdentityOtp(e.target.value)} placeholder="6-digit OTP" className="flex-1 px-3 py-2 rounded-xl border border-brand-accent/40 text-xs font-mono" /></div>
+              {identityError && <p className="text-xs text-red-700">{identityError}</p>}
+              {identityMessage && <p className="text-xs text-emerald-700">{identityMessage}</p>}
+              <div className="flex justify-end gap-2"><button type="button" onClick={() => setIdentityMember(null)} className="px-4 py-2 text-xs font-bold">Cancel</button><button disabled={isSavingIdentity} className="px-4 py-2 rounded-full text-xs font-bold text-white va-btn-join">{isSavingIdentity ? "Saving…" : "Save protected changes"}</button></div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* EDIT MEMBER PROFILE MODAL */}
       {editingMember && (

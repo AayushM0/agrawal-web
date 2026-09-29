@@ -333,6 +333,7 @@ function BusinessDirectoryContent() {
                               <span className="text-body-muted/70">• Est. {profile.yearEstablished}</span>
                             )}
                           </p>
+                          {profile.businessSerialNo && <p className="text-[11px] font-mono text-brand-burgundy mt-1">{profile.businessSerialNo}</p>}
                         </div>
                       </div>
 

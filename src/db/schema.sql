@@ -394,6 +394,7 @@ CREATE TABLE IF NOT EXISTS business_profiles (
     -- Credentials & Verification
     registration_type VARCHAR(50), -- 'GSTIN' | 'MSME' | 'CIN' | 'LLPIN' | 'Trade License' | 'Other'
     registration_number VARCHAR(100),
+    business_serial_no VARCHAR(32) UNIQUE,
     is_verified_badge BOOLEAN NOT NULL DEFAULT FALSE,
     
     -- Geographic Location
@@ -421,6 +422,8 @@ CREATE INDEX IF NOT EXISTS idx_business_profiles_household ON business_profiles(
 CREATE INDEX IF NOT EXISTS idx_business_profiles_sector ON business_profiles(industry_sector);
 CREATE INDEX IF NOT EXISTS idx_business_profiles_city ON business_profiles(city);
 CREATE INDEX IF NOT EXISTS idx_business_profiles_created_by ON business_profiles(created_by_member_id);
+ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS business_serial_no VARCHAR(32) UNIQUE;
+CREATE INDEX IF NOT EXISTS idx_business_profiles_serial_no ON business_profiles(business_serial_no);
 
 -- 9e. Global Jobs & Careers Network (Pillar 4: career_profiles)
 CREATE TABLE IF NOT EXISTS career_profiles (

@@ -703,7 +703,7 @@ export default function SignupPage() {
         return;
       }
     } else {
-      if (!passportNumber.trim() || passportNumber.trim().length < 5) {
+      if (passportNumber.trim() && passportNumber.trim().length < 5) {
         const msg = "Please enter a valid Passport Number.";
         setStep2Error(msg);
         showToast(msg, "error");
@@ -1668,7 +1668,7 @@ export default function SignupPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] font-bold text-body-heading mb-1">
-                          Passport Number *
+                          Passport Number (Optional)
                         </label>
                         <input
                           type="text"

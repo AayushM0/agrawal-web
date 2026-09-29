@@ -87,9 +87,8 @@ export function sanitizeMemberProfile(member: any, session: SessionData | null):
 
   const birthYear = extractBirthYear(member.dob);
 
-  const isGovtIdVerified = Boolean(
-    member.aadhaarNumber || member.panNumber || member.passportNumber || member.govtIdNumber || member.isGovtIdVerified
-  );
+  // Document presence is not identity verification; that status is assigned independently by administrators.
+  const isGovtIdVerified = Boolean(member.isGovtIdVerified);
 
   const isSelf =
     Boolean(session &&

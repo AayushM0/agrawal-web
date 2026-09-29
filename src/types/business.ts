@@ -46,6 +46,7 @@ export interface BusinessProfile {
   // Verification & Compliance
   registrationType?: string;
   registrationNumber?: string;
+  businessSerialNo?: string;
   isVerifiedBadge: boolean;
 
   // Location

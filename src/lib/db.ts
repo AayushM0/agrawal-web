@@ -410,6 +410,7 @@ async function ensureSchema(client: any) {
           offerings_summary TEXT,
           registration_type VARCHAR(50),
           registration_number VARCHAR(100),
+          business_serial_no VARCHAR(32) UNIQUE,
           contact_phone VARCHAR(50),
           contact_email VARCHAR(255),
           whatsapp_number VARCHAR(50),
@@ -436,6 +437,8 @@ async function ensureSchema(client: any) {
       ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50);
       ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255);
       ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50);
+      ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS business_serial_no VARCHAR(32) UNIQUE;
+      CREATE INDEX IF NOT EXISTS idx_business_profiles_serial_no ON business_profiles(business_serial_no);
 
       -- Career Profiles Table (Global Jobs & Careers Network - Pillar 4)
       CREATE TABLE IF NOT EXISTS career_profiles (
@@ -617,6 +620,23 @@ async function generateNextMemberSerialNo(client: any): Promise<string> {
     const rand = Math.floor(100000000 + Math.random() * 900000000).toString();
     return `MAFL-${rand.slice(0, 3)}-${rand.slice(3, 6)}-${rand.slice(6, 9)}`;
   }
+}
+
+async function generateNextBusinessSerialNo(client: any): Promise<string> {
+  const result = await client.query(`
+    WITH existing_nums AS (
+      SELECT NULLIF(regexp_replace(business_serial_no, '[^0-9]', '', 'g'), '')::bigint AS num
+      FROM business_profiles
+      WHERE business_serial_no LIKE 'MAFLBUS-%'
+    ), bounds AS (
+      SELECT 1 AS start_num, COALESCE(MAX(num), 0) + 1 AS max_num FROM existing_nums
+    )
+    SELECT n FROM generate_series((SELECT start_num FROM bounds), (SELECT max_num FROM bounds)) n
+    WHERE NOT EXISTS (SELECT 1 FROM existing_nums e WHERE e.num = n)
+    ORDER BY n ASC LIMIT 1
+  `);
+  const value = Number(result.rows[0]?.n || 1).toString().padStart(9, "0");
+  return `MAFLBUS-${value.slice(0, 3)}-${value.slice(3, 6)}-${value.slice(6, 9)}`;
 }
 
 async function generateNextSerialNo(client: any): Promise<string> {
@@ -1918,7 +1938,7 @@ export const db = {
     }
   },
 
-  async updateMemberProfile(memberId: string, updates: Omit<Partial<Member>, "dob" | "photoUrl"> & { dob?: string | null; photoUrl?: string | null }): Promise<boolean> {
+  async updateMemberProfile(memberId: string, updates: Omit<Partial<Member>, "dob" | "photoUrl" | "postalCode" | "state" | "fullAddress"> & { dob?: string | null; photoUrl?: string | null; postalCode?: string | null; state?: string | null; fullAddress?: string | null }): Promise<boolean> {
     if (!pool) return true;
     try {
       const safeDob = updates.dob !== undefined ? (updates.dob ? sanitizeDate(updates.dob) : null) : undefined;
@@ -1932,6 +1952,9 @@ export const db = {
              marital_status = COALESCE($7, marital_status),
              current_city = COALESCE($8, current_city),
              current_country = COALESCE($9, current_country),
+             postal_code = CASE WHEN $25::boolean THEN $22 ELSE postal_code END,
+             state = CASE WHEN $26::boolean THEN $23 ELSE state END,
+             full_address = CASE WHEN $27::boolean THEN $24 ELSE full_address END,
              profession_freetext = COALESCE($10, profession_freetext),
              profession_title = COALESCE($11, profession_title),
              profession_description = COALESCE($12, profession_description),
@@ -1966,6 +1989,12 @@ export const db = {
           updates.relationToHead ? updates.relationToHead.toLowerCase() : null,
           updates.photoUrl !== undefined,
           updates.dob !== undefined,
+          updates.postalCode !== undefined ? (updates.postalCode?.trim() || null) : null,
+          updates.state !== undefined ? (updates.state?.trim() || null) : null,
+          updates.fullAddress !== undefined ? (updates.fullAddress?.trim() || null) : null,
+          updates.postalCode !== undefined,
+          updates.state !== undefined,
+          updates.fullAddress !== undefined,
         ]
       );
       if (res.rows.length > 0 && updates.fullName && updates.relationToHead === "self") {
@@ -1977,17 +2006,21 @@ export const db = {
     }
   },
 
-  async updateHouseholdProfile(householdId: string, updates: { nativePlace?: string; gotra?: string; headName?: string }): Promise<boolean> {
+  async updateHouseholdProfile(householdId: string, updates: { nativePlace?: string; gotra?: string; headName?: string; country?: string; city?: string; postalCode?: string | null; state?: string | null; fullAddress?: string | null }): Promise<boolean> {
     if (!pool) return true;
     try {
       const res = await pool.query(
         `UPDATE households 
          SET native_place = COALESCE($2, native_place),
              gotra = COALESCE($3, gotra),
-             head_name = COALESCE($4, head_name)
+             head_name = COALESCE($4, head_name),
+             country = COALESCE($5, country), city = COALESCE($6, city),
+             postal_code = CASE WHEN $10::boolean THEN $7 ELSE postal_code END,
+             state = CASE WHEN $11::boolean THEN $8 ELSE state END,
+             full_address = CASE WHEN $12::boolean THEN $9 ELSE full_address END
          WHERE id::text = $1 OR household_code = $1
          RETURNING id;`,
-        [householdId, updates.nativePlace?.trim() || null, updates.gotra?.trim() || null, updates.headName?.trim() || null]
+        [householdId, updates.nativePlace?.trim() || null, updates.gotra?.trim() || null, updates.headName?.trim() || null, updates.country?.trim() || null, updates.city?.trim() || null, updates.postalCode !== undefined ? (updates.postalCode?.trim() || null) : null, updates.state !== undefined ? (updates.state?.trim() || null) : null, updates.fullAddress !== undefined ? (updates.fullAddress?.trim() || null) : null, updates.postalCode !== undefined, updates.state !== undefined, updates.fullAddress !== undefined]
       );
       return res.rows.length > 0;
     } catch (e) {
@@ -3705,6 +3738,7 @@ export const db = {
       const idx = list.findIndex((p) => p.id === id);
       if (idx === -1) return false;
       list[idx].status = status;
+      if (status === "rejected") list[idx].businessSerialNo = undefined;
       if (rejectionReason !== undefined) list[idx].rejectionReason = rejectionReason;
       if (isVerifiedBadge !== undefined) list[idx].isVerifiedBadge = isVerifiedBadge;
       list[idx].updatedAt = new Date().toISOString();
@@ -3723,6 +3757,7 @@ export const db = {
         sets.push(`is_verified_badge = $${paramIndex++}`);
         values.push(isVerifiedBadge);
       }
+      if (status === "rejected") sets.push("business_serial_no = NULL");
 
       const res = await pool.query(
         `UPDATE business_profiles SET ${sets.join(", ")} WHERE id::text = $1 RETURNING id;`,
@@ -3733,6 +3768,54 @@ export const db = {
       console.error("[DB ERROR] setBusinessProfileStatus:", err);
       return false;
     }
+  },
+
+  async updateMemberIdentityDocuments(memberId: string, updates: { aadhaarNumber?: string | null; aadhaarHash?: string | null; panNumber?: string | null; passportNumber?: string | null; govtIdNumber?: string | null }): Promise<boolean> {
+    if (!pool) return true;
+    const res = await pool.query(
+      `UPDATE members SET aadhaar_number = CASE WHEN $2::boolean THEN $3 ELSE aadhaar_number END,
+       aadhaar_hash = CASE WHEN $2::boolean THEN $4 ELSE aadhaar_hash END,
+       pan_number = CASE WHEN $5::boolean THEN $6 ELSE pan_number END,
+       passport_number = CASE WHEN $7::boolean THEN $8 ELSE passport_number END,
+       govt_id_number = CASE WHEN $9::boolean THEN $10 ELSE govt_id_number END WHERE id::text = $1 RETURNING id;`,
+      [memberId, updates.aadhaarNumber !== undefined, updates.aadhaarNumber ?? null, updates.aadhaarHash ?? null, updates.panNumber !== undefined, updates.panNumber ?? null, updates.passportNumber !== undefined, updates.passportNumber ?? null, updates.govtIdNumber !== undefined, updates.govtIdNumber ?? null]
+    );
+    return res.rows.length > 0;
+  },
+
+  async deleteMember(memberId: string): Promise<boolean> {
+    if (!pool) return true;
+    const res = await pool.query("DELETE FROM members WHERE id::text = $1 RETURNING id;", [memberId]);
+    return res.rows.length > 0;
+  },
+
+  async approveAndVerifyBusinessProfile(id: string): Promise<{ success: boolean; businessSerialNo?: string }> {
+    if (!pool) {
+      const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles ||= []);
+      const business = list.find((item) => item.id === id);
+      if (!business) return { success: false };
+      business.businessSerialNo ||= `MAFLBUS-000-000-${String(list.filter((item) => item.businessSerialNo).length).padStart(3, "0")}`;
+      business.status = "live";
+      business.isVerifiedBadge = true;
+      business.updatedAt = new Date().toISOString();
+      return { success: true, businessSerialNo: business.businessSerialNo };
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const business = await client.query("SELECT id, business_serial_no FROM business_profiles WHERE id::text = $1 FOR UPDATE", [id]);
+      if (!business.rowCount) { await client.query("ROLLBACK"); return { success: false }; }
+      const businessSerialNo = business.rows[0].business_serial_no || await generateNextBusinessSerialNo(client);
+      await client.query(
+        "UPDATE business_profiles SET status = 'live', is_verified_badge = TRUE, business_serial_no = $2, updated_at = NOW() WHERE id::text = $1",
+        [id, businessSerialNo]
+      );
+      await client.query("COMMIT");
+      return { success: true, businessSerialNo };
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw err;
+    } finally { client.release(); }
   },
 
   async deleteBusinessProfile(id: string, householdId?: string): Promise<boolean> {
@@ -4453,6 +4536,7 @@ function mapBusinessProfileRow(row: any): BusinessProfile {
     offeringsSummary: row.offerings_summary || row.offeringsSummary || undefined,
     registrationType: row.registration_type || row.registrationType || undefined,
     registrationNumber: row.registration_number || row.registrationNumber || undefined,
+    businessSerialNo: row.business_serial_no || row.businessSerialNo || undefined,
     contactPhone: row.contact_phone || row.contactPhone || undefined,
     contactEmail: row.contact_email || row.contactEmail || undefined,
     whatsappNumber: row.whatsapp_number || row.whatsappNumber || undefined,

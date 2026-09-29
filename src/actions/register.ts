@@ -180,8 +180,8 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
       return { success: false, error: "A valid 10-character PAN Number (e.g. ABCDE1234F) is required if provided." };
     }
   } else {
-    if (!cleanPassport || cleanPassport.length < 5) {
-      return { success: false, error: "A valid Passport Number is required for international members." };
+    if (cleanPassport && cleanPassport.length < 5) {
+      return { success: false, error: "A valid Passport Number is required if provided." };
     }
     if (cleanGovtId && cleanGovtId.length < 3) {
       return { success: false, error: "A valid Government Issued ID / Tax ID is required if provided." };

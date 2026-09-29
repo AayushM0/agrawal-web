@@ -12,6 +12,16 @@ export interface DeleteAccountInput {
 }
 
 export async function deleteHouseholdAccount(input: DeleteAccountInput) {
+  const currentSession = await getSession();
+  if (!currentSession?.contact) {
+    return { success: false, error: "Unauthorized: sign in before deleting an account." };
+  }
+  if (currentSession.isActivated === false) {
+    return { success: false, error: "Unauthorized: activate your account before deleting it." };
+  }
+  if (currentSession.contact.toLowerCase() !== input.verifiedContact.trim().toLowerCase()) {
+    return { success: false, error: "Unauthorized: only the household owner may delete this account." };
+  }
   // 1. Verify OTP confirmation
   const otpRes = await verifyOtp({ recipient: input.verifiedContact, otp: input.otp });
   if (!otpRes.success) {
@@ -40,7 +50,6 @@ export async function deleteHouseholdAccount(input: DeleteAccountInput) {
   await db.deleteHousehold(targetId);
 
   // 5. Clear active session cookie if current user is deleting their own account
-  const currentSession = await getSession();
   if (currentSession && (currentSession.contact === input.verifiedContact || currentSession.userId === targetId)) {
     await clearSession();
   }

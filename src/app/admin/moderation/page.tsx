@@ -33,7 +33,6 @@ export default function ModerationQueuePage() {
   const [drafts, setDrafts] = useState<any[]>([]);
   const [pendingBusinesses, setPendingBusinesses] = useState<BusinessProfile[]>([]);
   const [liveJobs, setLiveJobs] = useState<JobPosting[]>([]);
-  const [awardVerifiedMap, setAwardVerifiedMap] = useState<Record<string, boolean>>({});
   const [rejectingBusinessId, setRejectingBusinessId] = useState<string | null>(null);
   const [businessRejectReason, setBusinessRejectReason] = useState("");
   const [filter, setFilter] = useState<"pending" | "approved" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue" | "businesses" | "careers" | "assisted">("pending");
@@ -109,11 +108,7 @@ export default function ModerationQueuePage() {
   };
 
   const handleApproveBusiness = async (businessId: string) => {
-    const awardVerified = Boolean(awardVerifiedMap[businessId]);
-    const res = await approveBusinessProfileAction({
-      businessId,
-      awardVerifiedBadge: awardVerified,
-    });
+    const res = await approveBusinessProfileAction({ businessId });
     if (res.success) {
       setPendingBusinesses((prev) => prev.filter((b) => b.id !== businessId));
       setStatusMessage(res.message || "Business enterprise approved and published live!");
@@ -1256,7 +1251,6 @@ export default function ModerationQueuePage() {
             ) : (
               <div className="space-y-6">
                 {pendingBusinesses.map((b) => {
-                  const isVerifiedChecked = Boolean(awardVerifiedMap[b.id] ?? true);
                   const photos = b.photos || [];
 
                   return (
@@ -1305,6 +1299,7 @@ export default function ModerationQueuePage() {
                               {b.pincode ? ` (${b.pincode})` : ""}
                               {b.yearEstablished ? ` • Est. ${b.yearEstablished}` : ""}
                             </p>
+                            <p className="text-xs font-mono text-brand-burgundy">Business No: {b.businessSerialNo || "Pending review"}</p>
                           </div>
                         </div>
 
@@ -1391,23 +1386,8 @@ export default function ModerationQueuePage() {
                         </div>
                       )}
 
-                      {/* Action & Verification Controls */}
+                      {/* Moderation actions */}
                       <div className="pt-3 border-t border-brand-accent/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <label className="inline-flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-emerald-800 bg-emerald-50 px-3.5 py-2 rounded-xl border border-emerald-200 shadow-xs">
-                          <input
-                            type="checkbox"
-                            checked={isVerifiedChecked}
-                            onChange={(e) =>
-                              setAwardVerifiedMap((prev) => ({
-                                ...prev,
-                                [b.id]: e.target.checked,
-                              }))
-                            }
-                            className="w-4 h-4 text-emerald-600 rounded border-emerald-300 focus:ring-emerald-500"
-                          />
-                          <span>Award Verified Enterprise Badge (सत्यापित प्रतिष्ठान बैज)</span>
-                        </label>
-
                         <div className="flex items-center gap-2.5">
                           <button
                             type="button"
@@ -1424,7 +1404,7 @@ export default function ModerationQueuePage() {
                             onClick={() => handleApproveBusiness(b.id)}
                             className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 shadow-xs transition"
                           >
-                            ✓ Approve &amp; Publish Live
+                            ✓ Approve & Verify Business
                           </button>
                         </div>
                       </div>

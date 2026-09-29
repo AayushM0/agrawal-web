@@ -34,9 +34,28 @@ export async function getCurrentHouseholdDashboard(): Promise<{
     };
   }
 
+  const safeHousehold = household
+    ? {
+        ...household,
+        aadhaarNumber: undefined,
+        aadhaarHash: undefined,
+        panNumber: undefined,
+        passportNumber: undefined,
+        govtIdNumber: undefined,
+        members: household.members?.map((member) => ({
+          ...member,
+          aadhaarNumber: undefined,
+          aadhaarHash: undefined,
+          panNumber: undefined,
+          passportNumber: undefined,
+          govtIdNumber: undefined,
+        })),
+      }
+    : null;
+
   return {
     success: true,
-    household: household || null,
+    household: safeHousehold,
     sessionContact: session.contact,
     isActivated: session.isActivated !== false,
     householdStatus: household?.status,

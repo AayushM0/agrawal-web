@@ -23,6 +23,26 @@ test("Seam 1: Top navigation bar must suppress horizontal scrollbars", () => {
   );
 });
 
+test("Seam 33: optional international IDs and secure profile controls", () => {
+  const register = fs.readFileSync(path.join(webRoot, "src/actions/register.ts"), "utf8");
+  const signup = fs.readFileSync(path.join(webRoot, "src/app/signup/page.tsx"), "utf8");
+  const profile = fs.readFileSync(path.join(webRoot, "src/actions/profile.ts"), "utf8");
+  const account = fs.readFileSync(path.join(webRoot, "src/actions/account.ts"), "utf8");
+
+  assert.ok(!register.includes('A valid Passport Number is required for international members.'), "Passport must be optional");
+  assert.ok(!signup.includes('Passport Number *'), "Passport label must not imply a requirement");
+  assert.ok(profile.includes("updateIdentityDocuments"), "Sensitive IDs need their own protected action");
+  assert.ok(profile.includes("verifyOtp"), "Sensitive ID changes must require an OTP");
+  assert.ok(profile.includes("postalCode") && profile.includes("fullAddress"), "Profile address updates must persist all fields");
+  assert.ok(account.includes("Unauthorized: sign in"), "Account deletion must require an authenticated session");
+});
+
+test("Seam 34: identity editor must not clear untouched documents", () => {
+  const dashboard = fs.readFileSync(path.join(webRoot, "src/app/dashboard/page.tsx"), "utf8");
+  assert.ok(dashboard.includes("identityRemove"), "Identity editor must distinguish removal from an untouched blank field");
+  assert.ok(dashboard.includes("? null : undefined"), "Untouched document fields must be omitted from partial updates");
+});
+
 // --- SEAM 2: Database Schema & PostGIS DDL Integrity ---
 test("Seam 2: PostgreSQL schema DDL contains all required tables and indexes", () => {
   const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");

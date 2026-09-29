@@ -654,24 +654,18 @@ export async function getPendingBusinessProfilesAction(): Promise<{
 }
 
 /**
- * Approve business profile, publishing it live and optionally granting verified badge.
+ * Approve, publish, and verify a business profile in one moderation decision.
  */
 export async function approveBusinessProfileAction(params: {
   businessId: string;
-  awardVerifiedBadge?: boolean;
 }): Promise<{ success: boolean; message?: string; error?: string }> {
   const session = await getSession();
   if (session?.role !== "admin") {
     return { success: false, error: "Unauthorized: Admin privileges required." };
   }
   try {
-    const ok = await db.setBusinessProfileStatus(
-      params.businessId,
-      "live",
-      undefined,
-      Boolean(params.awardVerifiedBadge)
-    );
-    if (!ok) {
+    const approval = await db.approveAndVerifyBusinessProfile(params.businessId);
+    if (!approval.success) {
       return { success: false, error: "Business profile not found or update failed." };
     }
 
@@ -682,15 +676,17 @@ export async function approveBusinessProfileAction(params: {
       action: "APPROVE_BUSINESS",
       targetType: "business",
       targetId: params.businessId,
-      details: { awardVerifiedBadge: Boolean(params.awardVerifiedBadge) },
+      details: {
+        awardVerifiedBadge: true,
+        businessSerialNo: approval.businessSerialNo,
+        outcome: "approved, published live, and verified",
+      },
       ipAddress,
     });
 
     return {
       success: true,
-      message: `Business enterprise successfully approved and published live${
-        params.awardVerifiedBadge ? " with Verified Enterprise Badge" : ""
-      }.`,
+      message: "Business enterprise successfully approved, published live, and verified.",
     };
   } catch (err: any) {
     console.error("approveBusinessProfileAction error:", err);

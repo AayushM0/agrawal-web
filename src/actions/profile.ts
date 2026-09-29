@@ -2,8 +2,10 @@
 
 import { db } from "@/lib/db";
 import { getSession } from "./auth";
-import { uploadMemberPhoto } from "@/lib/storage";
+import { deleteMemberPhoto, uploadMemberPhoto } from "@/lib/storage";
 import type { Member } from "@/types/household";
+import { verifyOtp } from "@/actions/otp";
+import { hashGovtId, maskAadhaar, maskGovtId } from "@/lib/privacy";
 
 export interface UpdateProfileInput {
   memberId: string;
@@ -17,6 +19,9 @@ export interface UpdateProfileInput {
   anniversaryDate?: string;
   currentCity?: string;
   currentCountry?: string;
+  postalCode?: string | null;
+  state?: string | null;
+  fullAddress?: string | null;
   profession?: string;
   professionTitle?: string;
   professionDescription?: string;
@@ -100,6 +105,9 @@ export async function saveMemberProfile(input: UpdateProfileInput) {
     anniversaryDate: input.maritalStatus === "Married" && input.anniversaryDate ? input.anniversaryDate.trim() : undefined,
     currentCity: input.currentCity?.trim() || undefined,
     currentCountry: input.currentCountry?.trim() || "India",
+    postalCode: input.postalCode,
+    state: input.state,
+    fullAddress: input.fullAddress,
     profession: input.professionTitle?.trim() || input.profession?.trim() || undefined,
     professionTitle: input.professionTitle?.trim() || undefined,
     professionDescription: input.professionDescription?.trim() || undefined,
@@ -159,6 +167,53 @@ export async function saveHouseholdInfo(householdId: string, updates: { nativePl
     success: true,
     message: "Family details updated successfully!",
   };
+}
+
+export async function updateIdentityDocuments(input: {
+  memberId: string;
+  otp: string;
+  aadhaarNumber?: string | null;
+  panNumber?: string | null;
+  passportNumber?: string | null;
+  govtIdNumber?: string | null;
+}) {
+  const session = await getSession();
+  if (!session?.contact || session.isActivated === false) return { success: false, error: "An activated account is required." };
+  const member = await db.getMemberById(input.memberId);
+  if (!member) return { success: false, error: "Member profile not found." };
+  const household = await db.getHouseholdByContact(session.contact) || await db.getHouseholdById(member.householdId);
+  const isSelf = String(member.id) === String(session.userId) || member.email?.toLowerCase() === session.contact.toLowerCase();
+  if (!isSelf && !(session.role === "head" && household?.id === member.householdId && !member.ownerLocked)) return { success: false, error: "You cannot change this member's identity documents." };
+  const email = member.email?.includes("@") ? member.email.toLowerCase() : (session.contact.includes("@") ? session.contact.toLowerCase() : "");
+  if (!email) return { success: false, error: "A registered email address is required for identity-document changes." };
+  const otp = await verifyOtp({ recipient: email, otp: input.otp });
+  if (!otp.success) return { success: false, error: otp.error || "Invalid or expired email OTP." };
+  const cleanAadhaar = input.aadhaarNumber === undefined ? undefined : input.aadhaarNumber?.replace(/[^0-9]/g, "") || null;
+  if (cleanAadhaar && cleanAadhaar.length !== 12) return { success: false, error: "Aadhaar must be 12 digits." };
+  const pan = input.panNumber === undefined ? undefined : input.panNumber?.trim().toUpperCase() || null;
+  if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) return { success: false, error: "PAN format is invalid." };
+  const passport = input.passportNumber === undefined ? undefined : input.passportNumber?.trim().toUpperCase() || null;
+  if (passport && passport.length < 5) return { success: false, error: "Passport number is too short." };
+  const govtId = input.govtIdNumber === undefined ? undefined : input.govtIdNumber?.trim().toUpperCase() || null;
+  if (govtId && govtId.length < 3) return { success: false, error: "Government/tax ID is too short." };
+  const success = await db.updateMemberIdentityDocuments(member.id, {
+    aadhaarNumber: cleanAadhaar === undefined ? undefined : cleanAadhaar ? maskAadhaar(cleanAadhaar) : null,
+    aadhaarHash: cleanAadhaar === undefined ? undefined : cleanAadhaar ? hashGovtId(cleanAadhaar) : null,
+    panNumber: pan === undefined ? undefined : pan ? maskGovtId(pan) : null,
+    passportNumber: passport === undefined ? undefined : passport ? maskGovtId(passport) : null,
+    govtIdNumber: govtId === undefined ? undefined : govtId ? maskGovtId(govtId) : null,
+  });
+  return success ? { success: true, message: "Identity documents updated. This does not change admin verification." } : { success: false, error: "Unable to update identity documents." };
+}
+
+export async function removeHouseholdMember(memberId: string) {
+  const session = await getSession();
+  if (!session?.contact || session.isActivated === false) return { success: false, error: "An activated account is required." };
+  const household = await db.getHouseholdByContact(session.contact);
+  const member = await db.getMemberById(memberId);
+  if (!household || !member || household.id !== member.householdId || session.role !== "head" || member.ownerLocked || member.relationToHead === "self") return { success: false, error: "Only the Head may remove an unclaimed dependent." };
+  if (member.photoUrl) await deleteMemberPhoto(member.photoUrl);
+  return (await db.deleteMember(member.id)) ? { success: true } : { success: false, error: "Unable to remove member." };
 }
 
 export interface AddMemberInput {
