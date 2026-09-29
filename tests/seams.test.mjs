@@ -425,6 +425,11 @@ test("Seam 17: Cloudflare Turnstile server service and client widget adhere to c
   assert.ok(widgetCode.includes("challenges.cloudflare.com/turnstile/v0/api.js"), "TurnstileWidget must load official Cloudflare Turnstile API");
   assert.ok(widgetCode.includes("isDevFallback"), "TurnstileWidget must provide local developer fallback");
   assert.ok(widgetCode.includes("min-h-[65px]"), "TurnstileWidget must enforce min-height to eliminate Cumulative Layout Shift (CLS)");
+  assert.ok(widgetCode.includes("isNgrokDevHost"), "TurnstileWidget must recognize ngrok development tunnels");
+  assert.ok(widgetCode.includes(".ngrok-free.dev"), "TurnstileWidget must recognize ngrok-free.dev tunnels");
+  assert.ok(widgetCode.includes(".ngrok-free.app"), "TurnstileWidget must recognize ngrok-free.app tunnels");
+  assert.ok(widgetCode.includes(".ngrok.io"), "TurnstileWidget must recognize ngrok.io tunnels");
+  assert.ok(widgetCode.includes("process.env.NODE_ENV !== 'production'"), "ngrok test-key handling must remain development-only");
 
   // 3. OTP bill-bombing protection & Turnstile gate
   const otpCode = fs.readFileSync(path.join(webRoot, "src/actions/otp.ts"), "utf8");

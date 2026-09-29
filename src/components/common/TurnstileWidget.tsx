@@ -75,8 +75,16 @@ export function TurnstileWidget({
     window.location.hostname.endsWith('.local')
   );
 
+  const isNgrokDevHost = typeof window !== 'undefined' &&
+    process.env.NODE_ENV !== 'production' && (
+      window.location.hostname.endsWith('.ngrok-free.dev') ||
+      window.location.hostname.endsWith('.ngrok-free.app') ||
+      window.location.hostname.endsWith('.ngrok.io')
+    );
+
   const isPreviewHost = typeof window !== 'undefined' && (
     window.location.hostname.endsWith('.vercel.app') ||
+    isNgrokDevHost ||
     isLocalHost
   );
 
