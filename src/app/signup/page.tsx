@@ -34,9 +34,6 @@ export default function SignupPage() {
 
   const showToast = (message: string, type: "error" | "success" | "warning" = "error") => {
     setToast({ message, type, id: Date.now() });
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 120, behavior: "smooth" });
-    }
   };
 
   useEffect(() => {
@@ -351,16 +348,22 @@ export default function SignupPage() {
   const handleContactBlur = async (field: "email" | "phone") => {
     if (field === "email") {
       setStep1EmailError(null);
-      if (!contactValue.trim()) return;
+      if (!contactValue.trim()) {
+        setEmailSuggestion(null);
+        return;
+      }
 
       const emailValidation = validateEmail(contactValue);
       if (!emailValidation.isValid) {
         setStep1EmailError(emailValidation.error || "Please enter a valid primary email address.");
+        setEmailSuggestion(null);
         return;
       }
 
       if (emailValidation.suggestion && emailDecision === null) {
         setEmailSuggestion(emailValidation.suggestion);
+      } else {
+        setEmailSuggestion(null);
       }
 
       const cleanEmail = emailValidation.canonical!;
@@ -416,6 +419,7 @@ export default function SignupPage() {
             email: emailValidation.error || "Please enter a valid email address.",
           },
         }));
+        setMemberEmailSuggestions((prev) => ({ ...prev, [memberId]: null }));
         return;
       }
 
@@ -535,6 +539,8 @@ export default function SignupPage() {
       setOtpError(msg);
       showToast(msg, "warning");
       return;
+    } else {
+      setEmailSuggestion(null);
     }
 
     const cleanEmail = emailRes.canonical!;
@@ -975,10 +981,6 @@ export default function SignupPage() {
 
     if (!turnstileToken) {
       showToast("Please complete the security verification challenge below before submitting.", "error");
-      const turnstileElem = document.getElementById("turnstile-box");
-      if (turnstileElem) {
-        turnstileElem.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
       return;
     }
 
@@ -1165,7 +1167,7 @@ export default function SignupPage() {
       {toast && (
         <div
           role="alert"
-          className={`fixed top-6 right-4 sm:right-8 z-50 max-w-md p-4 rounded-2xl shadow-2xl border-2 flex items-start gap-3 animate-in slide-in-from-top-4 duration-300 ${
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-lg p-4 rounded-2xl shadow-2xl border-2 flex items-start gap-3 animate-in slide-in-from-bottom-5 duration-300 ${
             toast.type === "error"
               ? "bg-red-950/95 text-red-100 border-red-500 backdrop-blur-md"
               : toast.type === "warning"
@@ -1339,7 +1341,7 @@ export default function SignupPage() {
 
                   <p className="text-[11px] text-body-muted mt-2 flex items-center gap-1.5">
                     <span>🔒</span>
-                    <span>Formatting checks prevent typos. Access to this inbox will be confirmed upon account activation.</span>
+                    <span>Format check only; we do not verify whether this inbox exists.</span>
                   </p>
                 </div>
 
@@ -1575,7 +1577,11 @@ export default function SignupPage() {
                             const res = validateEmail(headEmail);
                             if (res.isValid && res.suggestion && headEmailDecision === null) {
                               setHeadEmailSuggestion(res.suggestion);
+                            } else {
+                              setHeadEmailSuggestion(null);
                             }
+                          } else {
+                            setHeadEmailSuggestion(null);
                           }
                         }}
                         placeholder="e.g. ramesh.agarwal@example.com"
@@ -2243,12 +2249,19 @@ export default function SignupPage() {
                               type="email"
                               value={member.email || ""}
                               onChange={(e) => {
-                                updateAdditionalMember(member.id, "email", e.target.value);
+                                const val = e.target.value;
+                                updateAdditionalMember(member.id, "email", val);
                                 if (memberContactErrors[member.id]?.email) {
                                   setMemberContactErrors((prev) => ({
                                     ...prev,
                                     [member.id]: { ...prev[member.id], email: undefined },
                                   }));
+                                }
+                                const res = validateEmail(val);
+                                if (res.isValid && res.suggestion) {
+                                  setMemberEmailSuggestions((prev) => ({ ...prev, [member.id]: res.suggestion! }));
+                                } else {
+                                  setMemberEmailSuggestions((prev) => ({ ...prev, [member.id]: null }));
                                 }
                               }}
                               onBlur={() => handleMemberContactBlur(member.id, "email", member.email || "")}

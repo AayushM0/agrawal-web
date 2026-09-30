@@ -269,13 +269,10 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
                 priority
               />
             </div>
-            <div className="min-w-0 flex-1 overflow-hidden">
-              <span className="hidden sm:inline-block text-xs font-bold tracking-wide uppercase px-2.5 py-0.5 rounded-full va-badge-gold mb-0.5 whitespace-nowrap">
-                Maharaja Agrasen Foundation
-              </span>
+            <div className="min-w-0 flex-1">
               <h2 className="text-xs sm:text-sm md:text-base font-extrabold text-brand-primary leading-tight tracking-tight">
-                <span className="block truncate">Maharaja Agrasen Foundation</span>
-                <span className="text-[11px] sm:text-xs text-body-muted font-medium block sm:inline truncate">
+                <span className="block sm:inline">Maharaja Agrasen Foundation</span>
+                <span className="text-[11px] sm:text-sm md:text-base font-bold sm:font-extrabold text-brand-primary block sm:inline">
                   <span className="hidden sm:inline"> </span>Limited Singapore
                 </span>
               </h2>
@@ -286,7 +283,7 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
           </Link>
 
           {/* Desktop Navigation (Streamlined Core + Dropdowns) */}
-          <nav aria-label="Main Desktop Navigation" className="hidden md:flex items-center gap-2 shrink-0">
+          <nav aria-label="Main Desktop Navigation" className="hidden lg:flex items-center gap-2 shrink-0">
             {/* 1. Direct Link: Home */}
             <Link
               href="/"
@@ -769,27 +766,11 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
           </nav>
 
           {/* Mobile Action Buttons & Hamburger */}
-          <div className="flex md:hidden items-center gap-1.5 sm:gap-2 shrink-0">
-            {isLoggedIn ? (
-              <Link
-                href="/dashboard"
-                className="px-2.5 sm:px-3 py-1.5 text-xs font-bold text-white bg-brand-primary rounded-full shadow-sm whitespace-nowrap"
-              >
-                Dashboard
-              </Link>
-            ) : (
-              <Link
-                href="/signup"
-                className="px-2.5 sm:px-3 py-1.5 text-xs font-bold text-white va-btn-join rounded-full shadow-sm whitespace-nowrap text-center"
-              >
-                Join Free
-              </Link>
-            )}
-
+          <div className="flex lg:hidden items-center shrink-0">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl text-brand-primary hover:bg-canvas-warm border border-brand-accent/40 bg-white shadow-xs transition-colors shrink-0"
+              className="w-10 h-10 flex items-center justify-center rounded-xl text-brand-primary hover:bg-canvas-warm border border-brand-accent/40 bg-white shadow-xs transition-colors shrink-0"
               aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? (
@@ -807,7 +788,7 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
 
         {/* Mobile Slide-over Drawer Menu (Zero Emojis, Clean Categorization) */}
         {mobileMenuOpen && (
-          <div className="md:hidden fixed inset-0 top-[56px] sm:top-[64px] z-50 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="lg:hidden fixed inset-0 top-[56px] sm:top-[64px] z-50 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-[#fffdf8] border-b-2 border-brand-accent/40 shadow-2xl p-5 space-y-4 max-h-[calc(100vh-56px)] sm:max-h-[calc(100vh-64px)] overflow-y-auto">
               {/* Category 1: Primary Navigation */}
               <div className="space-y-1">

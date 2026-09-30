@@ -91,11 +91,11 @@ test("Issue 051: validateEmail rejects invalid domain boundaries, consecutive do
 test("Issue 051: validateEmail enforces RFC 5321 length limits", () => {
   const longLocal = "a".repeat(65) + "@gmail.com";
   assert.equal(validateEmail(longLocal).isValid, false);
-  assert.match(validateEmail(longLocal).error, /64 characters/i);
+  assert.equal(validateEmail(longLocal).error, "Email local part cannot exceed 64 characters.");
 
   const longDomain = "user@" + "a".repeat(250) + ".com";
   assert.equal(validateEmail(longDomain).isValid, false);
-  assert.match(validateEmail(longDomain).error, /254 characters|255 characters/i);
+  assert.equal(validateEmail(longDomain).error, "Total email length cannot exceed 254 characters.");
 });
 
 test("Issue 051: validateEmail safely supports Internationalized Domain Names (IDN)", () => {
@@ -136,6 +136,13 @@ test("Issue 051: suggestDomainCorrection identifies common consumer domain typos
   // Rediffmail typos
   assert.equal(suggestDomainCorrection("redifmail.com"), "rediffmail.com");
 
+  // Subdomain typos (Issue 051 QA fix)
+  assert.equal(suggestDomainCorrection("mail.gmial.com"), "mail.gmail.com");
+  assert.equal(suggestDomainCorrection("sub.mail.gmial.com"), "sub.mail.gmail.com");
+  assert.equal(suggestDomainCorrection("smtp.outlok.com"), "smtp.outlook.com");
+  assert.equal(suggestDomainCorrection("mail.gmail.com"), null);
+  assert.equal(suggestDomainCorrection("mail.mycorporate.com"), null);
+
   // Valid popular domains should return null (no typo)
   assert.equal(suggestDomainCorrection("gmail.com"), null);
   assert.equal(suggestDomainCorrection("yahoo.com"), null);
@@ -149,11 +156,16 @@ test("Issue 051: suggestDomainCorrection identifies common consumer domain typos
   assert.equal(suggestDomainCorrection("stanford.edu"), null);
 });
 
-test("Issue 051: validateEmail surfaces suggestion for typo domains", () => {
+test("Issue 051: validateEmail surfaces suggestion for typo domains including subdomains", () => {
   const res = validateEmail("rahul@gmial.com");
   assert.equal(res.isValid, true);
   assert.equal(res.canonical, "rahul@gmial.com");
   assert.equal(res.suggestion, "rahul@gmail.com");
+
+  const subRes = validateEmail("user@mail.gmial.com");
+  assert.equal(subRes.isValid, true);
+  assert.equal(subRes.canonical, "user@mail.gmial.com");
+  assert.equal(subRes.suggestion, "user@mail.gmail.com");
 });
 
 test("Issue 051: Static code check ensures shared validation is imported across signup and server actions", () => {

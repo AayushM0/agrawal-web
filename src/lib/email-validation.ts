@@ -48,6 +48,8 @@ const KNOWN_DOMAIN_TYPOS: Record<string, string> = {
   "gamil.co": "gmail.com",
   "gimail.com": "gmail.com",
   "gmaiil.com": "gmail.com",
+  "gmail.co.in": "gmail.com",
+  "gmial.co.in": "gmail.com",
 
   // Yahoo typos
   "yaho.com": "yahoo.com",
@@ -150,6 +152,17 @@ export function suggestDomainCorrection(rawDomain: string): string | null {
     }
   }
 
+  // Check sub-domain typo (e.g. mail.gmial.com -> mail.gmail.com)
+  const dotIndex = lower.indexOf(".");
+  if (dotIndex > 0 && dotIndex < lower.lastIndexOf(".")) {
+    const prefix = lower.slice(0, dotIndex);
+    const suffix = lower.slice(dotIndex + 1);
+    const correctedSuffix = suggestDomainCorrection(suffix);
+    if (correctedSuffix) {
+      return `${prefix}.${correctedSuffix}`;
+    }
+  }
+
   return null;
 }
 
@@ -179,7 +192,7 @@ export function validateEmail(input?: string): EmailValidationResult {
 
   // Total email RFC 5321 length check
   if (clean.length > 254) {
-    return { isValid: false, error: "Email address cannot exceed 254 characters." };
+    return { isValid: false, error: "Total email length cannot exceed 254 characters." };
   }
   if (clean.length < 5) {
     return { isValid: false, error: "Email address is too short." };
@@ -223,7 +236,7 @@ export function validateEmail(input?: string): EmailValidationResult {
     return { isValid: false, error: "Email username cannot be empty." };
   }
   if (localPart.length > 64) {
-    return { isValid: false, error: "Email username cannot exceed 64 characters." };
+    return { isValid: false, error: "Email local part cannot exceed 64 characters." };
   }
   if (localPart.startsWith(".") || localPart.endsWith(".")) {
     return { isValid: false, error: "Email username cannot start or end with a dot." };
