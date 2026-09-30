@@ -46,7 +46,10 @@ scripts/download-id-cards-for-emails.mjs
 scripts/generate-cert.mjs
 ACTIVITY_LOG.md
 changes.md
-tasks/
+# documentation
+/docs/
+docs/
+security-audit-run-1/
 
 # output & generated files
 /output/
