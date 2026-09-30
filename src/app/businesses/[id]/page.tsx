@@ -127,14 +127,15 @@ export default function BusinessDetailPage() {
 
           {isOwner && (
             <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">You manage this business</span>
               <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-brand-burgundy border border-amber-300">
                 Status: {profile.status.toUpperCase()}
               </span>
               <Link
-                href="/dashboard"
+                href={`/businesses/${profile.id}/edit`}
                 className="text-xs font-semibold text-brand-primary hover:underline"
               >
-                Manage in Dashboard →
+                Edit business →
               </Link>
             </div>
           )}

@@ -6,8 +6,7 @@ import { useRouter } from "next/navigation";
 import { createBusinessProfile } from "@/actions/business";
 import { getCurrentHouseholdDashboard } from "@/actions/dashboard";
 import { optimizeImageForUpload } from "@/lib/image-optimizer";
-import type { LinkedDirector, BusinessCustomField } from "@/types/business";
-import type { Member } from "@/types/household";
+import type { BusinessCustomField } from "@/types/business";
 
 const SECTOR_OPTIONS = [
   "Manufacturing & Heavy Industries",
@@ -51,16 +50,13 @@ const REGISTRATION_TYPE_OPTIONS = [
 export default function CreateBusinessPage() {
   const router = useRouter();
 
-  // Wizard Step State (1 to 4)
+  // Wizard Step State (1 to 3)
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [authError, setAuthError] = useState("");
   const [submissionError, setSubmissionError] = useState("");
   const [createdBusinessId, setCreatedBusinessId] = useState<string | null>(null);
-
-  // Available household members to link
-  const [householdMembers, setHouseholdMembers] = useState<Member[]>([]);
 
   // Step 1: Company Profile & Location
   const [businessName, setBusinessName] = useState("");
@@ -93,9 +89,6 @@ export default function CreateBusinessPage() {
   const [registrationType, setRegistrationType] = useState(REGISTRATION_TYPE_OPTIONS[0]);
   const [registrationNumber, setRegistrationNumber] = useState("");
 
-  // Step 4: Leadership Linking
-  const [linkedDirectors, setLinkedDirectors] = useState<LinkedDirector[]>([]);
-
   // Initial Load & Auth Check
   useEffect(() => {
     async function loadData() {
@@ -116,22 +109,10 @@ export default function CreateBusinessPage() {
           return;
         }
 
-        setHouseholdMembers(res.household.members || []);
-
-        // Pre-populate primary member as initial director if available
+        // Pre-populate business contact details from the household head. The server
+        // records the authenticated creator as the initial manager and contact.
         if (res.household.members && res.household.members.length > 0) {
           const head = res.household.members.find((m) => m.relationToHead === "self") || res.household.members[0];
-          setLinkedDirectors([
-            {
-              memberId: head.id,
-              serialNo: head.serialNo,
-              name: head.fullName,
-              roleTitle: "Founder & Director",
-              isPrimaryContact: true,
-              phone: head.phone || undefined,
-              email: head.email || undefined,
-            },
-          ]);
           if (head.phone) setContactPhone(head.phone);
           if (head.email) setContactEmail(head.email);
           if (head.currentCity) setCity(head.currentCity);
@@ -196,49 +177,6 @@ export default function CreateBusinessPage() {
     setPhotos(photos.filter((_, i) => i !== idx));
   };
 
-  // Step 4 Leadership Helpers
-  const handleAddDirectorFromHousehold = (member: Member) => {
-    if (linkedDirectors.some((d) => d.memberId === member.id)) {
-      alert("This family member is already added to leadership.");
-      return;
-    }
-    setLinkedDirectors([
-      ...linkedDirectors,
-      {
-        memberId: member.id,
-        serialNo: member.serialNo,
-        name: member.fullName,
-        roleTitle: "Director",
-        isPrimaryContact: linkedDirectors.length === 0,
-        phone: member.phone || undefined,
-        email: member.email || undefined,
-      },
-    ]);
-  };
-
-  const handleUpdateDirectorRole = (index: number, roleTitle: string) => {
-    const updated = [...linkedDirectors];
-    updated[index].roleTitle = roleTitle;
-    setLinkedDirectors(updated);
-  };
-
-  const handleSetPrimaryContact = (index: number) => {
-    const updated = linkedDirectors.map((d, i) => ({
-      ...d,
-      isPrimaryContact: i === index,
-    }));
-    setLinkedDirectors(updated);
-  };
-
-  const handleRemoveDirector = (index: number) => {
-    const wasPrimary = linkedDirectors[index].isPrimaryContact;
-    const remaining = linkedDirectors.filter((_, i) => i !== index);
-    if (wasPrimary && remaining.length > 0) {
-      remaining[0].isPrimaryContact = true;
-    }
-    setLinkedDirectors(remaining);
-  };
-
   // Step Validation & Navigation
   const validateStep = (step: number): boolean => {
     if (step === 1) {
@@ -269,24 +207,12 @@ export default function CreateBusinessPage() {
       return true;
     }
 
-    if (step === 4) {
-      if (linkedDirectors.length === 0) {
-        alert("Please link at least one Founder / Director to this enterprise.");
-        return false;
-      }
-      if (!linkedDirectors.some((d) => d.isPrimaryContact)) {
-        alert("Please select one Director as the Primary Contact for business inquiries.");
-        return false;
-      }
-      return true;
-    }
-
     return true;
   };
 
   const handleNextStep = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep((prev) => Math.min(prev + 1, 4));
+      setCurrentStep((prev) => Math.min(prev + 1, 3));
     }
   };
 
@@ -297,7 +223,8 @@ export default function CreateBusinessPage() {
   // Final Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateStep(4)) return;
+    if (currentStep !== 3) return;
+    if (!validateStep(3)) return;
 
     setIsSubmitting(true);
     setSubmissionError("");
@@ -331,7 +258,6 @@ export default function CreateBusinessPage() {
         },
         photos,
         customFields: customFields.filter((f) => f.label.trim() && f.value.trim()),
-        linkedDirectors,
       });
 
       if (res.success && res.profile) {
@@ -445,17 +371,16 @@ export default function CreateBusinessPage() {
           >
             <span>←</span> Back to Directory
           </Link>
-          <span className="text-xs text-body-muted">4-Step Enterprise Registration</span>
+          <span className="text-xs text-body-muted">3-Step Enterprise Registration</span>
         </div>
 
         {/* Wizard Progress Indicator */}
         <div className="bg-white rounded-3xl border border-brand-accent/30 p-6 shadow-xs">
-          <div className="grid grid-cols-4 gap-2 text-center text-xs">
+          <div className="grid grid-cols-3 gap-2 text-center text-xs">
             {[
               { num: 1, title: "1. Info" },
               { num: 2, title: "2. Offerings" },
-              { num: 3, title: "3. Media" },
-              { num: 4, title: "4. Leadership" },
+              { num: 3, title: "3. Media & Submit" },
             ].map((step) => {
               const isActive = currentStep === step.num;
               const isDone = currentStep > step.num;
@@ -966,117 +891,6 @@ export default function CreateBusinessPage() {
               </div>
             )}
 
-            {/* STEP 4: Leadership Linking */}
-            {currentStep === 4 && (
-              <div className="space-y-5">
-                <div>
-                  <h2 className="font-serif text-xl font-bold text-brand-primary">
-                    Step 4: Leadership & Governance Linking
-                  </h2>
-                  <p className="text-xs text-body-muted mt-1">
-                    Link verified Agarwal family members as Directors/Promoters and designate the Primary Chat Contact.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Household Member Quick-Add */}
-                  {householdMembers.length > 0 && (
-                    <div className="p-4 rounded-2xl bg-canvas-warm/50 border border-brand-accent/20 space-y-2">
-                      <span className="text-xs font-bold text-body-heading">
-                        Add from Your Household Members:
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        {householdMembers.map((m) => {
-                          const isAlreadyLinked = linkedDirectors.some((d) => d.memberId === m.id);
-                          return (
-                            <button
-                              key={m.id}
-                              type="button"
-                              disabled={isAlreadyLinked}
-                              onClick={() => handleAddDirectorFromHousehold(m)}
-                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
-                                isAlreadyLinked
-                                  ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                  : "bg-white hover:bg-amber-50 text-brand-primary border border-brand-accent/40 shadow-xs"
-                              }`}
-                            >
-                              + {m.fullName} ({m.relationToHead})
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Active Directors List */}
-                  <div className="space-y-3">
-                    <label className="block text-xs font-bold text-body-heading">
-                      Linked Directors & Key Management ({linkedDirectors.length})
-                    </label>
-
-                    {linkedDirectors.length === 0 ? (
-                      <p className="text-xs text-red-600 italic">
-                        Please add at least one Director or Founder to represent this enterprise.
-                      </p>
-                    ) : (
-                      <div className="space-y-2.5">
-                        {linkedDirectors.map((director, idx) => (
-                          <div
-                            key={idx}
-                            className="p-4 rounded-2xl border border-brand-accent/30 bg-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs"
-                          >
-                            <div className="space-y-1">
-                              <p className="text-xs sm:text-sm font-bold text-brand-primary">
-                                {director.name}
-                              </p>
-                              {director.serialNo && (
-                                <p className="text-[11px] text-body-muted">
-                                  Member ID: <span className="font-mono">{director.serialNo}</span>
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-3 w-full sm:w-auto">
-                              <input
-                                type="text"
-                                value={director.roleTitle}
-                                onChange={(e) => handleUpdateDirectorRole(idx, e.target.value)}
-                                placeholder="Role Title (e.g. Managing Director)"
-                                className="px-3 py-1.5 rounded-xl border border-brand-accent/30 text-xs focus:outline-none focus:ring-2 focus:ring-brand-accent flex-1 sm:flex-none"
-                              />
-
-                              <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-semibold">
-                                <input
-                                  type="radio"
-                                  name="primaryContact"
-                                  checked={director.isPrimaryContact}
-                                  onChange={() => handleSetPrimaryContact(idx)}
-                                  className="text-brand-primary"
-                                />
-                                <span className={director.isPrimaryContact ? "text-brand-primary" : "text-body-muted"}>
-                                  Primary Contact
-                                </span>
-                              </label>
-
-                              {linkedDirectors.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveDirector(idx)}
-                                  className="text-xs text-red-600 hover:text-red-800 px-1"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Wizard Navigation Bar */}
             <div className="pt-6 border-t border-brand-accent/20 flex items-center justify-between">
               {currentStep > 1 ? (
@@ -1091,7 +905,7 @@ export default function CreateBusinessPage() {
                 <div></div>
               )}
 
-              {currentStep < 4 ? (
+              {currentStep < 3 ? (
                 <button
                   type="button"
                   onClick={handleNextStep}
@@ -1105,7 +919,7 @@ export default function CreateBusinessPage() {
                   disabled={isSubmitting}
                   className="px-8 py-3 rounded-full text-xs sm:text-sm font-bold text-white va-btn-join shadow-goldCta"
                 >
-                  {isSubmitting ? "Submitting Enterprise..." : "Submit for Moderation Approval →"}
+                  {isSubmitting ? "Submitting Enterprise..." : "Submit business for review →"}
                 </button>
               )}
             </div>

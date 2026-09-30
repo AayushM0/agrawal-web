@@ -21,6 +21,10 @@ import {
   getMyHouseholdBusinesses,
   toggleBusinessVisibility,
   deleteBusinessProfile,
+  createBusinessManagerHandover,
+  cancelBusinessManagerHandover,
+  acceptBusinessManagerHandover,
+  getMyPendingBusinessManagerHandovers,
 } from "@/actions/business";
 import type { BusinessProfile } from "@/types/business";
 import {
@@ -42,6 +46,12 @@ export default function DashboardPage() {
   const [canCreateBusiness, setCanCreateBusiness] = useState(false);
   const [isTogglingBusiness, setIsTogglingBusiness] = useState<string | null>(null);
   const [isDeletingBusiness, setIsDeletingBusiness] = useState<string | null>(null);
+  const [businessHandoverInvites, setBusinessHandoverInvites] = useState<Array<{ id: string; businessId: string; businessName: string; expiresAt: string }>>([]);
+  const [businessPendingHandover, setBusinessPendingHandover] = useState<BusinessProfile | null>(null);
+  const [handoverTargetMemberId, setHandoverTargetMemberId] = useState("");
+  const [handoverError, setHandoverError] = useState("");
+  const [isSendingBusinessHandover, setIsSendingBusinessHandover] = useState(false);
+  const [businessHandoverSuccess, setBusinessHandoverSuccess] = useState("");
   const [householdCareers, setHouseholdCareers] = useState<CareerProfile[]>([]);
   const [householdApplications, setHouseholdApplications] = useState<JobApplication[]>([]);
   const [householdJobPostings, setHouseholdJobPostings] = useState<JobPosting[]>([]);
@@ -256,6 +266,8 @@ export default function DashboardPage() {
           setHouseholdBusinesses(bizRes.businesses);
           setCanCreateBusiness(Boolean(bizRes.canCreate));
         }
+        const handoverRes = await getMyPendingBusinessManagerHandovers();
+        setBusinessHandoverInvites(handoverRes.handovers);
       } catch (err) {
         console.error("Failed to load household businesses:", err);
       }
@@ -474,6 +486,55 @@ export default function DashboardPage() {
     }
   };
 
+  const handleCreateBusinessHandover = async (biz: BusinessProfile) => {
+    setBusinessPendingHandover(biz);
+    setHandoverTargetMemberId("");
+    setHandoverError("");
+    setBusinessHandoverSuccess("");
+  };
+
+  const submitBusinessHandover = async () => {
+    if (!businessPendingHandover || !handoverTargetMemberId.trim()) return;
+    setHandoverError("");
+    setIsSendingBusinessHandover(true);
+    try {
+      const res = await createBusinessManagerHandover({ businessId: businessPendingHandover.id, targetMemberId: handoverTargetMemberId.trim() });
+      if (!res.success) {
+        setHandoverError(res.error || "Unable to create the management handover.");
+        return;
+      }
+      const refreshed = await getMyHouseholdBusinesses();
+      if (refreshed.businesses) setHouseholdBusinesses(refreshed.businesses);
+      setBusinessPendingHandover(null);
+      setHandoverError("");
+      setBusinessHandoverSuccess(`Invitation sent for ${businessPendingHandover.businessName}. It expires in 7 days.`);
+    } catch (err: any) {
+      setHandoverError(err?.message || "The invitation request could not reach the server. Please try again.");
+    } finally {
+      setIsSendingBusinessHandover(false);
+    }
+  };
+
+  const handleCancelBusinessHandover = async (handoverId: string) => {
+    const res = await cancelBusinessManagerHandover(handoverId);
+    if (!res.success) {
+      alert(res.error || "Unable to cancel the management handover.");
+      return;
+    }
+    const refreshed = await getMyHouseholdBusinesses();
+    if (refreshed.businesses) setHouseholdBusinesses(refreshed.businesses);
+  };
+
+  const handleAcceptBusinessHandover = async (handoverId: string) => {
+    const res = await acceptBusinessManagerHandover(handoverId);
+    if (!res.success) {
+      alert(res.error || "Unable to accept the management handover.");
+      return;
+    }
+    await loadData();
+    alert("You now manage this business profile.");
+  };
+
   const handleRemoveMember = async (member: Member) => {
     setRemovingMemberId(member.id);
     setMemberRemovalError("");
@@ -663,6 +724,7 @@ export default function DashboardPage() {
     setAddMemberError("");
     setAddMemberSuccess("");
 
+    try {
     const res = await addHouseholdMember({
       fullName: newMemberForm.fullName.trim(),
       relationToHead: newMemberForm.relationToHead,
@@ -684,7 +746,6 @@ export default function DashboardPage() {
       bio: newMemberForm.bio.trim() || undefined,
     });
 
-    setIsSavingNewMember(false);
     if (res.success) {
       setAddMemberSuccess(res.message || "Family member added successfully!");
       setTimeout(() => {
@@ -693,6 +754,11 @@ export default function DashboardPage() {
       }, 1000);
     } else {
       setAddMemberError(res.error || "Failed to add family member.");
+    }
+    } catch (err: any) {
+      setAddMemberError(err?.message || "Unable to add the family member. Please try again.");
+    } finally {
+      setIsSavingNewMember(false);
     }
   };
 
@@ -909,6 +975,18 @@ export default function DashboardPage() {
             </Link>
           </div>
 
+          {businessHandoverInvites.length > 0 && (
+            <div className="mb-4 space-y-2 rounded-2xl border border-brand-accent/30 bg-canvas-warm/30 p-3">
+              <p className="text-xs font-bold text-brand-primary">Business management invitations</p>
+              {businessHandoverInvites.map((invite) => (
+                <div key={invite.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="text-body-muted">Manage <strong className="text-body-heading">{invite.businessName}</strong> until {new Date(invite.expiresAt).toLocaleDateString()}</span>
+                  <button type="button" onClick={() => handleAcceptBusinessHandover(invite.id)} className="px-2.5 py-1 rounded-lg text-xs font-semibold text-white va-btn-join">Accept management</button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="space-y-3">
             {matrimonialProfiles.length === 0 ? (
               <div className="text-center py-6 px-4 rounded-2xl border border-dashed border-brand-accent/40 bg-canvas-warm/10">
@@ -979,6 +1057,7 @@ export default function DashboardPage() {
 
         {/* Business Profiles Management Card */}
         <div className="bg-white border border-brand-accent/30 rounded-3xl p-5 sm:p-8 shadow-warm">
+          {businessHandoverSuccess && <p role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">{businessHandoverSuccess}</p>}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-brand-accent/20">
             <div>
               <div className="flex items-center gap-2">
@@ -1080,6 +1159,11 @@ export default function DashboardPage() {
                           <p className="text-[11px] font-mono text-brand-burgundy mt-0.5">
                             Business No: {b.businessSerialNo || "Pending review"}
                           </p>
+                          {b.canManage && (
+                            <p className="mt-1 text-[11px] font-semibold text-emerald-700">
+                              You manage this business
+                            </p>
+                          )}
                           <p className="text-xs text-body-muted truncate mt-0.5">
                             📍 {b.city}, {b.state}
                             {b.isVerifiedBadge && (
@@ -1104,7 +1188,9 @@ export default function DashboardPage() {
                           View Showcase →
                         </Link>
 
+                        {b.canManage ? (
                         <div className="flex items-center gap-2">
+                          <Link href={`/businesses/${b.id}/edit`} className="px-2.5 py-1 rounded-lg text-xs font-semibold text-brand-primary border border-brand-accent/40">Edit</Link>
                           {(isLive || isPaused) && (
                             <button
                               type="button"
@@ -1124,6 +1210,14 @@ export default function DashboardPage() {
                             </button>
                           )}
 
+                          {b.pendingHandover ? (
+                            <div className="flex items-center gap-1"><span className="text-[10px] text-body-muted">Handover pending until {new Date(b.pendingHandover.expiresAt).toLocaleDateString()}</span><button type="button" onClick={() => handleCancelBusinessHandover(b.pendingHandover!.id)} className="px-2.5 py-1 rounded-lg text-xs font-semibold text-brand-primary border border-brand-accent/40">Cancel Handover</button></div>
+                          ) : (
+                            <button type="button" onClick={() => handleCreateBusinessHandover(b)} className="px-2.5 py-1 rounded-lg text-xs font-semibold text-brand-primary border border-brand-accent/40">
+                              Hand Over
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => setBusinessPendingDeletion(b)}
@@ -1133,6 +1227,9 @@ export default function DashboardPage() {
                             {isDeletingBusiness === b.id ? "Deleting..." : "Delete"}
                           </button>
                         </div>
+                        ) : (
+                          <span className="text-[11px] text-body-muted">Managed by another account</span>
+                        )}
                       </div>
                     </div>
                   );
@@ -1141,6 +1238,21 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+
+        {businessPendingHandover && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+            <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+              <div><h2 className="text-lg font-bold text-brand-primary">Hand over business management</h2><p className="mt-1 text-xs text-body-muted">The invited activated member must accept. You lose edit access immediately after acceptance.</p></div>
+              <p className="rounded-xl bg-canvas-warm/40 p-3 text-sm font-semibold text-body-heading">{businessPendingHandover.businessName}</p>
+              <label className="block text-xs font-semibold text-body-heading">Activated directory member ID
+                <input value={handoverTargetMemberId} onChange={(event) => setHandoverTargetMemberId(event.target.value)} placeholder="e.g. MEM-002-C" className="mt-1 w-full rounded-xl border border-brand-accent/30 px-3 py-2 text-sm" />
+              </label>
+              {handoverError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-xs text-red-700">{handoverError}</p>}
+              {(() => { const eligible = (household?.members || []).filter((member) => member.ownerLocked); return eligible.length ? <div className="flex flex-wrap gap-2">{eligible.map((member) => <button key={member.id} type="button" onClick={() => setHandoverTargetMemberId(member.id)} className="rounded-full border border-brand-accent/30 px-2.5 py-1 text-xs text-brand-primary">{member.fullName}</button>)}</div> : <p className="text-xs text-body-muted">No other activated member is available to receive management. You may still enter an activated directory member ID.</p>; })()}
+              <div className="flex justify-end gap-2"><button type="button" disabled={isSendingBusinessHandover} onClick={() => setBusinessPendingHandover(null)} className="rounded-full px-4 py-2 text-xs font-semibold text-body-muted">Cancel</button><button type="button" onClick={submitBusinessHandover} disabled={isSendingBusinessHandover || !handoverTargetMemberId.trim()} className="rounded-full px-4 py-2 text-xs font-bold text-white va-btn-join disabled:opacity-50">{isSendingBusinessHandover ? "Sending…" : "Send invitation"}</button></div>
+            </div>
+          </div>
+        )}
 
         {/* Career & Jobs Management Card (Pillar 4) */}
         <div className="bg-white border border-brand-accent/30 rounded-3xl p-5 sm:p-8 shadow-warm mb-6 sm:mb-8">

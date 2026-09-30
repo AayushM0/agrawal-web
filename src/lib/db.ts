@@ -4,7 +4,7 @@ import type { Household, Member } from "../types/household";
 import type { SupportInquiry, CreateInquiryInput, InquiryStatus } from "../types/support";
 import type { MatrimonialProfile, MatrimonyFilter } from "../types/matrimony";
 import type { EmailQueueItem, EnqueueEmailInput, EmailQueueStats } from "../types/email-queue";
-import type { BusinessProfile } from "../types/business";
+import type { BusinessProfile, ProfileActorType, ProfileManagerAssignment, ProfileManagerHandover } from "../types/business";
 import type {
   CareerProfile,
   CreateCareerProfileInput,
@@ -439,6 +439,46 @@ async function ensureSchema(client: any) {
       ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50);
       ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS business_serial_no VARCHAR(32) UNIQUE;
       CREATE INDEX IF NOT EXISTS idx_business_profiles_serial_no ON business_profiles(business_serial_no);
+
+      CREATE TABLE IF NOT EXISTS profile_manager_assignments (
+          resource_type VARCHAR(32) NOT NULL CHECK (resource_type = 'business'),
+          resource_id UUID NOT NULL,
+          creator_actor_type VARCHAR(16) NOT NULL CHECK (creator_actor_type IN ('member', 'admin')),
+          creator_actor_id TEXT NOT NULL,
+          manager_actor_type VARCHAR(16) NOT NULL CHECK (manager_actor_type IN ('member', 'admin')),
+          manager_actor_id TEXT NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (resource_type, resource_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_profile_manager_assignments_manager ON profile_manager_assignments(resource_type, manager_actor_type, manager_actor_id);
+      ALTER TABLE profile_manager_assignments ENABLE ROW LEVEL SECURITY;
+      CREATE TABLE IF NOT EXISTS profile_manager_handovers (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          resource_type VARCHAR(32) NOT NULL CHECK (resource_type = 'business'),
+          resource_id UUID NOT NULL,
+          initiated_by_actor_type VARCHAR(16) NOT NULL CHECK (initiated_by_actor_type IN ('member', 'admin')),
+          initiated_by_actor_id TEXT NOT NULL,
+          target_member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+          status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'cancelled', 'expired')),
+          expires_at TIMESTAMPTZ NOT NULL,
+          accepted_at TIMESTAMPTZ,
+          cancelled_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_manager_handovers_one_pending ON profile_manager_handovers(resource_type, resource_id) WHERE status = 'pending';
+      ALTER TABLE profile_manager_handovers ENABLE ROW LEVEL SECURITY;
+      INSERT INTO profile_manager_assignments (resource_type, resource_id, creator_actor_type, creator_actor_id, manager_actor_type, manager_actor_id)
+      SELECT 'business', id, 'member', created_by_member_id::text, 'member', created_by_member_id::text FROM business_profiles
+      ON CONFLICT (resource_type, resource_id) DO NOTHING;
+      UPDATE profile_manager_assignments assignment
+      SET creator_actor_type = 'admin', creator_actor_id = audit.admin_id, manager_actor_type = 'admin', manager_actor_id = audit.admin_id, updated_at = NOW()
+      FROM (SELECT DISTINCT ON (target_id) target_id, admin_id FROM admin_audit_logs WHERE action = 'ADMIN_CREATE_BUSINESS_PROFILE' AND target_type IN ('business', 'business_profile') ORDER BY target_id, created_at ASC) audit
+      WHERE assignment.resource_type = 'business'
+        AND assignment.resource_id::text = audit.target_id
+        AND assignment.creator_actor_type = 'member'
+        AND assignment.manager_actor_type = 'member'
+        AND assignment.creator_actor_id = assignment.manager_actor_id;
 
       -- Career Profiles Table (Global Jobs & Careers Network - Pillar 4)
       CREATE TABLE IF NOT EXISTS career_profiles (
@@ -3388,6 +3428,200 @@ export const db = {
   // BUSINESS PROFILES METHODS (Pillar 2)
   // ==========================================
 
+  async ensureBusinessProfileManager(profile: BusinessProfile): Promise<ProfileManagerAssignment> {
+    const fallback: ProfileManagerAssignment = {
+      resourceType: "business",
+      resourceId: profile.id,
+      creatorActorType: "member",
+      creatorActorId: profile.createdByMemberId,
+      managerActorType: "member",
+      managerActorId: profile.createdByMemberId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    if (!pool) {
+      const assignments: Map<string, ProfileManagerAssignment> = ((globalThis as any).__memoryProfileManagerAssignments ||= new Map());
+      const existing = assignments.get(`business:${profile.id}`);
+      if (existing) return existing;
+      assignments.set(`business:${profile.id}`, fallback);
+      return fallback;
+    }
+    const res = await pool.query(
+      `INSERT INTO profile_manager_assignments (
+         resource_type, resource_id, creator_actor_type, creator_actor_id, manager_actor_type, manager_actor_id
+       ) VALUES ('business', $1, 'member', $2, 'member', $2)
+       ON CONFLICT (resource_type, resource_id) DO UPDATE SET resource_id = EXCLUDED.resource_id
+       RETURNING *;`,
+      [profile.id, profile.createdByMemberId]
+    );
+    return mapProfileManagerAssignmentRow(res.rows[0]);
+  },
+
+  async setBusinessProfileManager(params: {
+    businessId: string;
+    creatorActorType: ProfileActorType;
+    creatorActorId: string;
+    managerActorType: ProfileActorType;
+    managerActorId: string;
+  }): Promise<ProfileManagerAssignment> {
+    if (!pool) {
+      const assignments: Map<string, ProfileManagerAssignment> = ((globalThis as any).__memoryProfileManagerAssignments ||= new Map());
+      const assignment: ProfileManagerAssignment = {
+        resourceType: "business", resourceId: params.businessId,
+        creatorActorType: params.creatorActorType, creatorActorId: params.creatorActorId,
+        managerActorType: params.managerActorType, managerActorId: params.managerActorId,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      };
+      assignments.set(`business:${params.businessId}`, assignment);
+      return assignment;
+    }
+    const res = await pool.query(
+      `INSERT INTO profile_manager_assignments (
+         resource_type, resource_id, creator_actor_type, creator_actor_id, manager_actor_type, manager_actor_id
+       ) VALUES ('business', $1, $2, $3, $4, $5)
+       ON CONFLICT (resource_type, resource_id) DO UPDATE SET
+         manager_actor_type = EXCLUDED.manager_actor_type,
+         manager_actor_id = EXCLUDED.manager_actor_id,
+         updated_at = NOW()
+       RETURNING *;`,
+      [params.businessId, params.creatorActorType, params.creatorActorId, params.managerActorType, params.managerActorId]
+    );
+    return mapProfileManagerAssignmentRow(res.rows[0]);
+  },
+
+  async getBusinessProfileManager(businessId: string): Promise<ProfileManagerAssignment | null> {
+    if (!pool) {
+      const assignments: Map<string, ProfileManagerAssignment> = ((globalThis as any).__memoryProfileManagerAssignments ||= new Map());
+      return assignments.get(`business:${businessId}`) || null;
+    }
+    const res = await pool.query(
+      `SELECT * FROM profile_manager_assignments WHERE resource_type = 'business' AND resource_id::text = $1 LIMIT 1;`,
+      [businessId]
+    );
+    return res.rows[0] ? mapProfileManagerAssignmentRow(res.rows[0]) : null;
+  },
+
+  async isProfileManager(businessId: string, actorType: ProfileActorType, actorId: string): Promise<boolean> {
+    const assignment = await this.getBusinessProfileManager(businessId);
+    return Boolean(assignment && assignment.managerActorType === actorType && assignment.managerActorId === actorId);
+  },
+
+  async createBusinessManagerHandover(params: {
+    businessId: string;
+    initiatedByActorType: ProfileActorType;
+    initiatedByActorId: string;
+    targetMemberId: string;
+    expiresAt: Date;
+  }): Promise<ProfileManagerHandover> {
+    if (!pool) {
+      const handovers: Map<string, ProfileManagerHandover> = ((globalThis as any).__memoryProfileManagerHandovers ||= new Map());
+      for (const item of handovers.values()) if (item.resourceId === params.businessId && item.status === "pending") item.status = "cancelled";
+      const handover: ProfileManagerHandover = {
+        id: crypto.randomUUID(), resourceType: "business", resourceId: params.businessId,
+        initiatedByActorType: params.initiatedByActorType, initiatedByActorId: params.initiatedByActorId,
+        targetMemberId: params.targetMemberId, status: "pending", expiresAt: params.expiresAt.toISOString(), createdAt: new Date().toISOString(),
+      };
+      handovers.set(handover.id, handover);
+      return handover;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`UPDATE profile_manager_handovers SET status = 'cancelled', cancelled_at = NOW() WHERE resource_type = 'business' AND resource_id::text = $1 AND status = 'pending';`, [params.businessId]);
+      const res = await client.query(
+        `INSERT INTO profile_manager_handovers (resource_type, resource_id, initiated_by_actor_type, initiated_by_actor_id, target_member_id, expires_at)
+         VALUES ('business', $1, $2, $3, $4, $5) RETURNING *;`,
+        [params.businessId, params.initiatedByActorType, params.initiatedByActorId, params.targetMemberId, params.expiresAt]
+      );
+      await client.query("COMMIT");
+      return mapProfileManagerHandoverRow(res.rows[0]);
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally { client.release(); }
+  },
+
+  async cancelBusinessManagerHandover(handoverId: string, actorType: ProfileActorType, actorId: string): Promise<boolean> {
+    if (!pool) {
+      const handovers: Map<string, ProfileManagerHandover> = ((globalThis as any).__memoryProfileManagerHandovers ||= new Map());
+      const item = handovers.get(handoverId);
+      if (!item || item.status !== "pending" || item.initiatedByActorType !== actorType || item.initiatedByActorId !== actorId) return false;
+      item.status = "cancelled"; return true;
+    }
+    const res = await pool.query(
+      `UPDATE profile_manager_handovers SET status = 'cancelled', cancelled_at = NOW()
+       WHERE id::text = $1 AND status = 'pending' AND initiated_by_actor_type = $2 AND initiated_by_actor_id = $3;`,
+      [handoverId, actorType, actorId]
+    );
+    return res.rowCount === 1;
+  },
+
+  async acceptBusinessManagerHandover(handoverId: string, targetMemberId: string): Promise<boolean> {
+    if (!pool) {
+      const handovers: Map<string, ProfileManagerHandover> = ((globalThis as any).__memoryProfileManagerHandovers ||= new Map());
+      const item = handovers.get(handoverId);
+      if (!item || item.status !== "pending" || item.targetMemberId !== targetMemberId || new Date(item.expiresAt) <= new Date()) return false;
+      const assignment = await this.getBusinessProfileManager(item.resourceId);
+      if (!assignment) return false;
+      assignment.managerActorType = "member"; assignment.managerActorId = targetMemberId; assignment.updatedAt = new Date().toISOString();
+      item.status = "accepted"; return true;
+    }
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const handover = await client.query(
+        `UPDATE profile_manager_handovers SET status = 'accepted', accepted_at = NOW()
+         WHERE id::text = $1 AND target_member_id::text = $2 AND status = 'pending' AND expires_at > NOW()
+         RETURNING resource_id;`, [handoverId, targetMemberId]
+      );
+      if (!handover.rows[0]) { await client.query("ROLLBACK"); return false; }
+      const updated = await client.query(
+        `UPDATE profile_manager_assignments SET manager_actor_type = 'member', manager_actor_id = $2, updated_at = NOW()
+         WHERE resource_type = 'business' AND resource_id = $1 RETURNING resource_id;`,
+        [handover.rows[0].resource_id, targetMemberId]
+      );
+      if (!updated.rows[0]) { await client.query("ROLLBACK"); return false; }
+      await client.query("COMMIT"); return true;
+    } catch (err) { await client.query("ROLLBACK"); throw err; } finally { client.release(); }
+  },
+
+  async getPendingBusinessManagerHandover(businessId: string): Promise<ProfileManagerHandover | null> {
+    if (!pool) {
+      const handovers: Map<string, ProfileManagerHandover> = ((globalThis as any).__memoryProfileManagerHandovers ||= new Map());
+      return [...handovers.values()].find((item) => item.resourceId === businessId && item.status === "pending") || null;
+    }
+    await pool.query(
+      `UPDATE profile_manager_handovers SET status = 'expired'
+       WHERE resource_type = 'business' AND resource_id::text = $1 AND status = 'pending' AND expires_at <= NOW();`,
+      [businessId]
+    );
+    const res = await pool.query(
+      `SELECT * FROM profile_manager_handovers
+       WHERE resource_type = 'business' AND resource_id::text = $1 AND status = 'pending' LIMIT 1;`,
+      [businessId]
+    );
+    return res.rows[0] ? mapProfileManagerHandoverRow(res.rows[0]) : null;
+  },
+
+  async getPendingBusinessManagerHandoversForTarget(memberId: string): Promise<ProfileManagerHandover[]> {
+    if (!pool) {
+      const handovers: Map<string, ProfileManagerHandover> = ((globalThis as any).__memoryProfileManagerHandovers ||= new Map());
+      return [...handovers.values()].filter((item) => item.targetMemberId === memberId && item.status === "pending" && new Date(item.expiresAt) > new Date());
+    }
+    await pool.query(
+      `UPDATE profile_manager_handovers SET status = 'expired'
+       WHERE resource_type = 'business' AND target_member_id::text = $1 AND status = 'pending' AND expires_at <= NOW();`,
+      [memberId]
+    );
+    const res = await pool.query(
+      `SELECT * FROM profile_manager_handovers
+       WHERE resource_type = 'business' AND target_member_id::text = $1 AND status = 'pending' AND expires_at > NOW()
+       ORDER BY created_at DESC;`,
+      [memberId]
+    );
+    return res.rows.map(mapProfileManagerHandoverRow);
+  },
+
   async createBusinessProfile(p: Omit<BusinessProfile, "id" | "createdAt" | "updatedAt">): Promise<BusinessProfile> {
     if (!pool) {
       const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles =
@@ -3845,6 +4079,10 @@ export const db = {
       const idx = list.findIndex((p) => p.id === id);
       if (idx !== -1) {
         list.splice(idx, 1);
+        const assignments: Map<string, ProfileManagerAssignment> = ((globalThis as any).__memoryProfileManagerAssignments ||= new Map());
+        assignments.delete(`business:${id}`);
+        const handovers: Map<string, ProfileManagerHandover> = ((globalThis as any).__memoryProfileManagerHandovers ||= new Map());
+        for (const [handoverId, handover] of handovers) if (handover.resourceId === id) handovers.delete(handoverId);
         return true;
       }
       return false;
@@ -3856,8 +4094,19 @@ export const db = {
         query += ` AND household_id::text = $2`;
         values.push(householdId);
       }
-      const res = await pool.query(query, values);
-      return (res.rowCount || 0) > 0;
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const res = await client.query(query, values);
+        if (!res.rowCount) { await client.query("ROLLBACK"); return false; }
+        await client.query(`DELETE FROM profile_manager_handovers WHERE resource_type = 'business' AND resource_id::text = $1`, [id]);
+        await client.query(`DELETE FROM profile_manager_assignments WHERE resource_type = 'business' AND resource_id::text = $1`, [id]);
+        await client.query("COMMIT");
+        return true;
+      } catch (err) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw err;
+      } finally { client.release(); }
     } catch (err) {
       console.error("[DB ERROR] deleteBusinessProfile:", err);
       return false;
@@ -4539,7 +4788,35 @@ function mapMatrimonialRow(row: any): MatrimonialProfile {
   };
 }
 
+function mapProfileManagerAssignmentRow(row: any): ProfileManagerAssignment {
+  return {
+    resourceType: "business",
+    resourceId: String(row.resource_id),
+    creatorActorType: row.creator_actor_type,
+    creatorActorId: String(row.creator_actor_id),
+    managerActorType: row.manager_actor_type,
+    managerActorId: String(row.manager_actor_id),
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+  };
+}
+
+function mapProfileManagerHandoverRow(row: any): ProfileManagerHandover {
+  return {
+    id: String(row.id),
+    resourceType: "business",
+    resourceId: String(row.resource_id),
+    initiatedByActorType: row.initiated_by_actor_type,
+    initiatedByActorId: String(row.initiated_by_actor_id),
+    targetMemberId: String(row.target_member_id),
+    status: row.status,
+    expiresAt: row.expires_at instanceof Date ? row.expires_at.toISOString() : String(row.expires_at),
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+  };
+}
+
 function mapBusinessProfileRow(row: any): BusinessProfile {
+  const rawDirectors = typeof row.linked_directors === "string" ? JSON.parse(row.linked_directors) : (row.linked_directors || row.linkedDirectors || []);
   return {
     id: String(row.id),
     householdId: String(row.household_id || row.householdId || ""),
@@ -4570,7 +4847,9 @@ function mapBusinessProfileRow(row: any): BusinessProfile {
     socialLinks: typeof row.social_links === "string" ? JSON.parse(row.social_links) : (row.social_links || row.socialLinks || {}),
     photos: Array.isArray(row.photos) ? row.photos : (typeof row.photos === "string" ? JSON.parse(row.photos) : []),
     customFields: typeof row.custom_fields === "string" ? JSON.parse(row.custom_fields) : (row.custom_fields || row.customFields || []),
-    linkedDirectors: typeof row.linked_directors === "string" ? JSON.parse(row.linked_directors) : (row.linked_directors || row.linkedDirectors || []),
+    linkedDirectors: Array.isArray(rawDirectors)
+      ? rawDirectors.map((director) => ({ ...director, source: director.source || (director.memberId ? "directory" : "manual") }))
+      : [],
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || new Date().toISOString()),
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || new Date().toISOString()),
   };

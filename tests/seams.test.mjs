@@ -43,6 +43,30 @@ test("Seam 34: identity editor must not clear untouched documents", () => {
   assert.ok(dashboard.includes("? null : undefined"), "Untouched document fields must be omitted from partial updates");
 });
 
+test("Seam 35: business profiles use an explicit manager and founder handover contract", () => {
+  const schema = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+  const dbCode = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const business = fs.readFileSync(path.join(webRoot, "src/actions/business.ts"), "utf8");
+  const businessTypes = fs.readFileSync(path.join(webRoot, "src/types/business.ts"), "utf8");
+  const businessEdit = fs.readFileSync(path.join(webRoot, "src/app/businesses/[id]/edit/page.tsx"), "utf8");
+
+  assert.ok(schema.includes("CREATE TABLE IF NOT EXISTS profile_manager_assignments"), "Profile manager assignments must be persisted");
+  assert.ok(schema.includes("CREATE TABLE IF NOT EXISTS profile_manager_handovers"), "Pending manager handovers must be persisted");
+  assert.ok(dbCode.includes("isProfileManager"), "Database layer must expose manager authorization");
+  assert.ok(business.includes("assertBusinessManager"), "Business mutations must enforce the current manager");
+  assert.ok(business.includes("createBusinessManagerHandover") && business.includes("acceptBusinessManagerHandover"), "Business actions must support explicit handover");
+  assert.ok(businessTypes.includes("source: \"directory\" | \"manual\""), "Leadership records must distinguish directory and manual founders");
+  assert.ok(businessEdit.includes("addManualFounder"), "Manager-only business editing must support a manual founder");
+});
+
+test("Seam 36: admin legacy backfill must never overwrite an accepted business manager", () => {
+  const schema = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+  const dbCode = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const protectedBackfill = "assignment.creator_actor_type = 'member'";
+  assert.ok(schema.includes(protectedBackfill), "Schema backfill must only promote the untouched member fallback");
+  assert.ok(dbCode.includes(protectedBackfill), "Runtime schema backfill must preserve an accepted manager after restart");
+});
+
 // --- SEAM 2: Database Schema & PostGIS DDL Integrity ---
 test("Seam 2: PostgreSQL schema DDL contains all required tables and indexes", () => {
   const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");

@@ -1,11 +1,37 @@
 export interface LinkedDirector {
-  memberId: string;
+  source: "directory" | "manual";
+  memberId?: string;
   serialNo?: string;
   name: string;
   roleTitle: string;
   isPrimaryContact: boolean;
   phone?: string;
   email?: string;
+}
+
+export type ProfileActorType = "member" | "admin";
+
+export interface ProfileManagerAssignment {
+  resourceType: "business";
+  resourceId: string;
+  creatorActorType: ProfileActorType;
+  creatorActorId: string;
+  managerActorType: ProfileActorType;
+  managerActorId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProfileManagerHandover {
+  id: string;
+  resourceType: "business";
+  resourceId: string;
+  initiatedByActorType: ProfileActorType;
+  initiatedByActorId: string;
+  targetMemberId: string;
+  status: "pending" | "accepted" | "cancelled" | "expired";
+  expiresAt: string;
+  createdAt: string;
 }
 
 export interface BusinessCustomField {
@@ -64,6 +90,10 @@ export interface BusinessProfile {
 
   // Leadership & Governance
   linkedDirectors: LinkedDirector[];
+
+  // Populated only by authenticated owner-facing reads.
+  canManage?: boolean;
+  pendingHandover?: Pick<ProfileManagerHandover, "id" | "targetMemberId" | "expiresAt">;
 
   createdAt: string;
   updatedAt: string;

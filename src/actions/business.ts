@@ -3,8 +3,10 @@
 import { db } from "@/lib/db";
 import { getSession } from "@/actions/auth";
 import { sendMessage } from "@/actions/chat";
-import type { BusinessProfile, LinkedDirector, BusinessCustomField, BusinessSocialLinks } from "@/types/business";
+import type { BusinessProfile, LinkedDirector, BusinessCustomField, BusinessSocialLinks, ProfileActorType } from "@/types/business";
 import { sanitizeSocialLinks } from "@/lib/external-url";
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface CreateBusinessProfileInput {
   businessName: string;
@@ -44,6 +46,19 @@ export interface BusinessFilterInput {
   offset?: number;
 }
 
+function actorFromSession(session: NonNullable<Awaited<ReturnType<typeof getSession>>>): { type: ProfileActorType; id: string } {
+  return { type: session.role === "admin" ? "admin" : "member", id: session.userId };
+}
+
+async function assertBusinessManager(
+  session: NonNullable<Awaited<ReturnType<typeof getSession>>>,
+  business: BusinessProfile
+): Promise<boolean> {
+  await db.ensureBusinessProfileManager(business);
+  const actor = actorFromSession(session);
+  return db.isProfileManager(business.id, actor.type, actor.id);
+}
+
 /**
  * Sanitize business profile for public display, ensuring array defaults and visible commercial contacts.
  */
@@ -55,6 +70,7 @@ function sanitizeBusinessProfile(profile: BusinessProfile): BusinessProfile {
     customFields: Array.isArray(profile.customFields) ? profile.customFields : [],
     linkedDirectors: Array.isArray(profile.linkedDirectors)
       ? profile.linkedDirectors.map((d) => ({
+          source: d.source || (d.memberId ? "directory" : "manual"),
           memberId: d.memberId,
           serialNo: d.serialNo,
           name: d.name,
@@ -123,11 +139,14 @@ export async function createBusinessProfile(input: CreateBusinessProfileInput): 
     }
 
     // Linked directors processing
-    let directors: LinkedDirector[] = Array.isArray(input.linkedDirectors) ? input.linkedDirectors : [];
+    let directors: LinkedDirector[] = Array.isArray(input.linkedDirectors)
+      ? input.linkedDirectors.map((director) => ({ ...director, source: director.source || (director.memberId ? "directory" : "manual") }))
+      : [];
     if (directors.length === 0) {
       // Default primary contact to author member
       directors = [
         {
+          source: "directory",
           memberId: session.userId,
           name: household.headName || "Founder / Director",
           roleTitle: "Proprietor / Director",
@@ -140,6 +159,11 @@ export async function createBusinessProfile(input: CreateBusinessProfileInput): 
       if (!hasPrimary) {
         directors[0].isPrimaryContact = true;
       }
+    }
+
+    const primaryDirector = directors.find((director) => director.isPrimaryContact);
+    if (!primaryDirector?.memberId || primaryDirector.source !== "directory") {
+      return { success: false, error: "Choose a directory member as the primary contact for business inquiries." };
     }
 
     const newProfile = await db.createBusinessProfile({
@@ -173,6 +197,15 @@ export async function createBusinessProfile(input: CreateBusinessProfileInput): 
       linkedDirectors: directors,
     });
 
+    const actor = actorFromSession(session);
+    await db.setBusinessProfileManager({
+      businessId: newProfile.id,
+      creatorActorType: actor.type,
+      creatorActorId: actor.id,
+      managerActorType: actor.type,
+      managerActorId: actor.id,
+    });
+
     return { success: true, profile: sanitizeBusinessProfile(newProfile) };
   } catch (err: any) {
     console.error("[ACTION ERROR] createBusinessProfile:", err);
@@ -198,20 +231,31 @@ export async function updateBusinessProfile(
       return { success: false, error: "Business profile not found." };
     }
 
-    const household = await db.getHouseholdByContact(session.contact);
-    if (!household || existing.householdId !== household.id) {
+    if (!(await assertBusinessManager(session, existing))) {
       return { success: false, error: "You are not authorized to edit this business profile." };
+    }
+
+    const nextInput = { ...input };
+    if (input.linkedDirectors !== undefined) {
+      const directors = Array.isArray(input.linkedDirectors)
+        ? input.linkedDirectors.map((director) => ({ ...director, source: director.source || (director.memberId ? "directory" : "manual") }))
+        : [];
+      const primary = directors.find((director) => director.isPrimaryContact);
+      if (!primary?.memberId || primary.source !== "directory") {
+        return { success: false, error: "Keep one directory member as the primary business contact." };
+      }
+      nextInput.linkedDirectors = directors;
     }
 
     const updated = await db.updateBusinessProfile(
       id,
       {
-        ...input,
-        ...(input.socialLinks !== undefined ? { socialLinks: sanitizeSocialLinks(input.socialLinks) } : {}),
+        ...nextInput,
+        ...(nextInput.socialLinks !== undefined ? { socialLinks: sanitizeSocialLinks(nextInput.socialLinks) } : {}),
         // If rejected, re-editing puts it back into review
         status: existing.status === "rejected" ? "pending_review" : existing.status,
       },
-      household.id
+      undefined
     );
 
     if (!updated) {
@@ -244,8 +288,7 @@ export async function toggleBusinessVisibility(id: string): Promise<{
       return { success: false, error: "Business profile not found." };
     }
 
-    const household = await db.getHouseholdByContact(session.contact);
-    if (!household || existing.householdId !== household.id) {
+    if (!(await assertBusinessManager(session, existing))) {
       return { success: false, error: "You are not authorized to modify this business." };
     }
 
@@ -285,17 +328,95 @@ export async function deleteBusinessProfile(id: string): Promise<{ success: bool
       return { success: false, error: "Business profile not found." };
     }
 
-    const household = await db.getHouseholdByContact(session.contact);
-    if (!household || existing.householdId !== household.id) {
+    if (!(await assertBusinessManager(session, existing))) {
       return { success: false, error: "You are not authorized to delete this business profile." };
     }
 
-    const ok = await db.deleteBusinessProfile(id, household.id);
+    const ok = await db.deleteBusinessProfile(id);
     return { success: ok };
   } catch (err: any) {
     console.error("[ACTION ERROR] deleteBusinessProfile:", err);
     return { success: false, error: err.message || "Error deleting business profile." };
   }
+}
+
+/** Invite an activated directory member to become the sole business manager. */
+export async function createBusinessManagerHandover(params: {
+  businessId: string;
+  targetMemberId: string;
+}): Promise<{ success: boolean; handoverId?: string; error?: string }> {
+  const session = await getSession();
+  if (!session?.userId) return { success: false, error: "Please log in to hand over this business." };
+  if (!UUID_REGEX.test(params.businessId) || !params.targetMemberId.trim() || params.targetMemberId.trim().length > 64) {
+    return { success: false, error: "Choose a valid directory member and business profile." };
+  }
+  try {
+    const business = await db.getBusinessProfileById(params.businessId);
+    if (!business || !(await assertBusinessManager(session, business))) {
+      return { success: false, error: "You are not authorized to hand over this business." };
+    }
+    const target = await db.getMemberById(params.targetMemberId.trim());
+    if (!target || !target.ownerLocked) {
+      return { success: false, error: "The selected member must have an activated profile before accepting management." };
+    }
+    const actor = actorFromSession(session);
+    if (actor.type === "member" && actor.id === target.id) {
+      return { success: false, error: "You already manage this business." };
+    }
+    const handover = await db.createBusinessManagerHandover({
+      businessId: business.id,
+      initiatedByActorType: actor.type,
+      initiatedByActorId: actor.id,
+      targetMemberId: target.id,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+    return { success: true, handoverId: handover.id };
+  } catch (err) {
+    console.error("[ACTION ERROR] createBusinessManagerHandover:", err);
+    return { success: false, error: "Unable to create the management handover." };
+  }
+}
+
+export async function cancelBusinessManagerHandover(handoverId: string): Promise<{ success: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session?.userId) return { success: false, error: "Please log in to cancel this handover." };
+  if (!UUID_REGEX.test(handoverId)) return { success: false, error: "This handover is no longer available to cancel." };
+  try {
+    const actor = actorFromSession(session);
+    const success = await db.cancelBusinessManagerHandover(handoverId, actor.type, actor.id);
+    return success ? { success: true } : { success: false, error: "This handover is no longer available to cancel." };
+  } catch (err) {
+    console.error("[ACTION ERROR] cancelBusinessManagerHandover:", err);
+    return { success: false, error: "Unable to cancel the management handover." };
+  }
+}
+
+export async function acceptBusinessManagerHandover(handoverId: string): Promise<{ success: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session?.userId || session.role === "admin") return { success: false, error: "Please sign in as the invited member to accept this handover." };
+  if (!UUID_REGEX.test(handoverId)) return { success: false, error: "This handover is invalid, expired, or no longer pending." };
+  try {
+    const member = await db.getMemberById(session.userId);
+    if (!member?.ownerLocked) return { success: false, error: "Your member profile must be activated before accepting management." };
+    const success = await db.acceptBusinessManagerHandover(handoverId, member.id);
+    return success ? { success: true } : { success: false, error: "This handover is invalid, expired, or no longer pending." };
+  } catch (err) {
+    console.error("[ACTION ERROR] acceptBusinessManagerHandover:", err);
+    return { success: false, error: "Unable to accept the management handover." };
+  }
+}
+
+export async function getMyPendingBusinessManagerHandovers(): Promise<{ handovers: Array<{ id: string; businessId: string; businessName: string; expiresAt: string }> }> {
+  const session = await getSession();
+  if (!session?.userId || session.role === "admin") return { handovers: [] };
+  const member = await db.getMemberById(session.userId);
+  if (!member?.ownerLocked) return { handovers: [] };
+  const handovers = await db.getPendingBusinessManagerHandoversForTarget(member.id);
+  const resolved = await Promise.all(handovers.map(async (handover) => {
+    const business = await db.getBusinessProfileById(handover.resourceId);
+    return business ? { id: handover.id, businessId: business.id, businessName: business.businessName, expiresAt: handover.expiresAt } : null;
+  }));
+  return { handovers: resolved.filter((item): item is NonNullable<typeof item> => item !== null) };
 }
 
 /**
@@ -323,20 +444,16 @@ export async function getLiveBusinessProfiles(filters: BusinessFilterInput = {})
 export async function getBusinessProfileById(id: string): Promise<{
   profile: BusinessProfile | null;
   isOwner?: boolean;
+  isAuthenticated?: boolean;
 }> {
   try {
     const profile = await db.getBusinessProfileById(id);
     if (!profile) return { profile: null };
 
-    // Check if the current viewer owns the business
+    // Check if the current viewer is the explicitly assigned manager.
     let isOwner = false;
     const session = await getSession();
-    if (session?.contact) {
-      const household = await db.getHouseholdByContact(session.contact);
-      if (household && household.id === profile.householdId) {
-        isOwner = true;
-      }
-    }
+    if (session?.userId) isOwner = await assertBusinessManager(session, profile);
 
     // Only live profiles can be viewed by guests; owners can view pending/paused/rejected
     if (profile.status !== "live" && !isOwner) {
@@ -346,6 +463,7 @@ export async function getBusinessProfileById(id: string): Promise<{
     return {
       profile: sanitizeBusinessProfile(profile),
       isOwner,
+      isAuthenticated: Boolean(session?.userId),
     };
   } catch (err) {
     console.error("[ACTION ERROR] getBusinessProfileById:", err);
@@ -374,10 +492,19 @@ export async function getMyHouseholdBusinesses(): Promise<{
     }
 
     const businesses = await db.getBusinessProfilesByHouseholdId(household.id);
+    const actor = actorFromSession(session);
     const canCreate = household.status === "live" && businesses.length < 5;
 
     return {
-      businesses: businesses.map(sanitizeBusinessProfile),
+      businesses: await Promise.all(businesses.map(async (business) => {
+        const assignment = await db.ensureBusinessProfileManager(business);
+        const pending = await db.getPendingBusinessManagerHandover(business.id);
+        return {
+          ...sanitizeBusinessProfile(business),
+          canManage: assignment.managerActorType === actor.type && assignment.managerActorId === actor.id,
+          pendingHandover: pending ? { id: pending.id, targetMemberId: pending.targetMemberId, expiresAt: pending.expiresAt } : undefined,
+        };
+      })),
       canCreate,
       householdStatus: household.status,
     };
@@ -459,7 +586,11 @@ export async function initiateBusinessChat(params: {
     }
 
     // Get or create conversation with the primary contact director
-    const conversation = await db.getOrCreateConversation(callerMemberId, primaryDirector.memberId);
+    const primaryMemberId = primaryDirector.memberId;
+    if (!primaryMemberId || primaryDirector.source !== "directory") {
+      return { success: false, error: "This business does not have an available directory contact." };
+    }
+    const conversation = await db.getOrCreateConversation(callerMemberId, primaryMemberId);
 
     // Format contextual business inquiry tag
     const inquiryPrefix = `[Business Inquiry: ${business.businessName}]`;
@@ -468,7 +599,7 @@ export async function initiateBusinessChat(params: {
       : `${inquiryPrefix} Namaste! I am interested in connecting regarding ${business.businessName}.`;
 
     const sendRes = await sendMessage({
-      recipientMemberId: primaryDirector.memberId,
+      recipientMemberId: primaryMemberId,
       messageBody: messageContent,
       conversationId: conversation.id,
     });

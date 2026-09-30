@@ -7,17 +7,23 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.join(__dirname, "..");
 
-test("Task 4: /businesses/create page file exists and implements 4-step wizard", () => {
+test("Business creation is a three-step submission flow and leadership is managed after creation", () => {
   const createPath = path.join(webRoot, "src/app/businesses/create/page.tsx");
+  const editPath = path.join(webRoot, "src/app/businesses/[id]/edit/page.tsx");
   assert.ok(fs.existsSync(createPath), "src/app/businesses/create/page.tsx must exist");
+  assert.ok(fs.existsSync(editPath), "src/app/businesses/[id]/edit/page.tsx must exist");
 
   const content = fs.readFileSync(createPath, "utf8");
+  const editContent = fs.readFileSync(editPath, "utf8");
   assert.ok(content.includes("createBusinessProfile"), "Must import createBusinessProfile action");
   assert.ok(content.includes("currentStep") || content.includes("step"), "Must maintain wizard step state");
   assert.ok(content.includes("businessName"), "Must include business name field");
   assert.ok(content.includes("industrySector"), "Must include industry sector field");
   assert.ok(content.includes("aboutBusiness"), "Must include about business narrative");
-  assert.ok(content.includes("isPrimaryContact"), "Must allow designating primary contact director");
+  assert.ok(content.includes("3-Step Enterprise Registration"), "Creation must advertise three steps");
+  assert.ok(!content.includes("Leadership & Governance Linking"), "Leadership must not block creation");
+  assert.ok(editContent.includes("Leadership & Governance"), "Managers must configure leadership after creation");
+  assert.ok(editContent.includes("linkedDirectors"), "Edit page must save leadership changes");
   assert.ok(content.includes("export default"), "Must export default page component");
 });
 

@@ -425,6 +425,65 @@ CREATE INDEX IF NOT EXISTS idx_business_profiles_created_by ON business_profiles
 ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS business_serial_no VARCHAR(32) UNIQUE;
 CREATE INDEX IF NOT EXISTS idx_business_profiles_serial_no ON business_profiles(business_serial_no);
 
+-- 9d.1 Profile authority for business records. Creator history and current
+-- manager are separate so an administrator can hand a profile over safely.
+CREATE TABLE IF NOT EXISTS profile_manager_assignments (
+    resource_type VARCHAR(32) NOT NULL CHECK (resource_type = 'business'),
+    resource_id UUID NOT NULL,
+    creator_actor_type VARCHAR(16) NOT NULL CHECK (creator_actor_type IN ('member', 'admin')),
+    creator_actor_id TEXT NOT NULL,
+    manager_actor_type VARCHAR(16) NOT NULL CHECK (manager_actor_type IN ('member', 'admin')),
+    manager_actor_id TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (resource_type, resource_id)
+);
+CREATE INDEX IF NOT EXISTS idx_profile_manager_assignments_manager ON profile_manager_assignments(resource_type, manager_actor_type, manager_actor_id);
+ALTER TABLE profile_manager_assignments ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS profile_manager_handovers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    resource_type VARCHAR(32) NOT NULL CHECK (resource_type = 'business'),
+    resource_id UUID NOT NULL,
+    initiated_by_actor_type VARCHAR(16) NOT NULL CHECK (initiated_by_actor_type IN ('member', 'admin')),
+    initiated_by_actor_id TEXT NOT NULL,
+    target_member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    status VARCHAR(16) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'cancelled', 'expired')),
+    expires_at TIMESTAMPTZ NOT NULL,
+    accepted_at TIMESTAMPTZ,
+    cancelled_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profile_manager_handovers_one_pending
+  ON profile_manager_handovers(resource_type, resource_id) WHERE status = 'pending';
+ALTER TABLE profile_manager_handovers ENABLE ROW LEVEL SECURITY;
+
+-- Existing member-created records retain their established creator as manager.
+INSERT INTO profile_manager_assignments (
+    resource_type, resource_id, creator_actor_type, creator_actor_id, manager_actor_type, manager_actor_id
+)
+SELECT 'business', id, 'member', created_by_member_id::text, 'member', created_by_member_id::text
+FROM business_profiles
+ON CONFLICT (resource_type, resource_id) DO NOTHING;
+
+-- Audit history identifies legacy administrator-created records without
+-- changing businesses that lack a trustworthy creation audit event.
+UPDATE profile_manager_assignments assignment
+SET creator_actor_type = 'admin', creator_actor_id = audit.admin_id,
+    manager_actor_type = 'admin', manager_actor_id = audit.admin_id,
+    updated_at = NOW()
+FROM (
+  SELECT DISTINCT ON (target_id) target_id, admin_id
+  FROM admin_audit_logs
+  WHERE action = 'ADMIN_CREATE_BUSINESS_PROFILE' AND target_type IN ('business', 'business_profile')
+  ORDER BY target_id, created_at ASC
+) audit
+WHERE assignment.resource_type = 'business'
+  AND assignment.resource_id::text = audit.target_id
+  AND assignment.creator_actor_type = 'member'
+  AND assignment.manager_actor_type = 'member'
+  AND assignment.creator_actor_id = assignment.manager_actor_id;
+
 -- 9e. Global Jobs & Careers Network (Pillar 4: career_profiles)
 CREATE TABLE IF NOT EXISTS career_profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -64,7 +64,9 @@ export async function getClaimMemberDetails(token: string) {
       };
     }
 
-    if (member.ownerLocked || member.verifiedBySelf) {
+    // Ownership is established only by the claim lock. Legacy/self-verification
+    // flags may exist before a member has completed the claim flow.
+    if (member.ownerLocked) {
       return {
         success: false,
         error: "This profile has already been verified and claimed.",

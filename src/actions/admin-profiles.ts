@@ -448,6 +448,7 @@ export async function adminCreateBusinessProfileAction(
       ? input.linkedDirectors
       : [
           {
+            source: "directory",
             memberId: member.id,
             name: member.fullName,
             roleTitle: "Founder / Managing Director",
@@ -486,6 +487,14 @@ export async function adminCreateBusinessProfileAction(
       photos: Array.isArray(input.photos) ? input.photos.filter(Boolean) : [],
       customFields: [],
       linkedDirectors,
+    });
+
+    await db.setBusinessProfileManager({
+      businessId: business.id,
+      creatorActorType: "admin",
+      creatorActorId: session.userId,
+      managerActorType: "admin",
+      managerActorId: session.userId,
     });
 
     await db.recordAdminAuditLog({
