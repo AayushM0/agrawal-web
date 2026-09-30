@@ -4,7 +4,7 @@ import type { Household, Member } from "../types/household";
 import type { SupportInquiry, CreateInquiryInput, InquiryStatus } from "../types/support";
 import type { MatrimonialProfile, MatrimonyFilter } from "../types/matrimony";
 import type { EmailQueueItem, EnqueueEmailInput, EmailQueueStats } from "../types/email-queue";
-import type { BusinessProfile, ProfileActorType, ProfileManagerAssignment, ProfileManagerHandover } from "../types/business";
+import type { BusinessCertificateDelivery, BusinessCertificateIssuance, BusinessProfile, ProfileActorType, ProfileManagerAssignment, ProfileManagerHandover } from "../types/business";
 import type {
   CareerProfile,
   CreateCareerProfileInput,
@@ -439,6 +439,38 @@ async function ensureSchema(client: any) {
       ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS whatsapp_number VARCHAR(50);
       ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS business_serial_no VARCHAR(32) UNIQUE;
       CREATE INDEX IF NOT EXISTS idx_business_profiles_serial_no ON business_profiles(business_serial_no);
+
+      CREATE TABLE IF NOT EXISTS business_certificate_issuances (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          business_id UUID NOT NULL REFERENCES business_profiles(id) ON DELETE CASCADE,
+          generation INTEGER NOT NULL DEFAULT 1 CHECK (generation > 0),
+          status VARCHAR(16) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+          issued_by_admin_id TEXT,
+          issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          UNIQUE (business_id, generation)
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_business_certificate_one_active ON business_certificate_issuances(business_id) WHERE status = 'active';
+      CREATE INDEX IF NOT EXISTS idx_business_certificate_issuances_business ON business_certificate_issuances(business_id, issued_at DESC);
+      ALTER TABLE business_certificate_issuances ENABLE ROW LEVEL SECURITY;
+      CREATE TABLE IF NOT EXISTS business_certificate_deliveries (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          issuance_id UUID NOT NULL REFERENCES business_certificate_issuances(id) ON DELETE CASCADE,
+          recipient_email TEXT NOT NULL,
+          recipient_name TEXT,
+          email_queue_id UUID REFERENCES email_queue(id) ON DELETE SET NULL,
+          delivery_kind VARCHAR(16) NOT NULL CHECK (delivery_kind IN ('approval', 'resend')),
+          failure_reason TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      ALTER TABLE business_certificate_deliveries ADD COLUMN IF NOT EXISTS failure_reason TEXT;
+      CREATE INDEX IF NOT EXISTS idx_business_certificate_deliveries_issuance ON business_certificate_deliveries(issuance_id, created_at DESC);
+      ALTER TABLE business_certificate_deliveries ENABLE ROW LEVEL SECURITY;
+      INSERT INTO business_certificate_issuances (business_id, generation, status, issued_at)
+      SELECT id, 1, 'active', updated_at FROM business_profiles
+      WHERE status = 'live' AND is_verified_badge = TRUE AND business_serial_no IS NOT NULL
+      ON CONFLICT (business_id, generation) DO NOTHING;
 
       CREATE TABLE IF NOT EXISTS profile_manager_assignments (
           resource_type VARCHAR(32) NOT NULL CHECK (resource_type = 'business'),
@@ -3979,6 +4011,20 @@ export const db = {
     }
   },
 
+  async getRejectedBusinessProfiles(): Promise<BusinessProfile[]> {
+    if (!pool) {
+      const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles ||= []);
+      return list.filter((profile) => profile.status === "rejected");
+    }
+    try {
+      const res = await pool.query("SELECT * FROM business_profiles WHERE status = 'rejected' ORDER BY updated_at DESC;");
+      return res.rows.map(mapBusinessProfileRow);
+    } catch (err) {
+      console.error("[DB ERROR] getRejectedBusinessProfiles:", err);
+      return [];
+    }
+  },
+
   async setBusinessProfileStatus(
     id: string,
     status: "pending_review" | "live" | "paused" | "rejected",
@@ -3991,7 +4037,11 @@ export const db = {
       const idx = list.findIndex((p) => p.id === id);
       if (idx === -1) return false;
       list[idx].status = status;
-      if (status === "rejected") list[idx].businessSerialNo = undefined;
+      if (status === "rejected") {
+        const issuances: Map<string, BusinessCertificateIssuance> = ((globalThis as any).__memoryBusinessCertificateIssuances ||= new Map());
+        const issuance = issuances.get(id);
+        if (issuance) issuance.status = "inactive";
+      }
       if (rejectionReason !== undefined) list[idx].rejectionReason = rejectionReason;
       if (isVerifiedBadge !== undefined) list[idx].isVerifiedBadge = isVerifiedBadge;
       list[idx].updatedAt = new Date().toISOString();
@@ -4010,16 +4060,31 @@ export const db = {
         sets.push(`is_verified_badge = $${paramIndex++}`);
         values.push(isVerifiedBadge);
       }
-      if (status === "rejected") sets.push("business_serial_no = NULL");
-
       const res = await pool.query(
         `UPDATE business_profiles SET ${sets.join(", ")} WHERE id::text = $1 RETURNING id;`,
         values
       );
+      if (status === "rejected" && res.rowCount) {
+        await pool.query("UPDATE business_certificate_issuances SET status = 'inactive', updated_at = NOW() WHERE business_id::text = $1 AND status = 'active';", [id]);
+      }
       return (res.rowCount || 0) > 0;
     } catch (err) {
       console.error("[DB ERROR] setBusinessProfileStatus:", err);
       return false;
+    }
+  },
+
+  async getLiveVerifiedBusinessProfiles(): Promise<BusinessProfile[]> {
+    if (!pool) {
+      const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles ||= []);
+      return list.filter((profile) => profile.status === "live" && profile.isVerifiedBadge);
+    }
+    try {
+      const res = await pool.query("SELECT * FROM business_profiles WHERE status = 'live' AND is_verified_badge = TRUE ORDER BY updated_at DESC;");
+      return res.rows.map(mapBusinessProfileRow);
+    } catch (err) {
+      console.error("[DB ERROR] getLiveVerifiedBusinessProfiles:", err);
+      return [];
     }
   },
 
@@ -4042,34 +4107,87 @@ export const db = {
     return res.rows.length > 0;
   },
 
-  async approveAndVerifyBusinessProfile(id: string): Promise<{ success: boolean; businessSerialNo?: string }> {
+  async approveAndVerifyBusinessProfile(id: string, issuedByAdminId?: string): Promise<{ success: boolean; businessSerialNo?: string; issuance?: BusinessCertificateIssuance; certificateNewlyIssued?: boolean }> {
     if (!pool) {
       const list: BusinessProfile[] = ((globalThis as any).__memoryBusinessProfiles ||= []);
       const business = list.find((item) => item.id === id);
       if (!business) return { success: false };
+      const issuances: Map<string, BusinessCertificateIssuance> = ((globalThis as any).__memoryBusinessCertificateIssuances ||= new Map());
+      const existing = issuances.get(id);
+      const wasLive = business.status === "live";
       business.businessSerialNo ||= findLowestAvailableBusinessSerial(list);
       business.status = "live";
       business.isVerifiedBadge = true;
       business.updatedAt = new Date().toISOString();
-      return { success: true, businessSerialNo: business.businessSerialNo };
+      if (existing?.status === "active" && wasLive) return { success: true, businessSerialNo: business.businessSerialNo, issuance: existing, certificateNewlyIssued: false };
+      const issuance: BusinessCertificateIssuance = {
+        id: crypto.randomUUID(), businessId: id, generation: (existing?.generation || 0) + 1,
+        status: "active", issuedAt: new Date().toISOString(), issuedByAdminId: issuedByAdminId || null,
+      };
+      issuances.set(id, issuance);
+      return { success: true, businessSerialNo: business.businessSerialNo, issuance, certificateNewlyIssued: true };
     }
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
       await client.query("SELECT pg_advisory_xact_lock(8192026)");
-      const business = await client.query("SELECT id, business_serial_no FROM business_profiles WHERE id::text = $1 FOR UPDATE", [id]);
+      const business = await client.query("SELECT id, business_serial_no, status FROM business_profiles WHERE id::text = $1 FOR UPDATE", [id]);
       if (!business.rowCount) { await client.query("ROLLBACK"); return { success: false }; }
+      const activeIssuance = await client.query(
+        "SELECT * FROM business_certificate_issuances WHERE business_id::text = $1 AND status = 'active' FOR UPDATE",
+        [id]
+      );
       const businessSerialNo = business.rows[0].business_serial_no || await generateNextBusinessSerialNo(client);
       await client.query(
         "UPDATE business_profiles SET status = 'live', is_verified_badge = TRUE, business_serial_no = $2, updated_at = NOW() WHERE id::text = $1",
         [id, businessSerialNo]
       );
+      if (activeIssuance.rowCount && business.rows[0].status === "live") {
+        await client.query("COMMIT");
+        return { success: true, businessSerialNo, issuance: mapBusinessCertificateIssuanceRow(activeIssuance.rows[0]), certificateNewlyIssued: false };
+      }
+      if (activeIssuance.rowCount) {
+        await client.query("UPDATE business_certificate_issuances SET status = 'inactive', updated_at = NOW() WHERE id = $1", [activeIssuance.rows[0].id]);
+      }
+      const issuance = await client.query(
+        `INSERT INTO business_certificate_issuances (business_id, generation, status, issued_by_admin_id)
+         VALUES ($1, COALESCE((SELECT MAX(generation) + 1 FROM business_certificate_issuances WHERE business_id = $1), 1), 'active', $2)
+         RETURNING *;`,
+        [id, issuedByAdminId || null]
+      );
       await client.query("COMMIT");
-      return { success: true, businessSerialNo };
+      return { success: true, businessSerialNo, issuance: mapBusinessCertificateIssuanceRow(issuance.rows[0]), certificateNewlyIssued: true };
     } catch (err) {
       await client.query("ROLLBACK").catch(() => undefined);
       throw err;
     } finally { client.release(); }
+  },
+
+  async getActiveBusinessCertificateIssuance(businessId: string): Promise<BusinessCertificateIssuance | null> {
+    if (!pool) {
+      const issuances: Map<string, BusinessCertificateIssuance> = ((globalThis as any).__memoryBusinessCertificateIssuances ||= new Map());
+      return issuances.get(businessId) || null;
+    }
+    const res = await pool.query(
+      "SELECT * FROM business_certificate_issuances WHERE business_id::text = $1 AND status = 'active' LIMIT 1;",
+      [businessId]
+    );
+    return res.rows[0] ? mapBusinessCertificateIssuanceRow(res.rows[0]) : null;
+  },
+
+  async recordBusinessCertificateDelivery(input: Omit<BusinessCertificateDelivery, "id" | "createdAt">): Promise<BusinessCertificateDelivery | null> {
+    if (!pool) {
+      const delivery: BusinessCertificateDelivery = { id: crypto.randomUUID(), ...input, createdAt: new Date().toISOString() };
+      const deliveries: BusinessCertificateDelivery[] = ((globalThis as any).__memoryBusinessCertificateDeliveries ||= []);
+      deliveries.push(delivery);
+      return delivery;
+    }
+    const res = await pool.query(
+      `INSERT INTO business_certificate_deliveries (issuance_id, recipient_email, recipient_name, email_queue_id, delivery_kind, failure_reason)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;`,
+      [input.issuanceId, input.recipientEmail.trim().toLowerCase(), input.recipientName || null, input.emailQueueId || null, input.deliveryKind, input.failureReason || null]
+    );
+    return res.rows[0] ? mapBusinessCertificateDeliveryRow(res.rows[0]) : null;
   },
 
   async deleteBusinessProfile(id: string, householdId?: string): Promise<boolean> {
@@ -4798,6 +4916,30 @@ function mapProfileManagerAssignmentRow(row: any): ProfileManagerAssignment {
     managerActorId: String(row.manager_actor_id),
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+  };
+}
+
+function mapBusinessCertificateIssuanceRow(row: any): BusinessCertificateIssuance {
+  return {
+    id: String(row.id),
+    businessId: String(row.business_id || row.businessId),
+    generation: Number(row.generation || 1),
+    status: row.status === "inactive" ? "inactive" : "active",
+    issuedAt: new Date(row.issued_at || row.issuedAt || row.created_at).toISOString(),
+    issuedByAdminId: row.issued_by_admin_id || row.issuedByAdminId || null,
+  };
+}
+
+function mapBusinessCertificateDeliveryRow(row: any): BusinessCertificateDelivery {
+  return {
+    id: String(row.id),
+    issuanceId: String(row.issuance_id || row.issuanceId),
+    recipientEmail: String(row.recipient_email || row.recipientEmail),
+    recipientName: row.recipient_name || row.recipientName || null,
+    emailQueueId: row.email_queue_id || row.emailQueueId || null,
+    deliveryKind: row.delivery_kind === "resend" ? "resend" : "approval",
+    failureReason: row.failure_reason || row.failureReason || null,
+    createdAt: new Date(row.created_at || row.createdAt).toISOString(),
   };
 }
 

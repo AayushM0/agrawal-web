@@ -1191,6 +1191,9 @@ export default function DashboardPage() {
                         {b.canManage ? (
                         <div className="flex items-center gap-2">
                           <Link href={`/businesses/${b.id}/edit`} className="px-2.5 py-1 rounded-lg text-xs font-semibold text-brand-primary border border-brand-accent/40">Edit</Link>
+                          {isLive && b.isVerifiedBadge && (
+                            <a href={`/api/businesses/${b.id}/certificate`} className="px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50">Download Certificate</a>
+                          )}
                           {(isLive || isPaused) && (
                             <button
                               type="button"

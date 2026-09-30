@@ -425,6 +425,48 @@ CREATE INDEX IF NOT EXISTS idx_business_profiles_created_by ON business_profiles
 ALTER TABLE business_profiles ADD COLUMN IF NOT EXISTS business_serial_no VARCHAR(32) UNIQUE;
 CREATE INDEX IF NOT EXISTS idx_business_profiles_serial_no ON business_profiles(business_serial_no);
 
+-- Private business certificate lifecycle. The certificate itself is rendered
+-- from the current live profile; these records retain approval/delivery audit
+-- state without exposing a public verification surface.
+CREATE TABLE IF NOT EXISTS business_certificate_issuances (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    business_id UUID NOT NULL REFERENCES business_profiles(id) ON DELETE CASCADE,
+    generation INTEGER NOT NULL DEFAULT 1 CHECK (generation > 0),
+    status VARCHAR(16) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+    issued_by_admin_id TEXT,
+    issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (business_id, generation)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_business_certificate_one_active
+  ON business_certificate_issuances(business_id) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_business_certificate_issuances_business
+  ON business_certificate_issuances(business_id, issued_at DESC);
+ALTER TABLE business_certificate_issuances ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS business_certificate_deliveries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    issuance_id UUID NOT NULL REFERENCES business_certificate_issuances(id) ON DELETE CASCADE,
+    recipient_email TEXT NOT NULL,
+    recipient_name TEXT,
+    email_queue_id UUID REFERENCES email_queue(id) ON DELETE SET NULL,
+    delivery_kind VARCHAR(16) NOT NULL CHECK (delivery_kind IN ('approval', 'resend')),
+    failure_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE business_certificate_deliveries ADD COLUMN IF NOT EXISTS failure_reason TEXT;
+CREATE INDEX IF NOT EXISTS idx_business_certificate_deliveries_issuance
+  ON business_certificate_deliveries(issuance_id, created_at DESC);
+ALTER TABLE business_certificate_deliveries ENABLE ROW LEVEL SECURITY;
+
+-- Existing approved listings become downloadable without triggering an email.
+INSERT INTO business_certificate_issuances (business_id, generation, status, issued_at)
+SELECT id, 1, 'active', updated_at
+FROM business_profiles
+WHERE status = 'live' AND is_verified_badge = TRUE AND business_serial_no IS NOT NULL
+ON CONFLICT (business_id, generation) DO NOTHING;
+
 -- 9d.1 Profile authority for business records. Creator history and current
 -- manager are separate so an administrator can hand a profile over safely.
 CREATE TABLE IF NOT EXISTS profile_manager_assignments (

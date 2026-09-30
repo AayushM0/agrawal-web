@@ -12,6 +12,7 @@ import { headers } from "next/headers";
 import { getClientIp } from "@/lib/turnstile";
 import { enqueueEmail, drainEmailQueue } from "@/lib/email-queue";
 import { dispatchResendEmail, escHtml } from "@/lib/email";
+import { queueBusinessCertificateDelivery } from "@/lib/business-certificate";
 import React from "react";
 
 
@@ -664,7 +665,7 @@ export async function approveBusinessProfileAction(params: {
     return { success: false, error: "Unauthorized: Admin privileges required." };
   }
   try {
-    const approval = await db.approveAndVerifyBusinessProfile(params.businessId);
+    const approval = await db.approveAndVerifyBusinessProfile(params.businessId, session.userId || "admin");
     if (!approval.success) {
       return { success: false, error: "Business profile not found or update failed." };
     }
@@ -684,14 +685,73 @@ export async function approveBusinessProfileAction(params: {
       ipAddress,
     });
 
+    let certificateQueued = 0;
+    let certificateFailures: string[] = [];
+    if (approval.certificateNewlyIssued && approval.issuance) {
+      try {
+        const business = await db.getBusinessProfileById(params.businessId);
+        if (business) {
+          const delivery = await queueBusinessCertificateDelivery({ business, issuance: approval.issuance, deliveryKind: "approval" });
+          certificateQueued = delivery.queued;
+          certificateFailures = delivery.failures;
+        } else {
+          certificateFailures = ["Business approved but certificate recipients could not be loaded."];
+        }
+      } catch (deliveryError: any) {
+        console.error("Business certificate delivery setup failed after approval:", deliveryError);
+        certificateFailures = [deliveryError?.message || "Business approved but certificate delivery setup failed."];
+      }
+    }
+
     return {
       success: true,
-      message: "Business enterprise successfully approved, published live, and verified.",
+      message: `Business enterprise successfully approved, published live, and verified.${certificateQueued ? ` Certificate queued for ${certificateQueued} recipient${certificateQueued === 1 ? "" : "s"}.` : ""}${certificateFailures.length ? " Certificate delivery needs attention in the email queue." : ""}`,
     };
   } catch (err: any) {
     console.error("approveBusinessProfileAction error:", err);
     return { success: false, error: err.message || "Failed to approve business." };
   }
+}
+
+export async function getRejectedBusinessProfilesAction(): Promise<{
+  success: boolean;
+  profiles: BusinessProfile[];
+  error?: string;
+}> {
+  const session = await getSession();
+  if (session?.role !== "admin") return { success: false, error: "Unauthorized: Admin privileges required.", profiles: [] };
+  try {
+    return { success: true, profiles: await db.getRejectedBusinessProfiles() };
+  } catch (err: any) {
+    console.error("getRejectedBusinessProfilesAction error:", err);
+    return { success: false, error: "Failed to load rejected businesses.", profiles: [] };
+  }
+}
+
+export async function getLiveVerifiedBusinessProfilesAction(): Promise<{ success: boolean; profiles: BusinessProfile[]; error?: string }> {
+  const session = await getSession();
+  if (session?.role !== "admin") return { success: false, error: "Unauthorized: Admin privileges required.", profiles: [] };
+  try {
+    return { success: true, profiles: await db.getLiveVerifiedBusinessProfiles() };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Failed to load approved businesses.", profiles: [] };
+  }
+}
+
+export async function resendBusinessCertificateAction(params: { businessId: string }): Promise<{ success: boolean; message?: string; error?: string }> {
+  const session = await getSession();
+  if (session?.role !== "admin") return { success: false, error: "Unauthorized: Admin privileges required." };
+  const business = await db.getBusinessProfileById(params.businessId);
+  if (!business || business.status !== "live" || !business.isVerifiedBadge) return { success: false, error: "Only live approved businesses have downloadable certificates." };
+  const issuance = await db.getActiveBusinessCertificateIssuance(params.businessId);
+  if (!issuance) return { success: false, error: "No active certificate issuance was found for this business." };
+  const delivery = await queueBusinessCertificateDelivery({ business, issuance, deliveryKind: "resend" });
+  await db.recordAdminAuditLog({
+    adminId: session.userId || "admin", adminContact: session.contact || "admin", action: "RESEND_BUSINESS_CERTIFICATE",
+    targetType: "business", targetId: params.businessId, details: { issuanceId: issuance.id, queued: delivery.queued, failures: delivery.failures.length }, ipAddress: await getAdminIp(),
+  });
+  if (!delivery.queued) return { success: false, error: delivery.failures[0] || "No certificate email could be queued." };
+  return { success: true, message: `Certificate queued for ${delivery.queued} recipient${delivery.queued === 1 ? "" : "s"}.` };
 }
 
 /**
@@ -713,7 +773,8 @@ export async function rejectBusinessProfileAction(params: {
     const ok = await db.setBusinessProfileStatus(
       params.businessId,
       "rejected",
-      params.rejectionReason.trim()
+      params.rejectionReason.trim(),
+      false
     );
     if (!ok) {
       return { success: false, error: "Business profile not found or update failed." };

@@ -137,6 +137,11 @@ export default function BusinessDetailPage() {
               >
                 Edit business →
               </Link>
+              {profile.status === "live" && profile.isVerifiedBadge && (
+                <a href={`/api/businesses/${profile.id}/certificate`} className="text-xs font-semibold text-emerald-700 hover:underline">
+                  Download certificate →
+                </a>
+              )}
             </div>
           )}
         </div>

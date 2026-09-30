@@ -34,6 +34,26 @@ export interface ProfileManagerHandover {
   createdAt: string;
 }
 
+export interface BusinessCertificateIssuance {
+  id: string;
+  businessId: string;
+  generation: number;
+  status: "active" | "inactive";
+  issuedAt: string;
+  issuedByAdminId?: string | null;
+}
+
+export interface BusinessCertificateDelivery {
+  id: string;
+  issuanceId: string;
+  recipientEmail: string;
+  recipientName?: string | null;
+  emailQueueId?: string | null;
+  deliveryKind: "approval" | "resend";
+  failureReason?: string | null;
+  createdAt: string;
+}
+
 export interface BusinessCustomField {
   id: string;
   label: string;
@@ -94,6 +114,7 @@ export interface BusinessProfile {
   // Populated only by authenticated owner-facing reads.
   canManage?: boolean;
   pendingHandover?: Pick<ProfileManagerHandover, "id" | "targetMemberId" | "expiresAt">;
+  certificateAvailable?: boolean;
 
   createdAt: string;
   updatedAt: string;

@@ -43,10 +43,18 @@ fix-ts.mjs
 scripts/clean-db.mjs
 scripts/inspect-target-members.mjs
 scripts/download-id-cards-for-emails.mjs
+scripts/generate-cert.mjs
 ACTIVITY_LOG.md
 changes.md
 tasks/
+
+# output & generated files
+/output/
+output/
+*.pdf
+
 # local uploads
 /public/uploads/*
 !/public/uploads/.gitkeep
+
 

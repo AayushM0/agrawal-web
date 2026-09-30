@@ -15,8 +15,11 @@ import {
   retryFailedEmailsAction,
   drainEmailQueueAction,
   getPendingBusinessProfilesAction,
+  getRejectedBusinessProfilesAction,
+  getLiveVerifiedBusinessProfilesAction,
   approveBusinessProfileAction,
   rejectBusinessProfileAction,
+  resendBusinessCertificateAction,
 } from "@/actions/moderate";
 import { getIncompleteRegistrations } from "@/actions/draft";
 import { Household } from "@/types/household";
@@ -32,6 +35,8 @@ export default function ModerationQueuePage() {
   const [inquiries, setInquiries] = useState<any[]>([]);
   const [drafts, setDrafts] = useState<any[]>([]);
   const [pendingBusinesses, setPendingBusinesses] = useState<BusinessProfile[]>([]);
+  const [approvedBusinesses, setApprovedBusinesses] = useState<BusinessProfile[]>([]);
+  const [rejectedBusinesses, setRejectedBusinesses] = useState<BusinessProfile[]>([]);
   const [liveJobs, setLiveJobs] = useState<JobPosting[]>([]);
   const [rejectingBusinessId, setRejectingBusinessId] = useState<string | null>(null);
   const [businessRejectReason, setBusinessRejectReason] = useState("");
@@ -75,13 +80,15 @@ export default function ModerationQueuePage() {
 
   const loadQueue = async () => {
     setIsLoading(true);
-    const [data, repRes, inqRes, draftRes, qRes, bizRes, jobsRes] = await Promise.all([
+    const [data, repRes, inqRes, draftRes, qRes, bizRes, approvedBizRes, rejectedBizRes, jobsRes] = await Promise.all([
       getModerationHouseholds(),
       getMessageReports(),
       getAdminSupportInquiries(),
       getIncompleteRegistrations(),
       getEmailQueueStatusAction(),
       getPendingBusinessProfilesAction(),
+      getLiveVerifiedBusinessProfilesAction(),
+      getRejectedBusinessProfilesAction(),
       getLiveJobPostingsAction(),
     ]);
     setHouseholds(data);
@@ -101,6 +108,12 @@ export default function ModerationQueuePage() {
     if (bizRes.success) {
       setPendingBusinesses(bizRes.profiles || []);
     }
+    if (approvedBizRes.success) {
+      setApprovedBusinesses(approvedBizRes.profiles || []);
+    }
+    if (rejectedBizRes.success) {
+      setRejectedBusinesses(rejectedBizRes.profiles || []);
+    }
     if (jobsRes.success) {
       setLiveJobs(jobsRes.jobs || []);
     }
@@ -111,12 +124,25 @@ export default function ModerationQueuePage() {
     const res = await approveBusinessProfileAction({ businessId });
     if (res.success) {
       setPendingBusinesses((prev) => prev.filter((b) => b.id !== businessId));
+      setRejectedBusinesses((prev) => prev.filter((b) => b.id !== businessId));
+      getLiveVerifiedBusinessProfilesAction().then((approved) => {
+        if (approved.success) setApprovedBusinesses(approved.profiles || []);
+      });
       setStatusMessage(res.message || "Business enterprise approved and published live!");
       setTimeout(() => setStatusMessage(""), 4000);
     } else {
       setStatusMessage(res.error || "Failed to approve business.");
       setTimeout(() => setStatusMessage(""), 4000);
     }
+  };
+
+  const handleResendBusinessCertificate = async (businessId: string) => {
+    setResendingId(businessId);
+    const res = await resendBusinessCertificateAction({ businessId });
+    setResendingId(null);
+    setStatusMessage(res.success ? (res.message || "Certificate email queued.") : (res.error || "Failed to queue the certificate."));
+    setTimeout(() => setStatusMessage(""), 4000);
+    if (res.success) loadQueueStats();
   };
 
   const handleConfirmRejectBusiness = async () => {
@@ -127,6 +153,10 @@ export default function ModerationQueuePage() {
     });
     if (res.success) {
       setPendingBusinesses((prev) => prev.filter((b) => b.id !== rejectingBusinessId));
+      setApprovedBusinesses((prev) => prev.filter((b) => b.id !== rejectingBusinessId));
+      getRejectedBusinessProfilesAction().then((rejected) => {
+        if (rejected.success) setRejectedBusinesses(rejected.profiles || []);
+      });
       setRejectingBusinessId(null);
       setBusinessRejectReason("");
       setStatusMessage(res.message || "Business rejected with feedback logged.");
@@ -300,6 +330,7 @@ export default function ModerationQueuePage() {
   const displayedQueueLogs = showOnlyFailedEmails
     ? queueLogs.filter((log) => log.status === "failed")
     : queueLogs;
+  const rejectingLiveBusiness = Boolean(rejectingBusinessId && approvedBusinesses.some((business) => business.id === rejectingBusinessId));
 
   const isHouseholdTab = filter === "pending" || filter === "approved" || filter === "all" || filter === "rejected";
 
@@ -1413,6 +1444,43 @@ export default function ModerationQueuePage() {
                 })}
               </div>
             )}
+            <div className="pt-4 border-t border-brand-accent/20 space-y-3">
+              <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wider">Approved business certificates</h3>
+              {approvedBusinesses.length === 0 ? (
+                <p className="text-xs text-body-muted">No approved businesses have certificates available yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {approvedBusinesses.map((business) => (
+                    <div key={business.id} className="rounded-2xl border border-brand-accent/20 bg-white p-3 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-brand-primary">{business.businessName}</p>
+                        <p className="text-[11px] font-mono text-body-muted">{business.businessSerialNo}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a href={`/api/businesses/${business.id}/certificate`} className="px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-700 border border-emerald-200">Download</a>
+                        <button type="button" onClick={() => handleResendBusinessCertificate(business.id)} disabled={resendingId === business.id} className="px-3 py-1.5 rounded-xl text-xs font-bold text-brand-primary border border-brand-accent/40 disabled:opacity-60">
+                          {resendingId === business.id ? "Queueing…" : "Resend Certificate"}
+                        </button>
+                        <button type="button" onClick={() => { setRejectingBusinessId(business.id); setBusinessRejectReason(""); }} className="px-3 py-1.5 rounded-xl text-xs font-bold text-red-700 border border-red-200 hover:bg-red-50">
+                          Reject &amp; Disable Certificate
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="pt-4 border-t border-brand-accent/20 space-y-3">
+              <h3 className="text-sm font-bold text-brand-primary uppercase tracking-wider">Rejected businesses</h3>
+              {rejectedBusinesses.length === 0 ? <p className="text-xs text-body-muted">No rejected businesses require a decision.</p> : (
+                <div className="space-y-2">{rejectedBusinesses.map((business) => (
+                  <div key={business.id} className="rounded-2xl border border-red-200 bg-red-50/40 p-3 flex flex-wrap items-center justify-between gap-3">
+                    <div><p className="text-sm font-bold text-brand-primary">{business.businessName}</p><p className="text-[11px] font-mono text-body-muted">{business.businessSerialNo || "Serial will be assigned on approval"}</p><p className="text-[11px] text-red-700">{business.rejectionReason || "Rejected"}</p></div>
+                    <button type="button" onClick={() => handleApproveBusiness(business.id)} className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800">Reapprove &amp; Restore Certificate</button>
+                  </div>
+                ))}</div>
+              )}
+            </div>
           </div>
         ) : filteredHouseholds.length === 0 ? (
           <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">
@@ -1734,10 +1802,12 @@ export default function ModerationQueuePage() {
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl p-5 sm:p-7 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl border-2 border-brand-accent/40 animate-in fade-in zoom-in-95">
               <h3 className="text-lg font-bold text-brand-primary mb-2">
-                Reject Business Application
+                {rejectingLiveBusiness ? "Reject Live Business" : "Reject Business Application"}
               </h3>
               <p className="text-xs text-body-muted mb-4">
-                Please provide an explanation for the applicant. This feedback will be recorded and shown on their dashboard.
+                {rejectingLiveBusiness
+                  ? "This disables its certificate and removes the listing from the directory. Its permanent MAFLBUS number is retained if it is approved again."
+                  : "Please provide an explanation for the applicant. This feedback will be recorded and shown on their dashboard."}
               </p>
 
               <textarea
@@ -1765,7 +1835,7 @@ export default function ModerationQueuePage() {
                   disabled={!businessRejectReason.trim()}
                   className="px-5 py-2 rounded-full text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-all min-h-[38px]"
                 >
-                  Confirm Rejection
+                  {rejectingLiveBusiness ? "Reject & Disable Certificate" : "Confirm Rejection"}
                 </button>
               </div>
             </div>
