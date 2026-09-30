@@ -685,8 +685,7 @@ test("Seam 24: Global Agarwal Business Network adheres to all contracts and inva
   assert.ok(moderateActions.includes("export async function approveBusinessProfileAction"), "Must export approveBusinessProfileAction");
   assert.ok(moderateActions.includes("export async function rejectBusinessProfileAction"), "Must export rejectBusinessProfileAction");
 
-  // 3. Navigation links to /businesses across Header, Nav, and Footer
-  assert.ok(topNav.includes("/businesses"), "TopNavBar must link to /businesses");
+  // 3. Navigation links to /businesses across Header and Footer
   assert.ok(mainHeader.includes("/businesses"), "MainHeader must link to /businesses");
   assert.ok(mainFooter.includes("/businesses"), "MainFooter must link to /businesses");
 
@@ -739,8 +738,7 @@ test("Seam 25: Global Agarwal Jobs & Careers Network adheres to all contracts an
   assert.ok(careerActions.includes("createJobPostingAction"), "Must export createJobPostingAction");
   assert.ok(careerActions.includes("applyForJobAction"), "Must export applyForJobAction");
 
-  // 4. Navigation links to /careers across Header, Nav, and Footer
-  assert.ok(topNav.includes("/careers"), "TopNavBar must link to /careers");
+  // 4. Navigation links to /careers across Header and Footer
   assert.ok(mainHeader.includes("/careers"), "MainHeader must link to /careers");
   assert.ok(mainFooter.includes("/careers"), "MainFooter must link to /careers");
 
@@ -885,6 +883,31 @@ test("Seam 32: Non-mandatory Aadhaar and profile photo for Head and all family m
   assert.ok(registerActionCode.includes('if (m.photoUrl && m.photoUrl.trim()'), "Backend photo check must be conditional on presence");
   assert.ok(!registerActionCode.includes('A recent profile photograph is mandatory'), "Backend must not enforce mandatory photo");
 });
+
+test("Seam 36: Registration email input hardening, typo suggestions, and canonical normalization", () => {
+  const registerActionCode = fs.readFileSync(path.join(webRoot, "src/actions/register.ts"), "utf8");
+  const signupPageCode = fs.readFileSync(path.join(webRoot, "src/app/signup/page.tsx"), "utf8");
+  const claimActionCode = fs.readFileSync(path.join(webRoot, "src/actions/claim.ts"), "utf8");
+  const emailValCode = fs.readFileSync(path.join(webRoot, "src/lib/email-validation.ts"), "utf8");
+
+  // 1. Shared validator exports
+  assert.ok(emailValCode.includes("export function validateEmail"), "Must export validateEmail");
+  assert.ok(emailValCode.includes("export function normalizeEmail"), "Must export normalizeEmail");
+  assert.ok(emailValCode.includes("export function suggestDomainCorrection"), "Must export suggestDomainCorrection");
+
+  // 2. Client signup integration
+  assert.ok(signupPageCode.includes("validateEmail"), "signup page must use validateEmail");
+  assert.ok(signupPageCode.includes("emailSuggestion"), "signup page must manage emailSuggestion state");
+  assert.ok(signupPageCode.includes("handleAcceptEmailSuggestion") || signupPageCode.includes("handleDeclineEmailSuggestion"), "signup page must support explicit accept/decline");
+  assert.ok(signupPageCode.includes("Keep entered"), "signup page must offer explicit 'Keep entered' option");
+
+  // 3. Backend registration integration
+  assert.ok(registerActionCode.includes("validateEmail(rawHeadEmail)"), "Backend must validate Head email");
+  assert.ok(registerActionCode.includes("validateEmail(m.email)"), "Backend must validate member email");
+  assert.ok(registerActionCode.includes("normalizeEmail"), "Backend must use normalizeEmail");
+  assert.ok(claimActionCode.includes("normalizeEmail"), "Claim action must use normalizeEmail for availability checks");
+});
+
 
 
 

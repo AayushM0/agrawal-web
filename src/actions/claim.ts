@@ -2,6 +2,7 @@
 
 import { db } from "../lib/db";
 import { normalizePhoneNumber } from "@/lib/phone";
+import { normalizeEmail } from "@/lib/email-validation";
 import { verifyOtp } from "./otp";
 import { writeSession } from "@/lib/session-cookie";
 import { maskPhone, maskEmail } from "@/lib/privacy";
@@ -100,7 +101,10 @@ export async function checkContactAvailability(contact: string, excludeMemberId?
   if (!contact || contact.trim().length < 5) {
     return { available: true };
   }
-  const existsResult = await db.checkContactExists(contact, excludeMemberId);
+  const clean = contact.trim();
+  const isPhone = !clean.includes("@");
+  const canonical = isPhone ? clean : normalizeEmail(clean);
+  const existsResult = await db.checkContactExists(canonical, excludeMemberId);
   return {
     available: !existsResult.exists,
     conflict: existsResult.exists ? existsResult : null,

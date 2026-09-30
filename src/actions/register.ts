@@ -11,6 +11,7 @@ import { uploadMemberPhoto } from "@/lib/storage";
 import { markRegistrationDraftCompleted } from "./draft";
 import { maskAadhaar, hashGovtId } from "@/lib/privacy";
 import { getClientIp, verifyTurnstileToken } from "@/lib/turnstile";
+import { validateEmail, normalizeEmail } from "@/lib/email-validation";
 
 export interface RegisterHouseholdInput {
   headName: string;
@@ -90,9 +91,15 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
 
   // 4. Contact Normalization
   const isPhone = !input.verifiedContact.includes("@");
+  if (!isPhone) {
+    const emailRes = validateEmail(input.verifiedContact);
+    if (!emailRes.isValid) {
+      return { success: false, error: emailRes.error || "A valid verified email address is required." };
+    }
+  }
   const canonicalContact = isPhone 
     ? normalizePhoneNumber(input.verifiedContact) 
-    : input.verifiedContact.trim().toLowerCase();
+    : normalizeEmail(input.verifiedContact);
 
   if (!canonicalContact || canonicalContact.length < 5) {
     return { success: false, error: "A valid verified mobile number or email address is required." };
@@ -129,10 +136,14 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
   }
 
   const rawHeadEmail = head.email?.trim() || (!isPhone ? canonicalContact : undefined);
-  const headEmail = rawHeadEmail ? rawHeadEmail.toLowerCase() : undefined;
-  if (!headEmail || !headEmail.includes("@") || headEmail.length < 5) {
+  if (!rawHeadEmail) {
     return { success: false, error: "A valid email address is strictly mandatory for the Head of Household." };
   }
+  const headEmailRes = validateEmail(rawHeadEmail);
+  if (!headEmailRes.isValid) {
+    return { success: false, error: `Head of Household email: ${headEmailRes.error || "Invalid email address."}` };
+  }
+  const headEmail = headEmailRes.canonical!;
 
   // Address validation
   const country = input.country?.trim() || head.currentCountry?.trim() || "India";
@@ -292,8 +303,15 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
       }
 
       if (m.email && m.email.trim()) {
-        const cleanMemberEmail = m.email.trim().toLowerCase();
-        if (cleanMemberEmail === canonicalContact || (headEmail && cleanMemberEmail === headEmail.trim().toLowerCase())) {
+        const memberEmailRes = validateEmail(m.email);
+        if (!memberEmailRes.isValid) {
+          return {
+            success: false,
+            error: `Email for ${memberName}: ${memberEmailRes.error || "Invalid email address."}`,
+          };
+        }
+        const cleanMemberEmail = memberEmailRes.canonical!;
+        if (cleanMemberEmail === canonicalContact || (headEmail && cleanMemberEmail === headEmail)) {
           return {
             success: false,
             error: `Email for ${memberName} cannot be identical to the Head of Household's contact. Please leave email blank if they share the household contact.`,
@@ -344,7 +362,7 @@ export async function registerHousehold(input: RegisterHouseholdInput) {
         fatherName: m.fatherName?.trim() || undefined,
         photoUrl: finalPhotoUrl,
         phone: m.phone ? (m.phone.includes("@") ? m.phone.trim() : normalizePhoneNumber(m.phone)) : undefined,
-        email: m.email?.trim().toLowerCase() || undefined,
+        email: m.email?.trim() ? normalizeEmail(m.email) : undefined,
         currentCity: m.currentCity?.trim() || city || cleanNativePlace,
         currentCountry: m.currentCountry?.trim() || country,
         postalCode: m.postalCode?.trim() || postalCode,
@@ -486,9 +504,15 @@ export async function checkContactRegistration(contact: string, excludeMemberId?
   }
   const clean = contact.trim();
   const isPhone = !clean.includes("@");
+  if (!isPhone) {
+    const emailRes = validateEmail(clean);
+    if (!emailRes.isValid) {
+      return { isRegistered: false };
+    }
+  }
   const canonicalContact = isPhone 
     ? normalizePhoneNumber(clean) 
-    : clean.toLowerCase();
+    : normalizeEmail(clean);
 
   // First inspect household by contact to check lifecycle status (rejected vs live vs pending)
   const existing = await db.getHouseholdByContact(canonicalContact);

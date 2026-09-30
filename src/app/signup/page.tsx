@@ -16,6 +16,7 @@ import { calculateAge, maskPhone, maskEmail, maskGovtId } from "@/lib/privacy";
 import { optimizeImageForUpload } from "@/lib/image-optimizer";
 import { ALL_COUNTRIES, POPULAR_COUNTRIES } from "@/data/countries";
 import { TurnstileWidget } from "@/components/common/TurnstileWidget";
+import { validateEmail, normalizeEmail } from "@/lib/email-validation";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -105,6 +106,16 @@ export default function SignupPage() {
   const [alreadyRegisteredInfo, setAlreadyRegisteredInfo] = useState<{ isRegistered: boolean; householdCode?: string; headName?: string } | null>(null);
   const [resumeDraft, setResumeDraft] = useState<any | null>(null);
   const [rejectionNotice, setRejectionNotice] = useState<{ reason?: string; headName?: string; householdCode?: string } | null>(null);
+
+  // Issue 051: Email hardening and typo suggestion states
+  const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
+  const [emailDecision, setEmailDecision] = useState<"accepted" | "declined" | null>(null);
+  const [step1EmailError, setStep1EmailError] = useState<string | null>(null);
+
+  const [headEmailSuggestion, setHeadEmailSuggestion] = useState<string | null>(null);
+  const [headEmailDecision, setHeadEmailDecision] = useState<"accepted" | "declined" | null>(null);
+
+  const [memberEmailSuggestions, setMemberEmailSuggestions] = useState<Record<string, string | null>>({});
 
   // Check for unfinished local registration draft on mount
   useEffect(() => {
@@ -322,22 +333,48 @@ export default function SignupPage() {
     additionalMembers,
   ]);
 
+  const handleAcceptEmailSuggestion = (suggested: string) => {
+    setContactValue(suggested);
+    setEmailSuggestion(null);
+    setEmailDecision("accepted");
+    setStep1EmailError(null);
+    setOtpError("");
+    showToast(`Updated email to ${suggested}`, "success");
+  };
+
+  const handleDeclineEmailSuggestion = () => {
+    setEmailSuggestion(null);
+    setEmailDecision("declined");
+    showToast("Preserved entered email address.", "success");
+  };
+
   const handleContactBlur = async (field: "email" | "phone") => {
     if (field === "email") {
-      const cleanEmail = contactValue.trim().toLowerCase();
-      if (cleanEmail && cleanEmail.includes("@") && cleanEmail.length >= 5) {
-        try {
-          const emailRes = await checkContactRegistration(cleanEmail);
-          if (emailRes.isRegistered) {
-            setAlreadyRegisteredInfo(emailRes);
-            setOtpError(`This email is already registered in the directory (${emailRes.headName ? `associated with ${emailRes.headName}` : `#${emailRes.householdCode}`}).`);
-          } else if (alreadyRegisteredInfo && !otpError.includes("phone")) {
-            setAlreadyRegisteredInfo(null);
-            setOtpError("");
-          }
-        } catch {
-          // ignore
+      setStep1EmailError(null);
+      if (!contactValue.trim()) return;
+
+      const emailValidation = validateEmail(contactValue);
+      if (!emailValidation.isValid) {
+        setStep1EmailError(emailValidation.error || "Please enter a valid primary email address.");
+        return;
+      }
+
+      if (emailValidation.suggestion && emailDecision === null) {
+        setEmailSuggestion(emailValidation.suggestion);
+      }
+
+      const cleanEmail = emailValidation.canonical!;
+      try {
+        const emailRes = await checkContactRegistration(cleanEmail);
+        if (emailRes.isRegistered) {
+          setAlreadyRegisteredInfo(emailRes);
+          setOtpError(`This email is already registered in the directory (${emailRes.headName ? `associated with ${emailRes.headName}` : `#${emailRes.householdCode}`}).`);
+        } else if (alreadyRegisteredInfo && !otpError.includes("phone")) {
+          setAlreadyRegisteredInfo(null);
+          setOtpError("");
         }
+      } catch {
+        // ignore
       }
     } else if (field === "phone") {
       const cleanPhone = headPhone.trim();
@@ -359,18 +396,52 @@ export default function SignupPage() {
   };
 
   const handleMemberContactBlur = async (memberId: string, field: "phone" | "email", value: string) => {
-    const cleanVal = value.trim();
+    let cleanVal = value.trim();
     if (!cleanVal) {
       setMemberContactErrors((prev) => ({
         ...prev,
         [memberId]: { ...prev[memberId], [field]: undefined },
       }));
+      setMemberEmailSuggestions((prev) => ({ ...prev, [memberId]: null }));
       return;
     }
 
-    // 1. In-form collision against Head
-    if (field === "phone") {
-      const headDigits = headPhone.replace(/[^0-9]/g, "").slice(-10);
+    if (field === "email") {
+      const emailValidation = validateEmail(cleanVal);
+      if (!emailValidation.isValid) {
+        setMemberContactErrors((prev) => ({
+          ...prev,
+          [memberId]: {
+            ...prev[memberId],
+            email: emailValidation.error || "Please enter a valid email address.",
+          },
+        }));
+        return;
+      }
+
+      if (emailValidation.suggestion) {
+        setMemberEmailSuggestions((prev) => ({ ...prev, [memberId]: emailValidation.suggestion! }));
+      } else {
+        setMemberEmailSuggestions((prev) => ({ ...prev, [memberId]: null }));
+      }
+
+      cleanVal = emailValidation.canonical!;
+
+      // 1. In-form collision against Head
+      const effectiveHead = contactType === "email" ? normalizeEmail(contactValue) : normalizeEmail(headEmail);
+      if (cleanVal === effectiveHead) {
+        setMemberContactErrors((prev) => ({
+          ...prev,
+          [memberId]: {
+            ...prev[memberId],
+            email: "Cannot be identical to Head of Household's email. Leave blank if shared.",
+          },
+        }));
+        return;
+      }
+    } else if (field === "phone") {
+      // 1. In-form collision against Head
+      const headDigits = (contactType === "phone" ? contactValue : headPhone).replace(/[^0-9]/g, "").slice(-10);
       const memberDigits = cleanVal.replace(/[^0-9]/g, "").slice(-10);
       if (headDigits && memberDigits && headDigits === memberDigits) {
         setMemberContactErrors((prev) => ({
@@ -378,17 +449,6 @@ export default function SignupPage() {
           [memberId]: {
             ...prev[memberId],
             phone: "Cannot be identical to Head of Household's phone. Leave blank if shared.",
-          },
-        }));
-        return;
-      }
-    } else if (field === "email") {
-      if (cleanVal.toLowerCase() === headEmail.trim().toLowerCase()) {
-        setMemberContactErrors((prev) => ({
-          ...prev,
-          [memberId]: {
-            ...prev[memberId],
-            email: "Cannot be identical to Head of Household's email. Leave blank if shared.",
           },
         }));
         return;
@@ -415,7 +475,7 @@ export default function SignupPage() {
       }
     } else if (field === "email") {
       const collision = otherMembers.find(
-        (m) => (m.email || "").trim().toLowerCase() === cleanVal.toLowerCase()
+        (m) => normalizeEmail(m.email) === cleanVal
       );
       if (collision) {
         setMemberContactErrors((prev) => ({
@@ -458,15 +518,27 @@ export default function SignupPage() {
 
   // Step 1: Frictionless Contact Validation & Advance Handler
   const handleStep1Next = async () => {
-    const cleanEmail = contactValue.trim().toLowerCase();
-    const cleanPhone = headPhone.trim();
-
-    if (!cleanEmail || !cleanEmail.includes("@") || cleanEmail.length < 5) {
-      const msg = "Please enter a valid primary email address.";
+    setStep1EmailError(null);
+    const emailRes = validateEmail(contactValue);
+    if (!emailRes.isValid) {
+      const msg = emailRes.error || "Please enter a valid primary email address.";
+      setStep1EmailError(msg);
       setOtpError(msg);
       showToast(msg, "error");
       return;
     }
+
+    // Require explicit confirmation for typo suggestions
+    if (emailRes.suggestion && emailDecision === null) {
+      setEmailSuggestion(emailRes.suggestion);
+      const msg = `Please confirm your email address. Did you mean ${emailRes.suggestion}?`;
+      setOtpError(msg);
+      showToast(msg, "warning");
+      return;
+    }
+
+    const cleanEmail = emailRes.canonical!;
+    const cleanPhone = headPhone.trim();
 
     if (!cleanPhone || cleanPhone.replace(/[^0-9]/g, "").length < 7) {
       const msg = "Please enter a valid mobile phone number.";
@@ -622,17 +694,26 @@ export default function SignupPage() {
       showToast(msg, "error");
       return;
     }
-    if (!effectiveEmail || !effectiveEmail.includes("@") || effectiveEmail.length < 5) {
-      const msg = "A valid Email Address is strictly mandatory for the Head of Household.";
+    const headEmailRes = validateEmail(effectiveEmail);
+    if (!headEmailRes.isValid) {
+      const msg = `Head of Household email: ${headEmailRes.error || "A valid Email Address is strictly mandatory."}`;
       setStep2Error(msg);
       showToast(msg, "error");
       return;
     }
 
+    if (contactType !== "email" && headEmailRes.suggestion && headEmailDecision === null) {
+      setHeadEmailSuggestion(headEmailRes.suggestion);
+      const msg = `Please confirm Head email address: Did you mean ${headEmailRes.suggestion}?`;
+      setStep2Error(msg);
+      showToast(msg, "warning");
+      return;
+    }
+
     if (headEmail.trim()) {
-      const checkMail = await checkContactAvailability(headEmail.trim());
+      const checkMail = await checkContactAvailability(headEmailRes.canonical!);
       if (!checkMail.available && checkMail.conflict) {
-        const msg = `Email '${headEmail}' is already registered in the directory (${checkMail.conflict.name ? `associated with ${checkMail.conflict.name}` : `#${checkMail.conflict.householdCode}`}).`;
+        const msg = `Email '${headEmailRes.canonical}' is already registered in the directory (${checkMail.conflict.name ? `associated with ${checkMail.conflict.name}` : `#${checkMail.conflict.householdCode}`}).`;
         setStep2Error(msg);
         showToast(msg, "error");
         return;
@@ -1209,11 +1290,57 @@ export default function SignupPage() {
                     onChange={(e) => {
                       setContactValue(e.target.value);
                       if (alreadyRegisteredInfo) setAlreadyRegisteredInfo(null);
+                      if (step1EmailError) setStep1EmailError(null);
+                      setEmailDecision(null);
+                      const res = validateEmail(e.target.value);
+                      if (res.isValid && res.suggestion) {
+                        setEmailSuggestion(res.suggestion);
+                      } else {
+                        setEmailSuggestion(null);
+                      }
                     }}
                     onBlur={() => handleContactBlur("email")}
                     placeholder="e.g. agarwal.family@example.com"
-                    className="w-full px-4 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                    className={`w-full px-4 py-2.5 rounded-xl border text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 ${
+                      step1EmailError ? "border-red-400 focus:ring-red-400" : "border-brand-accent/40 focus:ring-brand-primary"
+                    }`}
                   />
+                  {step1EmailError && (
+                    <span className="text-[11px] text-red-600 font-medium block mt-1">
+                      ⚠️ {step1EmailError}
+                    </span>
+                  )}
+
+                  {/* Typo Suggestion Card */}
+                  {emailSuggestion && (
+                    <div className="mt-2.5 p-3 rounded-xl bg-amber-50/90 border border-amber-300 text-amber-950 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-amber-700 font-bold">💡 Did you mean:</span>
+                        <strong className="underline decoration-amber-500 font-semibold">{emailSuggestion}</strong>?
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={() => handleAcceptEmailSuggestion(emailSuggestion)}
+                          className="flex-1 sm:flex-none px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-lg font-medium text-xs transition-all shadow-sm"
+                        >
+                          Yes, use {emailSuggestion.split("@")[1]}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDeclineEmailSuggestion}
+                          className="flex-1 sm:flex-none px-3 py-1.5 bg-white hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg font-medium text-xs transition-all"
+                        >
+                          Keep entered
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-body-muted mt-2 flex items-center gap-1.5">
+                    <span>🔒</span>
+                    <span>Formatting checks prevent typos. Access to this inbox will be confirmed upon account activation.</span>
+                  </p>
                 </div>
 
                 {/* Mobile Phone Number with Country Selector */}
@@ -1433,7 +1560,24 @@ export default function SignupPage() {
                         required
                         readOnly={contactType === "email"}
                         value={contactType === "email" ? contactValue : headEmail}
-                        onChange={(e) => setHeadEmail(e.target.value)}
+                        onChange={(e) => {
+                          setHeadEmail(e.target.value);
+                          setHeadEmailDecision(null);
+                          const res = validateEmail(e.target.value);
+                          if (res.isValid && res.suggestion) {
+                            setHeadEmailSuggestion(res.suggestion);
+                          } else {
+                            setHeadEmailSuggestion(null);
+                          }
+                        }}
+                        onBlur={() => {
+                          if (contactType !== "email" && headEmail.trim()) {
+                            const res = validateEmail(headEmail);
+                            if (res.isValid && res.suggestion && headEmailDecision === null) {
+                              setHeadEmailSuggestion(res.suggestion);
+                            }
+                          }
+                        }}
                         placeholder="e.g. ramesh.agarwal@example.com"
                         className={`w-full px-3.5 py-2.5 rounded-xl border text-xs text-body-heading outline-none ${
                           contactType === "email"
@@ -1441,6 +1585,36 @@ export default function SignupPage() {
                             : "bg-white border-brand-accent/40 focus:ring-1 focus:ring-brand-primary"
                         }`}
                       />
+                      {headEmailSuggestion && contactType !== "email" && (
+                        <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                          <span>
+                            Did you mean <strong className="font-semibold underline">{headEmailSuggestion}</strong>?
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setHeadEmail(headEmailSuggestion);
+                                setHeadEmailSuggestion(null);
+                                setHeadEmailDecision("accepted");
+                              }}
+                              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-medium text-[11px]"
+                            >
+                              Yes, use {headEmailSuggestion.split("@")[1]}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setHeadEmailSuggestion(null);
+                                setHeadEmailDecision("declined");
+                              }}
+                              className="px-2.5 py-1 bg-white hover:bg-amber-100 text-amber-800 border border-amber-300 rounded font-medium text-[11px]"
+                            >
+                              Keep entered
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -2089,6 +2263,38 @@ export default function SignupPage() {
                               <span className="text-[10px] text-red-600 font-semibold block mt-1">
                                 ⚠️ {memberContactErrors[member.id].email}
                               </span>
+                            )}
+                            {memberEmailSuggestions[member.id] && (
+                              <div className="mt-1.5 p-2 rounded-lg bg-amber-50 border border-amber-300 text-amber-900 text-[11px] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5">
+                                <span>
+                                  Did you mean <strong>{memberEmailSuggestions[member.id]}</strong>?
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const sug = memberEmailSuggestions[member.id];
+                                      if (sug) {
+                                        updateAdditionalMember(member.id, "email", sug);
+                                        setMemberEmailSuggestions((prev) => ({ ...prev, [member.id]: null }));
+                                        handleMemberContactBlur(member.id, "email", sug);
+                                      }
+                                    }}
+                                    className="px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-medium text-[10px]"
+                                  >
+                                    Use suggestion
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMemberEmailSuggestions((prev) => ({ ...prev, [member.id]: null }));
+                                    }}
+                                    className="px-2 py-0.5 bg-white hover:bg-amber-100 text-amber-800 border border-amber-300 rounded font-medium text-[10px]"
+                                  >
+                                    Keep
+                                  </button>
+                                </div>
+                              </div>
                             )}
                           </div>
 
