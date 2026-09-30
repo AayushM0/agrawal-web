@@ -42,70 +42,112 @@ export default function RoyalFooter() {
           </div>
 
           <div>
-            <h4 className="text-sm font-bold text-body-heading uppercase tracking-wider mb-4 border-b-2 border-brand-accent pb-1 inline-block">
+            <h4 className="text-sm font-bold text-body-heading mb-4 border-b-2 border-brand-accent pb-1 inline-block">
               Quick Links
             </h4>
             <ul className="space-y-2 text-xs text-body-text/80">
               <li>
-                <Link href="/" className="hover:text-brand-primary transition-colors">
-                  Home (मुख्य पृष्ठ)
+                <Link href="/" className="hover:text-brand-primary transition-colors flex items-center justify-between">
+                  <span>Home</span>
+                  <span className="text-xs font-devanagari text-body-muted font-normal">(मुख्य पृष्ठ)</span>
                 </Link>
               </li>
               <li>
-                <Link href="/#pillars" className="hover:text-brand-primary transition-colors">
-                  7 Strategic Pillars (7 प्रमुख स्तंभ)
+                <Link href="/#pillars" className="hover:text-brand-primary transition-colors flex items-center justify-between">
+                  <span>7 Strategic Pillars</span>
+                  <span className="text-xs font-devanagari text-body-muted font-normal">(7 प्रमुख स्तंभ)</span>
                 </Link>
               </li>
               <li>
-                <Link href="/directory" className="hover:text-brand-primary transition-colors">
-                  Directory Search (निर्देशिका खोज)
+                <Link href="/directory" className="hover:text-brand-primary transition-colors flex items-center justify-between">
+                  <span>Directory Search</span>
+                  <span className="text-xs font-devanagari text-body-muted font-normal">(निर्देशिका खोज)</span>
                 </Link>
               </li>
               <li>
-                <Link href="/signup" className="hover:text-brand-primary transition-colors">
-                  Family Registration (निःशुल्क परिवार पंजीकरण)
+                <Link href="/signup" className="hover:text-brand-primary transition-colors flex items-center justify-between">
+                  <span>Family Registration</span>
+                  <span className="text-xs font-devanagari text-body-muted font-normal">(निःशुल्क परिवार पंजीकरण)</span>
                 </Link>
               </li>
               <li>
-                <Link href="/dashboard" className="hover:text-brand-primary transition-colors">
-                  Head Dashboard (मुखिया डैशबोर्ड)
+                <Link href="/dashboard" className="hover:text-brand-primary transition-colors flex items-center justify-between">
+                  <span>Head Dashboard</span>
+                  <span className="text-xs font-devanagari text-body-muted font-normal">(मुखिया डैशबोर्ड)</span>
                 </Link>
               </li>
               <li>
-                <Link href="/settings" className="hover:text-brand-primary transition-colors">
-                  Account Settings (सेटिंग्स)
+                <Link href="/settings" className="hover:text-brand-primary transition-colors flex items-center justify-between">
+                  <span>Account Settings</span>
+                  <span className="text-xs font-devanagari text-body-muted font-normal">(सेटिंग्स)</span>
                 </Link>
               </li>
               <li>
-                <Link href="/help" className="hover:text-brand-primary transition-colors">
-                  Help Center (सहायता केंद्र)
+                <Link href="/help" className="hover:text-brand-primary transition-colors flex items-center justify-between">
+                  <span>Help Center</span>
+                  <span className="text-xs font-devanagari text-body-muted font-normal">(सहायता केंद्र)</span>
                 </Link>
               </li>
               <li>
-                <Link href="/guide" className="hover:text-brand-primary transition-colors">
-                  User Guide (उपयोग निर्देशिका & फ्लोचार्ट)
+                <Link href="/guide" className="hover:text-brand-primary transition-colors flex items-center justify-between">
+                  <span>User Guide</span>
+                  <span className="text-xs font-devanagari text-body-muted font-normal">(उपयोग निर्देशिका)</span>
                 </Link>
               </li>
               <li>
-                <Link href="/support" className="hover:text-brand-primary transition-colors">
-                  Support Desk (सहायता डेस्क)
+                <Link href="/support" className="hover:text-brand-primary transition-colors flex items-center justify-between">
+                  <span>Support Desk</span>
+                  <span className="text-xs font-devanagari text-body-muted font-normal">(सहायता डेस्क)</span>
                 </Link>
               </li>
             </ul>
           </div>
 
           <div>
-            <h4 className="text-sm font-bold text-body-heading uppercase tracking-wider mb-4 border-b-2 border-brand-accent pb-1 inline-block">
-              Secretariat & Foundation
+            <h4 className="text-sm font-bold text-body-heading mb-4 border-b-2 border-brand-accent pb-1 inline-block">
+              Secretariat &amp; Foundation
             </h4>
             <p className="text-xs leading-relaxed text-body-text/85 mb-3">
               <strong>Sohan Lal Jindal &ldquo;Singapore Wale&rdquo;</strong><br />
-              Founder & Chairman — Maharaja Agrasen Foundation Limited Singapore
+              Founder &amp; Chairman — Maharaja Agrasen Foundation Limited Singapore
             </p>
-            <p className="text-xs text-body-muted mb-3">
-              📧 contact@maharajaagrasenfoundation.com<br />
-              🌐 www.maharajaagrasenfoundation.com
-            </p>
+            <div className="space-y-2 text-xs text-body-muted mb-4">
+              <a
+                href="mailto:contact@maharajaagrasenfoundation.com"
+                className="flex items-center gap-2 hover:text-brand-primary transition-colors group"
+              >
+                <svg
+                  className="w-4 h-4 text-brand-primary shrink-0 transition-transform group-hover:scale-110"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span className="truncate">contact@maharajaagrasenfoundation.com</span>
+              </a>
+              <a
+                href="https://www.maharajaagrasenfoundation.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 hover:text-brand-primary transition-colors group"
+              >
+                <svg
+                  className="w-4 h-4 text-brand-primary shrink-0 transition-transform group-hover:scale-110"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+                </svg>
+                <span>www.maharajaagrasenfoundation.com</span>
+              </a>
+            </div>
             <a
               href={WHATSAPP_LINK}
               target="_blank"
@@ -125,18 +167,25 @@ export default function RoyalFooter() {
           </div>
         </div>
 
-        <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-body-muted">
-          <p>© 2026 Maharaja Agrasen Foundation Limited Singapore. All Rights Reserved. एक समाज • एक मंच • एक परिवार</p>
-          <div className="flex flex-wrap gap-x-4 gap-y-2 font-medium justify-center sm:justify-end">
+        <div className="pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-body-muted text-center md:text-left">
+          <p>© 2026 Maharaja Agrasen Foundation Limited Singapore. All Rights Reserved.</p>
+          <nav aria-label="Legal and Policy Links" className="flex flex-wrap items-center justify-center md:justify-end gap-x-3 gap-y-1.5 font-medium">
             <Link href="/privacy" className="hover:text-brand-primary transition-colors">Privacy Policy</Link>
+            <span className="text-brand-accent/40" aria-hidden="true">•</span>
             <Link href="/terms" className="hover:text-brand-primary transition-colors">Terms of Service</Link>
+            <span className="text-brand-accent/40" aria-hidden="true">•</span>
             <Link href="/cookie-policy" className="hover:text-brand-primary transition-colors">Cookie Policy</Link>
+            <span className="text-brand-accent/40" aria-hidden="true">•</span>
             <Link href="/accessibility" className="hover:text-brand-primary transition-colors">Accessibility Statement</Link>
+            <span className="text-brand-accent/40" aria-hidden="true">•</span>
             <Link href="/acceptable-use" className="hover:text-brand-primary transition-colors">Acceptable Use</Link>
+            <span className="text-brand-accent/40" aria-hidden="true">•</span>
             <Link href="/security-policy" className="hover:text-brand-primary transition-colors">Security Policy</Link>
+            <span className="text-brand-accent/40" aria-hidden="true">•</span>
             <Link href="/responsible-disclosure" className="hover:text-brand-primary transition-colors">Responsible Disclosure</Link>
+            <span className="text-brand-accent/40" aria-hidden="true">•</span>
             <Link href="/community-guidelines" className="hover:text-brand-primary transition-colors">Community Guidelines</Link>
-          </div>
+          </nav>
         </div>
       </div>
     </footer>

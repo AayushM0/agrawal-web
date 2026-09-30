@@ -24,7 +24,7 @@ export default function MainFooter() {
                 <h3 className="text-xs sm:text-sm font-extrabold text-brand-primary leading-tight">
                   Maharaja Agrasen Foundation Limited Singapore
                 </h3>
-                <p className="text-[10px] text-body-muted font-medium">
+                <p className="text-xs text-body-muted font-medium">
                   One Community • One Platform • One Global Family
                 </p>
               </div>
@@ -98,7 +98,7 @@ export default function MainFooter() {
               <li>
                 <Link href="/terms" className="hover:text-brand-primary transition-colors">Terms of Service</Link>
               </li>
-              <li className="pt-2 text-[11px] text-body-muted font-medium">
+              <li className="pt-2 text-xs text-body-muted font-medium">
                 🔒 256-bit TLS Encrypted & Verified Lineage
               </li>
             </ul>
@@ -107,7 +107,7 @@ export default function MainFooter() {
 
         <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-body-muted">
           <p>© 2026 Maharaja Agrasen Foundation Limited Singapore. All rights reserved.</p>
-          <p className="font-devanagari text-[11px] text-brand-primary font-bold">
+          <p className="font-devanagari text-xs text-brand-primary font-bold">
             एक समाज • एक मंच • एक परिवार
           </p>
         </div>

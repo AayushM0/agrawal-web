@@ -902,7 +902,7 @@ export default function UserGuidePage() {
               
               {/* Dual Mode View Switcher */}
               <div className="flex items-center gap-2 self-start sm:self-auto">
-                <span className="text-[11px] text-body-muted hidden md:inline">
+                <span className="text-xs text-body-muted hidden md:inline">
                   View mode:
                 </span>
                 <div className="inline-flex rounded-xl bg-canvas-warm p-0.5 border border-brand-accent/30 text-xs">
@@ -935,7 +935,7 @@ export default function UserGuidePage() {
             {/* Mode 1: Wide Responsive Flowchart with Scroll Cue */}
             {flowchartMode === "visual" && (
               <div className="relative">
-                <p className="text-[11px] text-brand-gold font-semibold mb-2 flex items-center gap-1.5 sm:hidden">
+                <p className="text-xs text-brand-gold font-semibold mb-2 flex items-center gap-1.5 sm:hidden">
                   <span>👉</span>
                   <span>Swipe horizontally to view all workflow nodes</span>
                 </p>
@@ -958,7 +958,7 @@ export default function UserGuidePage() {
                           <div
                             className={`flex-1 min-w-[125px] max-w-[155px] px-3.5 py-3 rounded-2xl border text-center transition-transform hover:scale-[1.02] ${nodeBg}`}
                           >
-                            <div className="text-[9px] font-extrabold uppercase tracking-wider mb-1 opacity-75">
+                            <div className="text-xs font-extrabold uppercase tracking-wider mb-1 opacity-75">
                               {node.type === "start" && "● START"}
                               {node.type === "process" && `STEP ${idx + 1}`}
                               {node.type === "decision" && "◆ DECISION"}
@@ -967,7 +967,7 @@ export default function UserGuidePage() {
                             <p className="text-xs font-black leading-tight break-words">
                               {node.labelEn}
                             </p>
-                            <p className="text-[10px] font-semibold text-body-muted mt-1 font-devanagari leading-tight break-words">
+                            <p className="text-xs font-semibold text-body-muted mt-1 font-devanagari leading-tight break-words">
                               {node.labelHi}
                             </p>
                           </div>
@@ -1010,11 +1010,11 @@ export default function UserGuidePage() {
                               <p className="text-xs sm:text-sm font-black text-brand-primary break-words">
                                 {node.labelEn}
                               </p>
-                              <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-canvas-warm text-body-muted border border-brand-accent/20 shrink-0">
+                              <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-canvas-warm text-body-muted border border-brand-accent/20 shrink-0">
                                 {node.type}
                               </span>
                             </div>
-                            <p className="text-[11px] font-semibold text-body-muted font-devanagari mt-0.5 break-words">
+                            <p className="text-xs font-semibold text-body-muted font-devanagari mt-0.5 break-words">
                               {node.labelHi}
                             </p>
                           </div>
@@ -1023,7 +1023,7 @@ export default function UserGuidePage() {
                         {!isLast && (
                           <div className="flex justify-center my-1">
                             <div className="w-0.5 h-4 bg-brand-accent/40 relative">
-                              <div className="absolute -bottom-1 -left-[3px] text-brand-accent text-[9px]">▼</div>
+                              <div className="absolute -bottom-1 -left-[3px] text-brand-accent text-xs">▼</div>
                             </div>
                           </div>
                         )}
@@ -1076,7 +1076,7 @@ export default function UserGuidePage() {
                         </p>
                       </div>
                       {step.badge && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full va-badge-gold shrink-0">
+                        <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full va-badge-gold shrink-0">
                           {step.badge}
                         </span>
                       )}
@@ -1092,7 +1092,7 @@ export default function UserGuidePage() {
                     {/* Key Checklist Points */}
                     {step.keyPoints.length > 0 && (
                       <div className="mb-4">
-                        <p className="text-[11px] font-extrabold text-body-heading uppercase tracking-wider mb-2">
+                        <p className="text-xs font-extrabold text-body-heading uppercase tracking-wider mb-2">
                           Key Checklist / मुख्य बिंदु:
                         </p>
                         <ul className="space-y-1.5">
@@ -1113,7 +1113,7 @@ export default function UserGuidePage() {
                         <div className="min-w-0 break-words">
                           <strong>Pro Tip:</strong> {step.proTipEn}
                           {step.proTipHi && (
-                            <span className="block text-[11px] text-amber-900/90 mt-1 font-devanagari break-words">
+                            <span className="block text-xs text-amber-900/90 mt-1 font-devanagari break-words">
                               <strong>सुझाव:</strong> {step.proTipHi}
                             </span>
                           )}
@@ -1141,7 +1141,7 @@ export default function UserGuidePage() {
                   <p className="text-xs font-bold text-body-heading mb-0.5 break-words">
                     Q: {faq.qEn}
                   </p>
-                  <p className="text-[11px] font-semibold text-brand-gold font-devanagari mb-1.5 break-words">
+                  <p className="text-xs font-semibold text-brand-gold font-devanagari mb-1.5 break-words">
                     प्र: {faq.qHi}
                   </p>
                   <p className="text-xs text-body-muted leading-relaxed break-words">

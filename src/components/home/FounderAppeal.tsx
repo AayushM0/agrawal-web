@@ -8,7 +8,7 @@ export default function FounderAppeal() {
         <div className="bg-[linear-gradient(135deg,#d9531e_0%,#e06d14_50%,#b8430a_100%)] text-white rounded-3xl p-6 sm:p-12 shadow-warmLg">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
             <div className="lg:col-span-2 space-y-4">
-              <span className="inline-block text-[10px] sm:text-xs font-bold tracking-wider uppercase px-3 py-1 rounded-full bg-brand-gold text-white">
+              <span className="inline-block text-xs font-bold tracking-wider uppercase px-3 py-1 rounded-full bg-brand-gold text-white">
                 Founders Appeal • संदेश
               </span>
               <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black leading-tight">
@@ -21,13 +21,13 @@ export default function FounderAppeal() {
               <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <Link
                   href="/signup"
-                  className="px-7 py-3 rounded-full text-xs sm:text-sm font-extrabold text-brand-heading bg-amber-300 hover:bg-amber-200 shadow-md text-center transition-all"
+                  className="h-11 sm:h-12 px-7 rounded-full text-xs sm:text-sm font-extrabold text-brand-heading bg-amber-300 hover:bg-amber-200 shadow-md flex items-center justify-center text-center transition-all"
                 >
                   Register Your Family Free →
                 </Link>
                 <Link
                   href="/about"
-                  className="px-6 py-3 rounded-full text-xs sm:text-sm font-bold text-white bg-white/15 hover:bg-white/25 border border-white/20 text-center transition-all"
+                  className="h-11 sm:h-12 px-6 rounded-full text-xs sm:text-sm font-bold text-white bg-white/15 hover:bg-white/25 border border-white/20 flex items-center justify-center text-center transition-all"
                 >
                   Read About the Mission
                 </Link>
@@ -41,7 +41,7 @@ export default function FounderAppeal() {
               <p className="text-white/90 leading-relaxed">
                 Dedicated to the socio-economic advancement and cultural solidarity of the global Agarwal community.
               </p>
-              <div className="pt-2 border-t border-white/15 text-[11px] text-white/80">
+              <div className="pt-2 border-t border-white/15 text-xs text-white/80">
                 Free Registration • No Commercial Advertisements • Data Protected
               </div>
             </div>

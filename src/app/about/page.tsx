@@ -23,7 +23,10 @@ export default function AboutPage() {
           </p>
         </div>
 
-        <Link href="/signup" className="inline-block px-6 py-3 rounded-full text-xs font-bold text-white va-btn-join">
+        <Link
+          href="/signup"
+          className="h-11 px-6 rounded-full text-xs sm:text-sm font-bold text-white va-btn-join shadow-goldCta inline-flex items-center justify-center transition-all"
+        >
           Join the Directory (Free Registration) →
         </Link>
       </div>

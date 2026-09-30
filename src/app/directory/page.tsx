@@ -190,7 +190,7 @@ function DirectoryContent() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
             {/* First / Given Name */}
             <div className="lg:col-span-3">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1.5">
                 First / Given Name
               </label>
               <div className="relative">
@@ -210,7 +210,7 @@ function DirectoryContent() {
 
             {/* Surname */}
             <div className="lg:col-span-3">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1.5">
                 Surname
               </label>
               <div className="relative">
@@ -232,7 +232,7 @@ function DirectoryContent() {
 
             {/* Gotra (Selector) */}
             <div className="lg:col-span-3">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1.5">
                 Gotra (गोत्र)
               </label>
               <div className="relative">
@@ -253,7 +253,7 @@ function DirectoryContent() {
 
             {/* City / Country */}
             <div className="lg:col-span-3">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1.5">
                 City / Country
               </label>
               <div className="relative">
@@ -286,7 +286,7 @@ function DirectoryContent() {
               >
                 <span>{showAdvanced ? "▲ Less Filters" : "▼ More Filters (Profession, Age, Village...)"}</span>
                 {advancedFiltersActiveCount > 0 && (
-                  <span className="w-4 h-4 rounded-full bg-brand-gold text-brand-primary text-[10px] flex items-center justify-center font-extrabold">
+                  <span className="w-4 h-4 rounded-full bg-brand-gold text-brand-primary text-xs flex items-center justify-center font-extrabold">
                     {advancedFiltersActiveCount}
                   </span>
                 )}
@@ -320,7 +320,7 @@ function DirectoryContent() {
             <div className="mt-4 pt-4 border-t border-dashed border-brand-accent/30 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 animate-in fade-in slide-in-from-top-1">
               {/* Profession */}
               <div>
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1.5">
                   Profession / Occupation
                 </label>
                 <input
@@ -334,7 +334,7 @@ function DirectoryContent() {
 
               {/* Native Place */}
               <div>
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1.5">
                   Native Place (पैतृक स्थान)
                 </label>
                 <input
@@ -348,7 +348,7 @@ function DirectoryContent() {
 
               {/* Age Range: Min & Max */}
               <div>
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1.5">
                   Age Range (Years)
                 </label>
                 <div className="flex items-center gap-2">
@@ -376,7 +376,7 @@ function DirectoryContent() {
 
               {/* Marital Status */}
               <div>
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1.5">
                   Marital Status
                 </label>
                 <select
@@ -403,7 +403,7 @@ function DirectoryContent() {
             </span>
 
             {totalActiveFiltersCount > 0 && (
-              <span className="text-[11px] text-body-muted font-medium">
+              <span className="text-xs text-body-muted font-medium">
                 {totalActiveFiltersCount} filter{totalActiveFiltersCount === 1 ? "" : "s"} applied
               </span>
             )}
@@ -465,7 +465,7 @@ function DirectoryContent() {
                             <h4 className="text-sm font-bold text-brand-primary leading-tight truncate" title={m.fullName}>
                               {m.fullName}
                             </h4>
-                            <p className="text-[11px] text-brand-gold font-semibold font-devanagari truncate mt-0.5">
+                            <p className="text-xs text-brand-gold font-semibold font-devanagari truncate mt-0.5">
                               Gotra: {m.gotra}
                             </p>
                           </div>
@@ -478,7 +478,7 @@ function DirectoryContent() {
                             return (
                               <span
                                 title={rawCode ? `ID: #${rawCode}` : undefined}
-                                className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md va-badge-gold shrink-0 cursor-help"
+                                className="text-xs font-mono font-bold px-1.5 py-0.5 rounded-md va-badge-gold shrink-0 cursor-help"
                               >
                                 #{shortCode}
                               </span>
@@ -486,11 +486,11 @@ function DirectoryContent() {
                           })()}
 
                           {m.age !== null && m.age !== undefined ? (
-                            <span className="text-[10px] font-sans font-bold bg-amber-100/90 text-amber-900 px-1.5 py-0.5 rounded shrink-0">
+                            <span className="text-xs font-sans font-bold bg-amber-100/90 text-amber-900 px-1.5 py-0.5 rounded shrink-0">
                               Age {m.age} yrs
                             </span>
                           ) : m.birthYear ? (
-                            <span className="text-[10px] font-sans font-bold bg-amber-100/90 text-amber-900 px-1.5 py-0.5 rounded shrink-0">
+                            <span className="text-xs font-sans font-bold bg-amber-100/90 text-amber-900 px-1.5 py-0.5 rounded shrink-0">
                               Born {m.birthYear}
                             </span>
                           ) : null}
@@ -509,7 +509,7 @@ function DirectoryContent() {
                           <span className="truncate">{m.currentCity}, {m.currentCountry}</span>
                         </p>
 
-                        <p className="text-[11px] text-body-muted truncate">
+                        <p className="text-xs text-body-muted truncate">
                           <strong>Native Place:</strong> {m.nativePlace}
                         </p>
                       </div>
@@ -517,11 +517,11 @@ function DirectoryContent() {
 
                     <div className="pt-3 border-t border-brand-accent/20 flex items-center justify-between gap-2">
                       {m.isGovtIdVerified ? (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 truncate">
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 truncate">
                           ✓ Verified Member
                         </span>
                       ) : (
-                        <span className="text-[10px] font-medium text-body-muted bg-canvas-warm/50 px-2 py-0.5 rounded-full border border-brand-accent/20 truncate">
+                        <span className="text-xs font-medium text-body-muted bg-canvas-warm/50 px-2 py-0.5 rounded-full border border-brand-accent/20 truncate">
                           Community Member
                         </span>
                       )}

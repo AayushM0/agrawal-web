@@ -7,55 +7,28 @@ export default function TopNavBar() {
       <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-4 py-1">
         <div className="flex items-center gap-2 text-white font-semibold shrink truncate min-w-0">
           <span className="w-2 h-2 rounded-full bg-brand-accentLight shadow-[0_0_6px_#fde08b] shrink-0"></span>
-          <span className="truncate">
-            One Community • One Platform • One Global Family{" "}
-            <em className="text-amber-100 not-italic font-normal ml-1 hidden sm:inline">
+          <span className="truncate text-xs">
+            <span className="sm:hidden">One Global Family</span>
+            <span className="hidden sm:inline">One Community • One Platform • One Global Family</span>
+            <em className="text-amber-100 not-italic font-normal ml-1 hidden md:inline">
               (एक समाज • एक मंच • एक परिवार)
             </em>
           </span>
         </div>
 
-        <nav aria-label="Top Quick Navigation" className="shrink-0 hidden md:block">
-          <ul className="flex items-center gap-4 text-white/90 text-xs font-medium">
-            <li>
-              <Link href="/" className="hover:text-white hover:underline transition-colors">
-                Home
-              </Link>
-            </li>
-            <li>
-              <Link href="/directory" className="hover:text-white hover:underline transition-colors">
-                18 Gotras Directory
-              </Link>
-            </li>
-            <li className="hidden lg:inline">
-              <Link href="/businesses" className="hover:text-white hover:underline transition-colors">
-                Business Network
-              </Link>
-            </li>
-            <li className="hidden xl:inline">
-              <Link href="/careers" className="hover:text-white hover:underline transition-colors">
-                Careers Network
-              </Link>
-            </li>
-            <li>
-              <Link href="/guide" className="hover:text-white hover:underline transition-colors">
-                User Guide
-              </Link>
-            </li>
-            <span className="w-px h-3 bg-white/20"></span>
-            <li>
-              <a
-                href="tel:+6592774444"
-                className="flex items-center gap-1.5 hover:text-white transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                </svg>
-                <span>Helpline: +65 9277 4444</span>
-              </a>
-            </li>
-          </ul>
-        </nav>
+        <div className="shrink-0 flex items-center gap-2 sm:gap-3 text-white/95 text-xs font-medium">
+          <a
+            href="tel:+6592774444"
+            className="flex items-center gap-1.5 hover:text-white transition-colors"
+            title="Foundation Secretariat Helpline"
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+            <span className="hidden sm:inline">Helpline: </span>
+            <span>+65 9277 4444</span>
+          </a>
+        </div>
       </div>
     </div>
   );

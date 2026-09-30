@@ -149,7 +149,7 @@ function MatrimonyContent() {
             💍
           </div>
           <div>
-            <span className="text-[11px] font-extrabold uppercase tracking-widest text-brand-gold bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
+            <span className="text-xs font-bold uppercase tracking-widest text-brand-gold bg-amber-50 px-3.5 py-1 rounded-full border border-amber-200">
               Exclusive Community Service • वैवाहिक संबंध मंच
             </span>
             <h1 className="font-serif text-2xl sm:text-3xl font-black text-brand-primary mt-3">
@@ -348,7 +348,7 @@ function MatrimonyContent() {
             >
               <span>⚙️ Filters</span>
               {totalActiveFiltersCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-amber-400 text-brand-primary text-[10px] font-black rounded-full">
+                <span className="px-1.5 py-0.2 bg-amber-400 text-brand-primary text-xs font-black rounded-full">
                   {totalActiveFiltersCount}
                 </span>
               )}
@@ -360,7 +360,7 @@ function MatrimonyContent() {
             <div className="pt-4 border-t border-brand-accent/20 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs animate-in fade-in duration-150">
               {/* Age Bounds */}
               <div>
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1">
                   Age Range (Years)
                 </label>
                 <div className="flex items-center gap-2">
@@ -388,7 +388,7 @@ function MatrimonyContent() {
 
               {/* Height Bounds */}
               <div>
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1">
                   Height Range (cm)
                 </label>
                 <div className="flex items-center gap-2">
@@ -416,7 +416,7 @@ function MatrimonyContent() {
 
               {/* Education */}
               <div>
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1">
                   Highest Education
                 </label>
                 <select
@@ -434,7 +434,7 @@ function MatrimonyContent() {
 
               {/* Employment Sector */}
               <div>
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1">
                   Employment Sector
                 </label>
                 <select
@@ -452,7 +452,7 @@ function MatrimonyContent() {
 
               {/* Marital Status */}
               <div>
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1">
                   Marital Status
                 </label>
                 <select
@@ -470,7 +470,7 @@ function MatrimonyContent() {
 
               {/* Native Place */}
               <div>
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-body-heading mb-1">
+                <label className="block text-xs font-bold uppercase tracking-wider text-body-heading mb-1">
                   Ancestral Native Place (मूल निवास)
                 </label>
                 <input
@@ -496,7 +496,7 @@ function MatrimonyContent() {
               <button
                 type="button"
                 onClick={handleResetAll}
-                className="text-[11px] font-bold text-brand-primary hover:underline"
+                className="text-xs font-bold text-brand-primary hover:underline"
               >
                 Clear all filters ({totalActiveFiltersCount})
               </button>
@@ -567,17 +567,17 @@ function MatrimonyContent() {
                           <h3 className="text-sm font-bold text-brand-primary truncate" title={p.fullName}>
                             {p.fullName}
                           </h3>
-                          <p className="text-[11px] font-bold text-amber-800 font-devanagari truncate mt-0.5">
+                          <p className="text-xs font-bold text-amber-800 font-devanagari truncate mt-0.5">
                             गोत्र: {p.gotra}
                           </p>
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                             {p.age !== undefined && (
-                              <span className="text-[10px] font-bold bg-amber-100/80 text-amber-950 px-2 py-0.5 rounded-md">
+                              <span className="text-xs font-bold bg-amber-100/80 text-amber-950 px-2 py-0.5 rounded-md">
                                 {p.age} yrs
                               </span>
                             )}
                             {p.heightDisplay && (
-                              <span className="text-[10px] font-medium bg-canvas-warm text-body-heading px-1.5 py-0.5 rounded border border-brand-accent/20">
+                              <span className="text-xs font-medium bg-canvas-warm text-body-heading px-1.5 py-0.5 rounded border border-brand-accent/20">
                                 {p.heightDisplay.split("(")[0].trim()}
                               </span>
                             )}
@@ -598,14 +598,14 @@ function MatrimonyContent() {
                           📍 {p.workCity || p.familyLocation}
                         </p>
                         {p.nativePlace && (
-                          <p className="text-[11px] text-body-muted truncate">
+                          <p className="text-xs text-body-muted truncate">
                             <strong>मूल निवास:</strong> {p.nativePlace}
                           </p>
                         )}
                       </div>
 
                       {/* Family Snapshot */}
-                      <div className="p-2.5 rounded-xl bg-canvas-warm/40 border border-brand-accent/20 text-[11px] text-body-muted space-y-1 mb-3">
+                      <div className="p-2.5 rounded-xl bg-canvas-warm/40 border border-brand-accent/20 text-xs text-body-muted space-y-1 mb-3">
                         <div className="truncate">
                           <strong>Father:</strong> {p.fatherName}
                           {p.fatherOccupation ? ` (${p.fatherOccupation})` : ""}
@@ -618,7 +618,7 @@ function MatrimonyContent() {
 
                     {/* Card Action Footer */}
                     <div className="pt-3 border-t border-brand-accent/20 flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                         ✓ Verified Member
                       </span>
 

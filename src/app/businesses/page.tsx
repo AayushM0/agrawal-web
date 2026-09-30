@@ -345,14 +345,14 @@ function BusinessDirectoryContent() {
                               <span className="text-body-muted/70">• Est. {profile.yearEstablished}</span>
                             )}
                           </p>
-                          {profile.businessSerialNo && <p className="text-[11px] font-mono text-brand-burgundy mt-1">{profile.businessSerialNo}</p>}
+                          {profile.businessSerialNo && <p className="text-xs font-mono text-brand-burgundy mt-1">{profile.businessSerialNo}</p>}
                         </div>
                       </div>
 
                       {profile.isVerifiedBadge && (
                         <span
                           title="Verified Agarwal Enterprise with verified credentials"
-                          className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
                         >
                           ✓ Verified
                         </span>
@@ -368,10 +368,10 @@ function BusinessDirectoryContent() {
 
                     {/* Sector & Type Badges */}
                     <div className="flex flex-wrap gap-1.5">
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-brand-burgundy border border-amber-200">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-brand-burgundy border border-amber-200">
                         {profile.industrySector}
                       </span>
-                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-canvas-warm text-body-heading border border-brand-accent/20">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-canvas-warm text-body-heading border border-brand-accent/20">
                         {profile.businessType}
                       </span>
                     </div>
@@ -384,10 +384,10 @@ function BusinessDirectoryContent() {
                     {/* Linked Leadership Preview */}
                     {primaryDirector && (
                       <div className="p-2.5 rounded-xl bg-canvas-warm/50 border border-brand-accent/20 text-xs flex items-center justify-between">
-                        <span className="text-body-muted text-[11px]">Leadership:</span>
+                        <span className="text-body-muted text-xs">Leadership:</span>
                         <span className="font-semibold text-body-heading">
                           {primaryDirector.name}{" "}
-                          <span className="text-body-muted text-[10px]">({primaryDirector.roleTitle})</span>
+                          <span className="text-body-muted text-xs">({primaryDirector.roleTitle})</span>
                         </span>
                       </div>
                     )}
@@ -396,11 +396,11 @@ function BusinessDirectoryContent() {
                   {/* Card Footer: Direct Contact & View Profile */}
                   <div className="pt-4 mt-4 border-t border-brand-accent/20 flex items-center justify-between gap-2">
                     {profile.contactPhone ? (
-                      <span className="text-[11px] font-mono font-semibold text-emerald-800 flex items-center gap-1">
+                      <span className="text-xs font-mono font-semibold text-emerald-800 flex items-center gap-1">
                         <span>📞</span> {profile.contactPhone}
                       </span>
                     ) : (
-                      <span className="text-[11px] text-body-muted">Direct Contact Available</span>
+                      <span className="text-xs text-body-muted">Direct Contact Available</span>
                     )}
                     <Link
                       href={`/businesses/${profile.id}`}

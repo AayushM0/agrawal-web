@@ -255,10 +255,10 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
         onOpenChat={handleOpenChat}
       />
       <header className="sticky top-0 z-50 bg-[#fffdf8]/95 backdrop-blur-md border-b border-brand-accent/25 shadow-warm transition-all">
-        <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2.5 sm:gap-4">
           {/* Brand Logo & Title */}
-          <Link href="/" className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 text-decoration-none group">
-            <div className="relative w-9 h-9 sm:w-12 sm:h-12 shrink-0 transition-transform group-hover:scale-105">
+          <Link href="/" className="min-w-0 flex items-center gap-2 sm:gap-3 text-decoration-none group flex-1">
+            <div className="relative w-9 h-9 sm:w-11 sm:h-11 md:w-12 md:h-12 shrink-0 transition-transform group-hover:scale-105">
               <Image
                 src="/images/logo-transparent.png"
                 alt="Maharaja Agrasen Foundation Limited Singapore Logo"
@@ -269,14 +269,17 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
                 priority
               />
             </div>
-            <div className="min-w-0 flex-1">
-              <span className="inline-block text-[8px] sm:text-[9px] font-bold tracking-wider uppercase px-1.5 sm:px-2 py-0.5 rounded-full va-badge-gold mb-0.5 whitespace-nowrap">
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <span className="hidden sm:inline-block text-xs font-bold tracking-wide uppercase px-2.5 py-0.5 rounded-full va-badge-gold mb-0.5 whitespace-nowrap">
                 Maharaja Agrasen Foundation
               </span>
-              <h2 className="text-xs sm:text-sm md:text-base font-extrabold text-brand-primary leading-tight tracking-tight truncate">
-                Maharaja Agrasen Foundation Limited Singapore
+              <h2 className="text-xs sm:text-sm md:text-base font-extrabold text-brand-primary leading-tight tracking-tight">
+                <span className="block truncate">Maharaja Agrasen Foundation</span>
+                <span className="text-[11px] sm:text-xs text-body-muted font-medium block sm:inline truncate">
+                  <span className="hidden sm:inline"> </span>Limited Singapore
+                </span>
               </h2>
-              <p className="text-[9px] sm:text-[11px] text-body-muted font-medium truncate hidden sm:block">
+              <p className="text-xs text-body-muted font-medium truncate hidden sm:block">
                 One Community • One Platform • One Global Family
               </p>
             </div>
@@ -766,18 +769,18 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
           </nav>
 
           {/* Mobile Action Buttons & Hamburger */}
-          <div className="flex md:hidden items-center gap-1.5 sm:gap-2 shrink-0 z-10">
+          <div className="flex md:hidden items-center gap-1.5 sm:gap-2 shrink-0">
             {isLoggedIn ? (
               <Link
                 href="/dashboard"
-                className="px-2.5 py-1.5 text-[11px] font-bold text-white bg-brand-primary rounded-full shadow-sm whitespace-nowrap"
+                className="px-2.5 sm:px-3 py-1.5 text-xs font-bold text-white bg-brand-primary rounded-full shadow-sm whitespace-nowrap"
               >
                 Dashboard
               </Link>
             ) : (
               <Link
                 href="/signup"
-                className="px-2.5 py-1.5 text-[11px] font-bold text-white va-btn-join rounded-full shadow-sm whitespace-nowrap"
+                className="px-2.5 sm:px-3 py-1.5 text-xs font-bold text-white va-btn-join rounded-full shadow-sm whitespace-nowrap text-center"
               >
                 Join Free
               </Link>
@@ -786,7 +789,7 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-1.5 sm:p-2 rounded-xl text-brand-primary hover:bg-canvas-warm border border-brand-accent/40 bg-white shadow-xs transition-colors shrink-0"
+              className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl text-brand-primary hover:bg-canvas-warm border border-brand-accent/40 bg-white shadow-xs transition-colors shrink-0"
               aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? (
@@ -804,8 +807,8 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
 
         {/* Mobile Slide-over Drawer Menu (Zero Emojis, Clean Categorization) */}
         {mobileMenuOpen && (
-          <div className="md:hidden fixed inset-0 top-[60px] z-50 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-[#fffdf8] border-b-2 border-brand-accent/40 shadow-2xl p-5 space-y-4 max-h-[calc(100vh-60px)] overflow-y-auto">
+          <div className="md:hidden fixed inset-0 top-[56px] sm:top-[64px] z-50 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-[#fffdf8] border-b-2 border-brand-accent/40 shadow-2xl p-5 space-y-4 max-h-[calc(100vh-56px)] sm:max-h-[calc(100vh-64px)] overflow-y-auto">
               {/* Category 1: Primary Navigation */}
               <div className="space-y-1">
                 <div className="px-2 py-1 text-[10px] font-bold text-body-muted uppercase tracking-wider">

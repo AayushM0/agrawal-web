@@ -23,24 +23,31 @@ export default function GotraSection() {
             </div>
             <Link
               href="/directory"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold text-white va-btn-maroon self-start shrink-0"
+              className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-full text-xs sm:text-sm font-bold text-white va-btn-maroon self-start md:self-center shrink-0 transition-all shadow-sm"
             >
-              Browse Directory by Gotra →
+              <span>Browse Directory by Gotra</span>
+              <span aria-hidden="true">→</span>
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4">
             {gotras.map((g) => (
               <Link
                 key={g.id}
                 href={`/directory?gotra=${encodeURIComponent(g.name)}`}
-                className="flex items-center justify-between p-3 rounded-xl bg-canvas-warm/60 border border-brand-accent/30 hover:bg-white hover:border-brand-accent hover:shadow-sm transition-all text-left"
+                className="flex items-center gap-3 p-3.5 rounded-xl bg-canvas-warm/70 border border-brand-accent/30 hover:bg-white hover:border-brand-accent hover:shadow-sm transition-all min-h-[52px] group text-left"
               >
-                <div>
-                  <span className="text-xs font-bold text-brand-primary block">{g.name}</span>
-                  <span className="text-[11px] font-devanagari text-body-muted">{g.devanagari}</span>
+                <span className="w-6 h-6 rounded-lg bg-brand-gold/15 text-brand-primary text-xs font-bold font-mono flex items-center justify-center shrink-0 group-hover:bg-brand-primary group-hover:text-white transition-colors">
+                  {g.id}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="text-xs sm:text-sm font-bold text-brand-primary block leading-tight truncate">
+                    {g.name}
+                  </span>
+                  <span className="text-xs font-devanagari text-body-muted block">
+                    {g.devanagari}
+                  </span>
                 </div>
-                <span className="text-[10px] font-mono text-brand-gold font-bold">{g.id}</span>
               </Link>
             ))}
           </div>

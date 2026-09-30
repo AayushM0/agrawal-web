@@ -60,7 +60,7 @@ export default function SupportPage() {
                 For urgent inquiries regarding family verification status or profile claims, please reach our Secretariat.
               </p>
               <div>
-                <span className="text-[10px] text-body-muted block font-bold">Helpline (Direct Dial)</span>
+                <span className="text-xs text-body-muted block font-bold">Helpline (Direct Dial)</span>
                 <a
                   href="tel:+6592774444"
                   className="text-sm font-extrabold text-brand-primary hover:underline flex items-center gap-1.5 mt-1"
@@ -69,7 +69,7 @@ export default function SupportPage() {
                 </a>
               </div>
               <div>
-                <span className="text-[10px] text-body-muted block font-bold">WhatsApp Direct</span>
+                <span className="text-xs text-body-muted block font-bold">WhatsApp Direct</span>
                 <a
                   href="https://wa.me/6592774444?text=Jai%20Shree%20Agrasen%20Ji%20%F0%9F%99%8F%0AI%20am%20reaching%20out%20from%20the%20Maharaja%20Agrasen%20Foundation%20portal%20with%20an%20inquiry."
                   target="_blank"
@@ -80,7 +80,7 @@ export default function SupportPage() {
                 </a>
               </div>
               <div>
-                <span className="text-[10px] text-body-muted block font-bold">Email Communications</span>
+                <span className="text-xs text-body-muted block font-bold">Email Communications</span>
                 <a
                   href="mailto:contact@maharajaagrasenfoundation.com"
                   className="text-xs font-bold text-brand-primary hover:underline block mt-1"
