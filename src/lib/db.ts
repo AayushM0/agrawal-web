@@ -4327,14 +4327,14 @@ export const db = {
     const values = [
       p.householdId,
       p.memberId,
-      p.headline,
+      p.headline ? p.headline.slice(0, 255) : "",
       p.careerLevel,
       p.primaryDomain,
-      p.currentCompany || null,
-      p.currentDesignation || null,
+      p.currentCompany ? p.currentCompany.slice(0, 255) : null,
+      p.currentDesignation ? p.currentDesignation.slice(0, 255) : null,
       p.yearsOfExperience || 0,
-      p.educationHighest || null,
-      p.educationInstitution || null,
+      p.educationHighest ? p.educationHighest.slice(0, 150) : null,
+      p.educationInstitution ? p.educationInstitution.slice(0, 255) : null,
       p.skills || [],
       p.seekingStatus || "open_to_offers",
       p.preferredLocations || [],
@@ -4482,14 +4482,14 @@ export const db = {
       values.push(val);
     };
 
-    if (updates.headline !== undefined) addSet("headline", updates.headline);
+    if (updates.headline !== undefined) addSet("headline", updates.headline.slice(0, 255));
     if (updates.careerLevel !== undefined) addSet("career_level", updates.careerLevel);
     if (updates.primaryDomain !== undefined) addSet("primary_domain", updates.primaryDomain);
-    if (updates.currentCompany !== undefined) addSet("current_company", updates.currentCompany);
-    if (updates.currentDesignation !== undefined) addSet("current_designation", updates.currentDesignation);
+    if (updates.currentCompany !== undefined) addSet("current_company", updates.currentCompany ? updates.currentCompany.slice(0, 255) : null);
+    if (updates.currentDesignation !== undefined) addSet("current_designation", updates.currentDesignation ? updates.currentDesignation.slice(0, 255) : null);
     if (updates.yearsOfExperience !== undefined) addSet("years_of_experience", updates.yearsOfExperience);
-    if (updates.educationHighest !== undefined) addSet("education_highest", updates.educationHighest);
-    if (updates.educationInstitution !== undefined) addSet("education_institution", updates.educationInstitution);
+    if (updates.educationHighest !== undefined) addSet("education_highest", updates.educationHighest ? updates.educationHighest.slice(0, 150) : null);
+    if (updates.educationInstitution !== undefined) addSet("education_institution", updates.educationInstitution ? updates.educationInstitution.slice(0, 255) : null);
     if (updates.skills !== undefined) addSet("skills", updates.skills);
     if (updates.seekingStatus !== undefined) addSet("seeking_status", updates.seekingStatus);
     if (updates.preferredLocations !== undefined) addSet("preferred_locations", updates.preferredLocations);

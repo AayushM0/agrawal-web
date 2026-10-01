@@ -136,7 +136,7 @@ export function suggestDomainCorrection(rawDomain: string): string | null {
   }
 
   // Exact known typo match
-  if (KNOWN_DOMAIN_TYPOS[lower]) {
+  if (Object.prototype.hasOwnProperty.call(KNOWN_DOMAIN_TYPOS, lower)) {
     return KNOWN_DOMAIN_TYPOS[lower];
   }
 
@@ -297,13 +297,13 @@ export function validateEmail(input?: string): EmailValidationResult {
       return { isValid: false, error: "Domain contains invalid characters." };
     }
     if (label.startsWith("-") || label.endsWith("-")) {
-      return { isValid: false, error: "Domain labels cannot start or end with a hyphen." };
+      return { isValid: false, error: "Email domain has invalid boundary characters." };
     }
   }
 
   const tld = labels[labels.length - 1];
   if (tld.length < 2 || /^\d+$/.test(tld)) {
-    return { isValid: false, error: "Invalid top-level domain." };
+    return { isValid: false, error: "Email domain must include a top-level domain (e.g. .com)." };
   }
 
   const canonical = `${localPart.toLowerCase()}@${rawDomain.toLowerCase()}`;

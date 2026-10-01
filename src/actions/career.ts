@@ -29,10 +29,10 @@ function sanitizeResumeUrl(url?: string): string | undefined {
   if (!url) return undefined;
   const trimmed = url.trim();
   if (!trimmed) return undefined;
-  if (/^data:application\/pdf/i.test(trimmed) || /^https?:\/\//i.test(trimmed)) {
+  if (/^data:application\/(pdf|x-pdf|octet-stream);base64,/i.test(trimmed) || /^https?:\/\//i.test(trimmed)) {
     return trimmed;
   }
-  if (/^(javascript|vbscript|data:text\/html):/i.test(trimmed)) {
+  if (/^(javascript|vbscript|data):/i.test(trimmed)) {
     return undefined;
   }
   return `https://${trimmed}`;
@@ -92,10 +92,13 @@ export async function createCareerProfileAction(input: CreateCareerProfileInput)
       return { success: false, error: "The selected member does not belong to your household." };
     }
 
-    // Validations
+    // Validations & safe string truncation guards to prevent Postgres VARCHAR overflow
     const headline = input.headline?.trim();
     if (!headline || headline.length < 5) {
       return { success: false, error: "Professional headline must be at least 5 characters." };
+    }
+    if (headline.length > 255) {
+      return { success: false, error: "Professional headline cannot exceed 255 characters." };
     }
 
     if (!input.primaryDomain?.trim()) {
@@ -106,20 +109,29 @@ export async function createCareerProfileAction(input: CreateCareerProfileInput)
       return { success: false, error: "Please select your career seniority level." };
     }
 
+    const educationHighest = input.educationHighest?.trim();
+    if (educationHighest && educationHighest.length > 150) {
+      return { success: false, error: "Highest qualification cannot exceed 150 characters." };
+    }
+
+    const cleanCompany = input.currentCompany?.trim() ? input.currentCompany.trim().slice(0, 255) : undefined;
+    const cleanDesignation = input.currentDesignation?.trim() ? input.currentDesignation.trim().slice(0, 255) : undefined;
+    const cleanInstitution = input.educationInstitution?.trim() ? input.educationInstitution.trim().slice(0, 255) : undefined;
+
     const cleanSkills = cleanList(input.skills);
     const cleanLocations = cleanList(input.preferredLocations);
 
     const created = await db.createCareerProfile({
       householdId: household.id,
       memberId,
-      headline,
+      headline: headline.slice(0, 255),
       careerLevel: input.careerLevel,
       primaryDomain: input.primaryDomain,
-      currentCompany: input.currentCompany?.trim() || undefined,
-      currentDesignation: input.currentDesignation?.trim() || undefined,
+      currentCompany: cleanCompany,
+      currentDesignation: cleanDesignation,
       yearsOfExperience: typeof input.yearsOfExperience === "number" ? Math.max(0, input.yearsOfExperience) : 0,
-      educationHighest: input.educationHighest?.trim() || undefined,
-      educationInstitution: input.educationInstitution?.trim() || undefined,
+      educationHighest: educationHighest ? educationHighest.slice(0, 150) : undefined,
+      educationInstitution: cleanInstitution,
       skills: cleanSkills,
       seekingStatus: input.seekingStatus || "open_to_offers",
       preferredLocations: cleanLocations,
@@ -138,7 +150,7 @@ export async function createCareerProfileAction(input: CreateCareerProfileInput)
     };
   } catch (err: any) {
     console.error("[CAREER ACTION ERROR] createCareerProfileAction:", err);
-    return { success: false, error: "Failed to create career profile. Please check your inputs." };
+    return { success: false, error: err.message || "Failed to create career profile. Please check your inputs." };
   }
 }
 
@@ -231,6 +243,21 @@ export async function updateCareerProfileAction(
     }
 
     const cleanUpdates = { ...updates };
+    if (updates.headline !== undefined) {
+      cleanUpdates.headline = updates.headline.trim().slice(0, 255);
+    }
+    if (updates.educationHighest !== undefined) {
+      cleanUpdates.educationHighest = updates.educationHighest?.trim().slice(0, 150);
+    }
+    if (updates.currentCompany !== undefined) {
+      cleanUpdates.currentCompany = updates.currentCompany?.trim().slice(0, 255);
+    }
+    if (updates.currentDesignation !== undefined) {
+      cleanUpdates.currentDesignation = updates.currentDesignation?.trim().slice(0, 255);
+    }
+    if (updates.educationInstitution !== undefined) {
+      cleanUpdates.educationInstitution = updates.educationInstitution?.trim().slice(0, 255);
+    }
     if (updates.linkedinUrl !== undefined) {
       cleanUpdates.linkedinUrl = formatAndSanitizeUrl(updates.linkedinUrl);
     }
@@ -248,7 +275,7 @@ export async function updateCareerProfileAction(
     };
   } catch (err: any) {
     console.error("[CAREER ACTION ERROR] updateCareerProfileAction:", err);
-    return { success: false, error: "Failed to update profile. Please verify your details." };
+    return { success: false, error: err.message || "Failed to update profile. Please verify your details." };
   }
 }
 

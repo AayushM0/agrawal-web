@@ -43,6 +43,13 @@ export default function SignupPage() {
     }
   }, [toast]);
 
+  // Scroll to top of registration wizard on step transition
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+  }, [step]);
+
   // Guard: Automatically redirect authenticated users away from signup page
   useEffect(() => {
     let isMounted = true;
@@ -108,6 +115,7 @@ export default function SignupPage() {
   const [emailSuggestion, setEmailSuggestion] = useState<string | null>(null);
   const [emailDecision, setEmailDecision] = useState<"accepted" | "declined" | null>(null);
   const [step1EmailError, setStep1EmailError] = useState<string | null>(null);
+  const [step1PhoneError, setStep1PhoneError] = useState<string | null>(null);
 
   const [headEmailSuggestion, setHeadEmailSuggestion] = useState<string | null>(null);
   const [headEmailDecision, setHeadEmailDecision] = useState<"accepted" | "declined" | null>(null);
@@ -367,29 +375,30 @@ export default function SignupPage() {
       }
 
       const cleanEmail = emailValidation.canonical!;
+      setContactValue(cleanEmail);
       try {
         const emailRes = await checkContactRegistration(cleanEmail);
         if (emailRes.isRegistered) {
           setAlreadyRegisteredInfo(emailRes);
-          setOtpError(`This email is already registered in the directory (${emailRes.headName ? `associated with ${emailRes.headName}` : `#${emailRes.householdCode}`}).`);
-        } else if (alreadyRegisteredInfo && !otpError.includes("phone")) {
+          setStep1EmailError(`This email is already registered in the directory (${emailRes.headName ? `associated with ${emailRes.headName}` : `#${emailRes.householdCode}`}).`);
+        } else if (alreadyRegisteredInfo && !step1PhoneError) {
           setAlreadyRegisteredInfo(null);
-          setOtpError("");
         }
       } catch {
         // ignore
       }
     } else if (field === "phone") {
+      setStep1PhoneError(null);
       const cleanPhone = headPhone.trim();
+      setHeadPhone(cleanPhone);
       if (cleanPhone && cleanPhone.replace(/[^0-9]/g, "").length >= 7) {
         try {
           const phoneRes = await checkContactRegistration(cleanPhone);
           if (phoneRes.isRegistered) {
             setAlreadyRegisteredInfo(phoneRes);
-            setOtpError(`This phone number is already registered in the directory (${phoneRes.headName ? `associated with ${phoneRes.headName}` : `#${phoneRes.householdCode}`}).`);
-          } else if (alreadyRegisteredInfo && !otpError.includes("email")) {
+            setStep1PhoneError(`This phone number is already registered in the directory (${phoneRes.headName ? `associated with ${phoneRes.headName}` : `#${phoneRes.householdCode}`}).`);
+          } else if (alreadyRegisteredInfo && !step1EmailError) {
             setAlreadyRegisteredInfo(null);
-            setOtpError("");
           }
         } catch {
           // ignore
@@ -430,6 +439,7 @@ export default function SignupPage() {
       }
 
       cleanVal = emailValidation.canonical!;
+      updateAdditionalMember(memberId, "email", cleanVal);
 
       // 1. In-form collision against Head
       const effectiveHead = contactType === "email" ? normalizeEmail(contactValue) : normalizeEmail(headEmail);
@@ -523,11 +533,11 @@ export default function SignupPage() {
   // Step 1: Frictionless Contact Validation & Advance Handler
   const handleStep1Next = async () => {
     setStep1EmailError(null);
+    setStep1PhoneError(null);
     const emailRes = validateEmail(contactValue);
     if (!emailRes.isValid) {
       const msg = emailRes.error || "Please enter a valid primary email address.";
       setStep1EmailError(msg);
-      setOtpError(msg);
       showToast(msg, "error");
       return;
     }
@@ -536,7 +546,6 @@ export default function SignupPage() {
     if (emailRes.suggestion && emailDecision === null) {
       setEmailSuggestion(emailRes.suggestion);
       const msg = `Please confirm your email address. Did you mean ${emailRes.suggestion}?`;
-      setOtpError(msg);
       showToast(msg, "warning");
       return;
     } else {
@@ -544,17 +553,18 @@ export default function SignupPage() {
     }
 
     const cleanEmail = emailRes.canonical!;
+    setContactValue(cleanEmail);
     const cleanPhone = headPhone.trim();
+    setHeadPhone(cleanPhone);
 
     if (!cleanPhone || cleanPhone.replace(/[^0-9]/g, "").length < 7) {
       const msg = "Please enter a valid mobile phone number.";
-      setOtpError(msg);
+      setStep1PhoneError(msg);
       showToast(msg, "error");
       return;
     }
 
     setIsSendingOtp(true);
-    setOtpError("");
     setAlreadyRegisteredInfo(null);
 
     try {
@@ -1167,7 +1177,7 @@ export default function SignupPage() {
       {toast && (
         <div
           role="alert"
-          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-lg p-4 rounded-2xl shadow-2xl border-2 flex items-start gap-3 animate-in slide-in-from-bottom-5 duration-300 ${
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] w-[calc(100%-2rem)] max-w-lg p-4 rounded-2xl shadow-2xl border-2 flex items-start gap-3 transition-all duration-300 ${
             toast.type === "error"
               ? "bg-red-950/95 text-red-100 border-red-500 backdrop-blur-md"
               : toast.type === "warning"
@@ -1358,12 +1368,18 @@ export default function SignupPage() {
                     onChange={(val) => {
                       setHeadPhone(val);
                       if (alreadyRegisteredInfo) setAlreadyRegisteredInfo(null);
+                      if (step1PhoneError) setStep1PhoneError(null);
                     }}
                     onBlur={() => handleContactBlur("phone")}
                     countryCode={phoneDialCode}
                     onCountryChange={(dial) => setPhoneDialCode(dial)}
                     placeholder="e.g. 9876543210"
                   />
+                  {step1PhoneError && (
+                    <span className="text-[11px] text-red-600 font-medium block mt-1">
+                      ⚠️ {step1PhoneError}
+                    </span>
+                  )}
                 </div>
 
                 {/* ALREADY REGISTERED BANNER */}
@@ -1389,13 +1405,6 @@ export default function SignupPage() {
                         Sign In to Your Household Dashboard →
                       </Link>
                     </div>
-                  </div>
-                )}
-
-                {/* Error Messages */}
-                {otpError && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700">
-                    ⚠️ {otpError}
                   </div>
                 )}
 
@@ -1575,6 +1584,9 @@ export default function SignupPage() {
                         onBlur={() => {
                           if (contactType !== "email" && headEmail.trim()) {
                             const res = validateEmail(headEmail);
+                            if (res.isValid && res.canonical) {
+                              setHeadEmail(res.canonical);
+                            }
                             if (res.isValid && res.suggestion && headEmailDecision === null) {
                               setHeadEmailSuggestion(res.suggestion);
                             } else {

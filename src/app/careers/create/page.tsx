@@ -143,7 +143,8 @@ export default function CreateCareerProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type !== "application/pdf" && !file.name.endsWith(".pdf")) {
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf) {
       alert("Please upload a PDF document (.pdf only).");
       return;
     }
@@ -172,12 +173,36 @@ export default function CreateCareerProfilePage() {
         setSubmissionError("Please enter a professional headline (minimum 5 characters).");
         return false;
       }
+      if (headline.trim().length > 255) {
+        setSubmissionError("Professional headline cannot exceed 255 characters.");
+        return false;
+      }
+      if (currentCompany.trim().length > 255) {
+        setSubmissionError("Current company name cannot exceed 255 characters.");
+        return false;
+      }
+      if (currentDesignation.trim().length > 255) {
+        setSubmissionError("Current designation cannot exceed 255 characters.");
+        return false;
+      }
       return true;
     }
 
     if (step === 2) {
-      if (yearsOfExperience < 0) {
-        setSubmissionError("Years of experience cannot be negative.");
+      if (yearsOfExperience < 0 || yearsOfExperience > 60) {
+        setSubmissionError("Years of experience must be between 0 and 60.");
+        return false;
+      }
+      if (educationHighest.trim().length > 150) {
+        setSubmissionError("Highest qualification cannot exceed 150 characters.");
+        return false;
+      }
+      if (educationInstitution.trim().length > 255) {
+        setSubmissionError("University / College cannot exceed 255 characters.");
+        return false;
+      }
+      if (bio.trim().length > 2000) {
+        setSubmissionError("Professional bio cannot exceed 2000 characters.");
         return false;
       }
       return true;
@@ -185,6 +210,25 @@ export default function CreateCareerProfilePage() {
 
     if (step === 3) {
       if (skills.length === 0) {
+        setSubmissionError("Please add at least 1 key skill tag.");
+        return false;
+      }
+      return true;
+    }
+
+    if (step === 4) {
+      if (!selectedMemberId || headline.trim().length < 5 || headline.trim().length > 255) {
+        setCurrentStep(1);
+        setSubmissionError(!selectedMemberId ? "Please select a member." : "Professional headline must be between 5 and 255 characters.");
+        return false;
+      }
+      if (educationHighest.trim().length > 150) {
+        setCurrentStep(2);
+        setSubmissionError("Highest qualification cannot exceed 150 characters.");
+        return false;
+      }
+      if (skills.length === 0) {
+        setCurrentStep(3);
         setSubmissionError("Please add at least 1 key skill tag.");
         return false;
       }
@@ -395,14 +439,16 @@ export default function CreateCareerProfilePage() {
                 </label>
                 <input
                   type="text"
+                  maxLength={255}
                   value={headline}
                   onChange={(e) => setHeadline(e.target.value)}
                   placeholder="e.g. Senior Full-Stack Cloud Architect at TechCorp | 8+ Yrs Distributed Systems"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[38px]"
                 />
-                <p className="text-[11px] text-body-muted mt-1">
-                  A concise 1-line summary that appears in search results.
-                </p>
+                <div className="flex justify-between items-center text-[11px] text-body-muted mt-1">
+                  <span>A concise 1-line summary that appears in search results.</span>
+                  <span className={headline.length > 240 ? "text-amber-600 font-bold" : ""}>{headline.length}/255</span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -444,6 +490,7 @@ export default function CreateCareerProfilePage() {
                   </label>
                   <input
                     type="text"
+                    maxLength={255}
                     value={currentCompany}
                     onChange={(e) => setCurrentCompany(e.target.value)}
                     placeholder="e.g. Microsoft, Deloitte, Tata Steel"
@@ -457,6 +504,7 @@ export default function CreateCareerProfilePage() {
                   </label>
                   <input
                     type="text"
+                    maxLength={255}
                     value={currentDesignation}
                     onChange={(e) => setCurrentDesignation(e.target.value)}
                     placeholder="e.g. Principal Engineer, Tax Consultant"
@@ -510,11 +558,17 @@ export default function CreateCareerProfilePage() {
                   </label>
                   <input
                     type="text"
+                    maxLength={150}
                     value={educationHighest}
                     onChange={(e) => setEducationHighest(e.target.value)}
                     placeholder="e.g. B.Tech (CS), CA (Chartered Accountant), MBA"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[38px]"
                   />
+                  {educationHighest.length > 0 && (
+                    <div className="text-right text-[10px] text-body-muted mt-0.5">
+                      {educationHighest.length}/150
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -523,6 +577,7 @@ export default function CreateCareerProfilePage() {
                   </label>
                   <input
                     type="text"
+                    maxLength={255}
                     value={educationInstitution}
                     onChange={(e) => setEducationInstitution(e.target.value)}
                     placeholder="e.g. IIT Delhi, IIM Ahmedabad, ICAI"
@@ -537,11 +592,15 @@ export default function CreateCareerProfilePage() {
                 </label>
                 <textarea
                   rows={4}
+                  maxLength={2000}
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   placeholder="Share key career highlights, areas of expertise, and major business accomplishments..."
                   className="w-full p-3.5 rounded-2xl border border-brand-accent/40 text-xs text-body-heading bg-canvas-warm/30 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                 />
+                <div className="text-right text-[11px] text-body-muted mt-1">
+                  {bio.length}/2000
+                </div>
               </div>
             </div>
           )}
@@ -560,6 +619,7 @@ export default function CreateCareerProfilePage() {
                 <div className="flex gap-2 mb-2">
                   <input
                     type="text"
+                    maxLength={60}
                     value={skillInput}
                     onChange={(e) => setSkillInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -721,6 +781,7 @@ export default function CreateCareerProfilePage() {
                 <div className="flex gap-2 mb-2">
                   <input
                     type="text"
+                    maxLength={60}
                     value={locationInput}
                     onChange={(e) => setLocationInput(e.target.value)}
                     onKeyDown={(e) => {
