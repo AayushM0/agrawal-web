@@ -77,6 +77,15 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/careers/post",
+        destination: "/careers/jobs/create",
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {

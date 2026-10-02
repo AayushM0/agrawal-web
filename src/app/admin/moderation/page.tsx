@@ -1333,7 +1333,7 @@ export default function ModerationQueuePage() {
             {/* Support Sessions Metrics Bar */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-white p-4 rounded-3xl border border-brand-accent/30 shadow-2xs">
-                <span className="text-[11px] font-bold text-body-muted uppercase tracking-wider block">
+                <span className="text-[11px] font-bold text-body-muted tracking-wider block">
                   Active Sessions
                 </span>
                 <span className="text-xl font-black text-brand-primary mt-0.5 block">
@@ -1341,7 +1341,7 @@ export default function ModerationQueuePage() {
                 </span>
               </div>
               <div className="bg-white p-4 rounded-3xl border border-brand-accent/30 shadow-2xs">
-                <span className="text-[11px] font-bold text-body-muted uppercase tracking-wider block">
+                <span className="text-[11px] font-bold text-body-muted tracking-wider block">
                   Pending Authorizations
                 </span>
                 <span className="text-xl font-black text-amber-700 mt-0.5 block">
@@ -1349,7 +1349,7 @@ export default function ModerationQueuePage() {
                 </span>
               </div>
               <div className="bg-white p-4 rounded-3xl border border-brand-accent/30 shadow-2xs">
-                <span className="text-[11px] font-bold text-body-muted uppercase tracking-wider block">
+                <span className="text-[11px] font-bold text-body-muted tracking-wider block">
                   Total Audit Logs
                 </span>
                 <span className="text-xl font-black text-emerald-700 mt-0.5 block">
@@ -1380,6 +1380,7 @@ export default function ModerationQueuePage() {
                     const remainingMs = sess.expiresAt ? new Date(sess.expiresAt).getTime() - Date.now() : 0;
                     const remHours = Math.max(0, Math.floor(remainingMs / (1000 * 60 * 60)));
                     const remMins = Math.max(0, Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60)));
+                    const remSecs = Math.max(0, Math.floor((remainingMs % (1000 * 60)) / 1000));
                     return (
                       <div
                         key={sess.id}
@@ -1390,7 +1391,7 @@ export default function ModerationQueuePage() {
                             {matchedHh ? matchedHh.headName : `Household #${sess.householdId.slice(0, 8)}`}
                           </span>
                           <span className="text-[11px] text-emerald-800 font-mono font-medium block">
-                            ⏳ {remHours}h {remMins}m remaining
+                            {`⏱ ${String(remHours).padStart(2, '0')}:${String(remMins).padStart(2, '0')}:${String(remSecs).padStart(2, '0')} remaining`}
                           </span>
                         </div>
                         <button

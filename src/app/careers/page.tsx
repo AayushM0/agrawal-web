@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { getLiveCareerProfilesAction } from "@/actions/career";
+import { getLiveCareerProfilesAction, getLiveJobPostingsAction } from "@/actions/career";
 import { gotras } from "@/data/gotras";
-import type { CareerProfile, CareerLevel, PrimaryDomain } from "@/types/career";
+import type { CareerProfile, CareerLevel, PrimaryDomain, JobPosting, JobType, WorkplaceType } from "@/types/career";
 
 const DOMAIN_OPTIONS: string[] = [
   "All Domains",
@@ -30,6 +30,51 @@ const SENIORITY_OPTIONS = [
   { value: "consultant", label: "Consultant / Advisory" },
 ];
 
+const INDUSTRY_FILTER_OPTIONS: string[] = [
+  "All Industries",
+  "Technology & Engineering",
+  "Finance & Banking",
+  "Manufacturing & Industrial",
+  "Retail & E-Commerce",
+  "Healthcare & Pharmaceuticals",
+  "Real Estate & Construction",
+  "Legal & Professional Services",
+  "Education & EdTech",
+  "Textiles & Apparel",
+  "FMCG & Consumer Goods",
+  "Other",
+];
+
+const JOB_TYPE_FILTER_OPTIONS = [
+  { value: "all", label: "All Job Types" },
+  { value: "full_time", label: "Full Time" },
+  { value: "internship", label: "Internship" },
+  { value: "part_time", label: "Part Time" },
+  { value: "contract", label: "Contract" },
+  { value: "advisory", label: "Advisory" },
+];
+
+const WORKPLACE_FILTER_OPTIONS = [
+  { value: "all", label: "All Workplace Types" },
+  { value: "hybrid", label: "Hybrid" },
+  { value: "on_site", label: "Onsite" },
+  { value: "remote", label: "Remote" },
+];
+
+const JOB_TYPE_LABELS: Record<string, string> = {
+  full_time: "Full Time",
+  internship: "Internship",
+  part_time: "Part Time",
+  contract: "Contract",
+  advisory: "Advisory",
+};
+
+const WORKPLACE_LABELS: Record<string, string> = {
+  hybrid: "Hybrid",
+  remote: "Remote",
+  on_site: "Onsite",
+};
+
 export default function CareerDirectoryPage() {
   const [activeTab, setActiveTab] = useState<"talent" | "jobs">("talent");
   const [profiles, setProfiles] = useState<CareerProfile[]>([]);
@@ -42,6 +87,15 @@ export default function CareerDirectoryPage() {
   const [selectedLevel, setSelectedLevel] = useState("all");
   const [selectedGotra, setSelectedGotra] = useState("all");
   const [isMentorOnly, setIsMentorOnly] = useState(false);
+
+  // Jobs State
+  const [jobs, setJobs] = useState<JobPosting[]>([]);
+  const [totalJobs, setTotalJobs] = useState(0);
+  const [isLoadingJobs, setIsLoadingJobs] = useState(true);
+  const [jobSearchTerm, setJobSearchTerm] = useState("");
+  const [selectedIndustry, setSelectedIndustry] = useState("All Industries");
+  const [selectedJobType, setSelectedJobType] = useState("all");
+  const [selectedWorkplaceType, setSelectedWorkplaceType] = useState("all");
 
   useEffect(() => {
     async function loadTalent() {
@@ -70,12 +124,45 @@ export default function CareerDirectoryPage() {
     return () => clearTimeout(timer);
   }, [searchTerm, selectedDomain, selectedLevel, selectedGotra, isMentorOnly]);
 
+  useEffect(() => {
+    async function loadJobs() {
+      setIsLoadingJobs(true);
+      try {
+        const res = await getLiveJobPostingsAction({
+          query: jobSearchTerm.trim() || undefined,
+          industry: selectedIndustry !== "All Industries" ? selectedIndustry : undefined,
+          jobType: selectedJobType !== "all" ? selectedJobType : undefined,
+          workplaceType: selectedWorkplaceType !== "all" ? selectedWorkplaceType : undefined,
+        });
+
+        if (res.success) {
+          setJobs(res.jobs || []);
+          setTotalJobs(res.total || 0);
+        }
+      } catch (err) {
+        console.error("Failed to load career jobs:", err);
+      } finally {
+        setIsLoadingJobs(false);
+      }
+    }
+
+    const timer = setTimeout(loadJobs, 250);
+    return () => clearTimeout(timer);
+  }, [jobSearchTerm, selectedIndustry, selectedJobType, selectedWorkplaceType]);
+
   const resetFilters = () => {
     setSearchTerm("");
     setSelectedDomain("All Domains");
     setSelectedLevel("all");
     setSelectedGotra("all");
     setIsMentorOnly(false);
+  };
+
+  const resetJobFilters = () => {
+    setJobSearchTerm("");
+    setSelectedIndustry("All Industries");
+    setSelectedJobType("all");
+    setSelectedWorkplaceType("all");
   };
 
   return (
@@ -123,7 +210,13 @@ export default function CareerDirectoryPage() {
             }`}
           >
             <span>👨‍💼 Professionals &amp; Talent</span>
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white">
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === "talent"
+                  ? "bg-white/20 text-white"
+                  : "bg-brand-primary/10 text-brand-primary"
+              }`}
+            >
               {totalCount}
             </span>
           </button>
@@ -137,26 +230,214 @@ export default function CareerDirectoryPage() {
             }`}
           >
             <span>🏢 Job Openings &amp; Internships</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                activeTab === "jobs"
+                  ? "bg-white/20 text-white"
+                  : "bg-brand-primary/10 text-brand-primary"
+              }`}
+            >
+              {totalJobs}
+            </span>
           </button>
         </div>
 
         {activeTab === "jobs" ? (
-          <div className="bg-white rounded-3xl border border-brand-accent/30 p-8 sm:p-12 text-center shadow-warm">
-            <div className="text-4xl mb-3">🏢</div>
-            <h2 className="text-lg font-bold text-brand-primary mb-1">
-              Verified Enterprise Job Openings
-            </h2>
-            <p className="text-xs text-body-muted max-w-md mx-auto mb-6 leading-relaxed">
-              Explore corporate vacancies, industrial internships, and leadership roles posted directly by verified Agarwal enterprises from the Global Business Network.
-            </p>
-            <div className="flex justify-center gap-3">
-              <Link
-                href="/careers/jobs/create"
-                className="px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-maroon min-h-[38px] shadow-xs flex items-center"
-              >
-                + Post Enterprise Vacancy
-              </Link>
+          <div className="space-y-6">
+            {/* Filter Controls Bar for Jobs */}
+            <div className="bg-white p-4 rounded-3xl border border-brand-accent/30 shadow-xs space-y-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="flex-1 relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-body-muted text-xs">🔍</span>
+                  <input
+                    type="text"
+                    value={jobSearchTerm}
+                    onChange={(e) => setJobSearchTerm(e.target.value)}
+                    placeholder="Search by job title, company, or skills..."
+                    className="w-full pl-9 pr-4 py-2 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[38px]"
+                  />
+                  {jobSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setJobSearchTerm("")}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-body-muted hover:text-brand-primary"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                  <select
+                    value={selectedIndustry}
+                    onChange={(e) => setSelectedIndustry(e.target.value)}
+                    className="px-3 py-2 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[38px]"
+                  >
+                    {INDUSTRY_FILTER_OPTIONS.map((ind) => (
+                      <option key={ind} value={ind}>{ind}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedJobType}
+                    onChange={(e) => setSelectedJobType(e.target.value)}
+                    className="px-3 py-2 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[38px]"
+                  >
+                    {JOB_TYPE_FILTER_OPTIONS.map((jt) => (
+                      <option key={jt.value} value={jt.value}>{jt.label}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={selectedWorkplaceType}
+                    onChange={(e) => setSelectedWorkplaceType(e.target.value)}
+                    className="px-3 py-2 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[38px]"
+                  >
+                    {WORKPLACE_FILTER_OPTIONS.map((wp) => (
+                      <option key={wp.value} value={wp.value}>{wp.label}</option>
+                    ))}
+                  </select>
+
+                  {(jobSearchTerm || selectedIndustry !== "All Industries" || selectedJobType !== "all" || selectedWorkplaceType !== "all") && (
+                    <button
+                      type="button"
+                      onClick={resetJobFilters}
+                      className="px-3 py-2 text-xs font-bold text-brand-primary bg-amber-50 hover:bg-amber-100 border border-brand-accent/40 rounded-xl transition min-h-[38px]"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
+
+            {/* Job Cards Grid / Loading / Empty State */}
+            {isLoadingJobs ? (
+              <div className="text-center py-16 bg-white rounded-3xl border border-brand-accent/30 shadow-warm">
+                <div className="animate-spin text-3xl mb-2">🏢</div>
+                <p className="text-xs text-body-muted font-bold">Discovering Community Opportunities...</p>
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="text-center py-16 bg-white rounded-3xl border border-brand-accent/30 p-8 shadow-warm">
+                <div className="text-3xl mb-3">🏢</div>
+                <p className="text-base font-bold text-brand-primary mb-1">
+                  No job openings match this search
+                </p>
+                <p className="text-xs text-body-muted mb-6 max-w-md mx-auto leading-relaxed">
+                  Try adjusting your search criteria or post a new vacancy for the Agarwal community.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <Link
+                    href="/careers/jobs/create"
+                    className="px-6 py-2.5 rounded-full text-xs font-bold text-white va-btn-maroon min-h-[38px] shadow-xs flex items-center"
+                  >
+                    + Post Enterprise Vacancy
+                  </Link>
+                  {(jobSearchTerm || selectedIndustry !== "All Industries" || selectedJobType !== "all" || selectedWorkplaceType !== "all") && (
+                    <button
+                      type="button"
+                      onClick={resetJobFilters}
+                      className="px-5 py-2.5 rounded-full text-xs font-bold text-brand-primary bg-amber-50 hover:bg-amber-100 border border-brand-accent/40 min-h-[38px]"
+                    >
+                      Reset Filters
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {jobs.map((job) => (
+                  <div
+                    key={job.id}
+                    className="bg-white rounded-3xl border border-brand-accent/30 p-5 shadow-warm hover:shadow-warmLg transition-all flex flex-col justify-between"
+                  >
+                    <div>
+                      {/* Header: Company, Verified Badge & Job Type */}
+                      <div className="flex items-start justify-between gap-3 mb-2.5">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-extrabold text-brand-primary truncate">
+                              {job.companyName}
+                            </span>
+                            {job.isVerifiedEnterprise && (
+                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-300 shrink-0 flex items-center gap-1">
+                                <span>✓</span> Verified Enterprise
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-body-muted font-medium block truncate mt-0.5">
+                            {job.industry}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                          {JOB_TYPE_LABELS[job.jobType] || job.jobType}
+                        </span>
+                      </div>
+
+                      {/* Job Title */}
+                      <h3 className="text-sm font-bold text-body-heading line-clamp-2 mb-2 leading-snug">
+                        {job.title}
+                      </h3>
+
+                      {/* Location, Workplace, Salary & Experience */}
+                      <div className="space-y-1 text-[11px] text-body-muted mb-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span>
+                            📍 {job.city ? `${job.city}, ${job.country || "India"}` : job.country || "India"}
+                          </span>
+                          <span>•</span>
+                          <span className="font-medium text-body-heading">
+                            {WORKPLACE_LABELS[job.workplaceType] || job.workplaceType}
+                          </span>
+                        </div>
+
+                        {job.salaryRange && (
+                          <p className="truncate font-semibold text-emerald-700">
+                            💰 {job.salaryRange}
+                          </p>
+                        )}
+
+                        <p className="truncate">
+                          ⏳ Exp: {job.experienceMin}{job.experienceMax ? ` - ${job.experienceMax}` : "+"} Yrs
+                        </p>
+                      </div>
+
+                      {/* Skills Badges */}
+                      {Array.isArray(job.skillsRequired) && job.skillsRequired.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-4">
+                          {job.skillsRequired.slice(0, 3).map((skill) => (
+                            <span
+                              key={skill}
+                              className="text-[10px] font-medium bg-canvas-warm/50 text-body-heading px-2 py-0.5 rounded-lg border border-brand-accent/20"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                          {job.skillsRequired.length > 3 && (
+                            <span className="text-[10px] font-bold text-body-muted px-1.5 py-0.5">
+                              +{job.skillsRequired.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Footer: Applicant count and Link button */}
+                    <div className="pt-3 border-t border-brand-accent/20 flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-body-muted">
+                        👥 {job.applicantCount || 0} {job.applicantCount === 1 ? "applicant" : "applicants"}
+                      </span>
+                      <Link
+                        href={`/careers/jobs/${job.id}`}
+                        className="px-4 py-1.5 rounded-full text-xs font-bold text-white va-btn-maroon min-h-[34px] flex items-center shadow-xs"
+                      >
+                        View Job Opening →
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-6">
