@@ -12,8 +12,16 @@ export interface SessionData {
 }
 
 export async function readSession(): Promise<SessionData | null> {
-  const sessionCookie = (await cookies()).get("auth_session")?.value;
-  return sessionCookie ? verifySessionToken(sessionCookie) : null;
+  if (process.env.NODE_ENV !== "production" && (globalThis as any).__TEST_SESSION__ !== undefined) {
+    return (globalThis as any).__TEST_SESSION__;
+  }
+  try {
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get("auth_session")?.value;
+    return sessionCookie ? verifySessionToken(sessionCookie) : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function writeSession(data: SessionData) {

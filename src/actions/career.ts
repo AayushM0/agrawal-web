@@ -163,7 +163,10 @@ export async function getCareerProfileByIdAction(id: string): Promise<{
   error?: string;
 }> {
   try {
-    const profile = await db.getCareerProfileById(id);
+    let profile = await db.getCareerProfileById(id);
+    if (!profile) {
+      profile = await db.getCareerProfileByMemberId(id);
+    }
     if (!profile) {
       return { success: false, error: "Career profile not found." };
     }
