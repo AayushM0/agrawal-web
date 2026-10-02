@@ -1,5 +1,10 @@
 import { normalizePhoneNumber } from "@/lib/phone";
-import { Pool } from "pg";
+import pg, { Pool } from "pg";
+
+// Configure pg to return PostgreSQL DATE (OID 1082) as raw string 'YYYY-MM-DD'
+// Prevents local midnight Date conversion timezone shifts (e.g. IST UTC+5:30 -> UTC -1 day)
+pg.types.setTypeParser(1082, (val: string) => val);
+
 import type { Household, Member } from "../types/household";
 import type { SupportInquiry, CreateInquiryInput, InquiryStatus } from "../types/support";
 import type { MatrimonialProfile, MatrimonyFilter } from "../types/matrimony";
@@ -793,7 +798,7 @@ export const db = {
         }
         membersByHId.get(hId)!.push({
           ...m,
-          dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString() : String(m.dob)) : "",
+          dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString().split("T")[0] : String(m.dob).split("T")[0]) : "",
           serialNo: m.serialNo || m.serial_no || "",
           visibility: {
             contactInfo: m.visibility_contact,
@@ -1032,7 +1037,7 @@ export const db = {
       );
       const members = mRes.rows.map(m => ({
         ...m,
-        dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString() : String(m.dob)) : "",
+        dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString().split("T")[0] : String(m.dob).split("T")[0]) : "",
         serialNo: m.serialNo || m.serial_no || "",
         visibility: {
           contactInfo: m.visibility_contact,
@@ -1247,7 +1252,7 @@ export const db = {
       if (res.rows.length === 0) return [];
       return res.rows.map(r => ({
         ...r,
-        dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
+        dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString().split("T")[0] : String(r.dob).split("T")[0]) : "",
         serialNo: r.serialNo || r.householdSerialNo || r.householdCode,
         householdSerialNo: r.householdSerialNo || r.householdCode,
         visibility: {
@@ -1385,7 +1390,7 @@ export const db = {
       const dataRes = await pool.query(dataQuery, params);
       const data = dataRes.rows.map(r => ({
         ...r,
-        dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
+        dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString().split("T")[0] : String(r.dob).split("T")[0]) : "",
         serialNo: r.serialNo || r.householdSerialNo || r.householdCode,
         householdSerialNo: r.householdSerialNo || r.householdCode,
         visibility: {
@@ -1449,7 +1454,7 @@ export const db = {
             return {
               ...m,
               householdId: String(m.householdId || h.id),
-              dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString() : String(m.dob)) : "",
+              dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString().split("T")[0] : String(m.dob).split("T")[0]) : "",
               serialNo: m.serialNo || m.householdSerialNo || h.householdCode,
               householdSerialNo: h.serialNo || h.householdCode,
               householdCode: h.householdCode,
@@ -1489,7 +1494,7 @@ export const db = {
       return {
         ...r,
         householdId: String(r.householdId || r.household_id),
-        dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString() : String(r.dob)) : "",
+        dob: r.dob ? (r.dob instanceof Date ? r.dob.toISOString().split("T")[0] : String(r.dob).split("T")[0]) : "",
         serialNo: r.serialNo || r.householdSerialNo || r.householdCode,
         householdSerialNo: r.householdSerialNo || r.householdCode,
         visibility: {
