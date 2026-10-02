@@ -908,11 +908,94 @@ test("Seam 36: Registration email input hardening, typo suggestions, and canonic
   assert.ok(claimActionCode.includes("normalizeEmail"), "Claim action must use normalizeEmail for availability checks");
 });
 
+// --- SEAM 37: Member-Authorized Admin Support Sessions & Personal Detail Corrections ---
+test("Seam 37: Member-Authorized Admin Support Sessions & Personal Detail Corrections (AWB-8)", () => {
+  const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+  const dbLib = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const actionCode = fs.readFileSync(path.join(webRoot, "src/actions/support-session.ts"), "utf8");
+  const typesCode = fs.readFileSync(path.join(webRoot, "src/types/support-session.ts"), "utf8");
 
+  // 1. Database schema defines admin_support_sessions and admin_support_audit_logs in schema.sql & db.ts
+  assert.ok(
+    schemaSql.includes("CREATE TABLE IF NOT EXISTS admin_support_sessions"),
+    "schema.sql must create admin_support_sessions table"
+  );
+  assert.ok(
+    schemaSql.includes("CREATE TABLE IF NOT EXISTS admin_support_audit_logs"),
+    "schema.sql must create admin_support_audit_logs table"
+  );
+  assert.ok(
+    dbLib.includes("CREATE TABLE IF NOT EXISTS admin_support_sessions"),
+    "db.ts ensureSchema must create admin_support_sessions table"
+  );
+  assert.ok(
+    dbLib.includes("CREATE TABLE IF NOT EXISTS admin_support_audit_logs"),
+    "db.ts ensureSchema must create admin_support_audit_logs table"
+  );
 
+  // 2. RLS enabled on both tables in schema.sql and db.ts
+  assert.ok(
+    schemaSql.includes("ALTER TABLE admin_support_sessions ENABLE ROW LEVEL SECURITY;"),
+    "schema.sql must enable RLS on admin_support_sessions"
+  );
+  assert.ok(
+    schemaSql.includes("ALTER TABLE admin_support_audit_logs ENABLE ROW LEVEL SECURITY;"),
+    "schema.sql must enable RLS on admin_support_audit_logs"
+  );
+  assert.ok(
+    dbLib.includes("ALTER TABLE admin_support_sessions ENABLE ROW LEVEL SECURITY;"),
+    "db.ts ensureSchema must enable RLS on admin_support_sessions"
+  );
+  assert.ok(
+    dbLib.includes("ALTER TABLE admin_support_audit_logs ENABLE ROW LEVEL SECURITY;"),
+    "db.ts ensureSchema must enable RLS on admin_support_audit_logs"
+  );
 
+  // 3. Server actions exported in support-session.ts
+  assert.ok(
+    actionCode.includes("export async function requestAdminSupportSession"),
+    "support-session.ts must export requestAdminSupportSession"
+  );
+  assert.ok(
+    actionCode.includes("export async function verifyAdminSupportSession"),
+    "support-session.ts must export verifyAdminSupportSession"
+  );
+  assert.ok(
+    actionCode.includes("export async function getActiveSupportSessionAction"),
+    "support-session.ts must export getActiveSupportSessionAction"
+  );
+  assert.ok(
+    actionCode.includes("export async function adminCorrectMemberDetailsAction"),
+    "support-session.ts must export adminCorrectMemberDetailsAction"
+  );
+  assert.ok(
+    actionCode.includes("export async function revokeAdminSupportSessionAction"),
+    "support-session.ts must export revokeAdminSupportSessionAction"
+  );
+  assert.ok(
+    actionCode.includes("export async function getSupportAuditLogsAction"),
+    "support-session.ts must export getSupportAuditLogsAction"
+  );
 
+  // 4. Aliases exported for developer ergonomics
+  assert.ok(
+    actionCode.includes("export const getActiveSupportSession = getActiveSupportSessionAction"),
+    "support-session.ts must export getActiveSupportSession alias"
+  );
+  assert.ok(
+    actionCode.includes("export const adminCorrectMemberDetails = adminCorrectMemberDetailsAction"),
+    "support-session.ts must export adminCorrectMemberDetails alias"
+  );
+  assert.ok(
+    actionCode.includes("export const revokeAdminSupportSession = revokeAdminSupportSessionAction"),
+    "support-session.ts must export revokeAdminSupportSession alias"
+  );
+  assert.ok(
+    actionCode.includes("export const getSupportAuditLogs = getSupportAuditLogsAction"),
+    "support-session.ts must export getSupportAuditLogs alias"
+  );
 
-
-
-
+  // 5. Types exported
+  assert.ok(typesCode.includes("export interface AdminSupportSession"), "types must export AdminSupportSession");
+  assert.ok(typesCode.includes("export interface AdminSupportAuditLog"), "types must export AdminSupportAuditLog");
+});

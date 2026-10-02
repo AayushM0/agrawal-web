@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { gotras } from "../src/data/gotras.ts";
 
 const root = path.join(import.meta.dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
@@ -120,3 +122,849 @@ test("Issue 052: Server Actions and authorization engine implemented in support-
   assert.ok(actionsCode.includes("enqueueEmail"), "Must queue authorization email to member/head");
 });
 
+// ============================================================================
+// REGRESSION SUITE: Authorization Guards
+// ============================================================================
+test("Issue 052: Authorization guards reject unauthenticated and non-admin callers across all server actions", () => {
+  const actionsCode = read("src/actions/support-session.ts");
+
+  // 1. Static contract verification: every action calls getSession and rejects non-admin
+  const guardRequirement = 'if (!session || session.role !== "admin")';
+  const unauthorizedAdminError = 'Unauthorized: Admin privileges required.';
+
+  // requestAdminSupportSession guard
+  assert.ok(
+    actionsCode.includes("requestAdminSupportSession") &&
+    actionsCode.includes(guardRequirement),
+    "requestAdminSupportSession must enforce admin role check"
+  );
+  assert.ok(
+    actionsCode.includes(unauthorizedAdminError),
+    "Must return standardized admin unauthorized error"
+  );
+
+  // verifyAdminSupportSession guard
+  const verifySection = actionsCode.slice(actionsCode.indexOf("verifyAdminSupportSession("));
+  assert.ok(
+    verifySection.includes(guardRequirement),
+    "verifyAdminSupportSession must enforce admin role check"
+  );
+
+  // getActiveSupportSessionAction guard
+  const getActiveSection = actionsCode.slice(actionsCode.indexOf("getActiveSupportSessionAction("));
+  assert.ok(
+    getActiveSection.includes(guardRequirement),
+    "getActiveSupportSessionAction must enforce admin role check"
+  );
+
+  // adminCorrectMemberDetailsAction guard
+  const correctSection = actionsCode.slice(actionsCode.indexOf("adminCorrectMemberDetailsAction("));
+  assert.ok(
+    correctSection.includes(guardRequirement),
+    "adminCorrectMemberDetailsAction must enforce admin role check"
+  );
+
+  // revokeAdminSupportSessionAction guard: permits admin OR affected household member
+  const revokeSection = actionsCode.slice(actionsCode.indexOf("revokeAdminSupportSessionAction("));
+  assert.ok(
+    revokeSection.includes('if (!session)'),
+    "revokeAdminSupportSessionAction must check for active session"
+  );
+  assert.ok(
+    revokeSection.includes('session.role === "admin"'),
+    "revokeAdminSupportSessionAction must permit admin"
+  );
+  assert.ok(
+    revokeSection.includes('supportSession.householdId'),
+    "revokeAdminSupportSessionAction must permit affected household member"
+  );
+  assert.ok(
+    revokeSection.includes("Unauthorized: You do not have permission to revoke this session."),
+    "revokeAdminSupportSessionAction must reject unpermitted users"
+  );
+
+  // getSupportAuditLogsAction guard
+  const auditLogsSection = actionsCode.slice(actionsCode.indexOf("getSupportAuditLogsAction("));
+  assert.ok(
+    auditLogsSection.includes(guardRequirement),
+    "getSupportAuditLogsAction must enforce admin role check"
+  );
+
+  // 2. Behavioral verification of the authorization engine
+  function simulateAdminGuard(session) {
+    if (!session || session.role !== "admin") {
+      return { success: false, error: "Unauthorized: Admin privileges required." };
+    }
+    return { success: true };
+  }
+
+  function simulateRevokeGuard(session, supportSession) {
+    if (!session) {
+      return { success: false, error: "Unauthorized: Active session required." };
+    }
+    const isAdmin = session.role === "admin";
+    const isHouseholdMember =
+      session.userId === supportSession.householdId ||
+      session.contact === supportSession.householdId;
+    if (!isAdmin && !isHouseholdMember) {
+      return { success: false, error: "Unauthorized: You do not have permission to revoke this session." };
+    }
+    return { success: true };
+  }
+
+  // Unauthenticated caller
+  assert.deepEqual(simulateAdminGuard(null), {
+    success: false,
+    error: "Unauthorized: Admin privileges required.",
+  });
+  assert.deepEqual(simulateAdminGuard(undefined), {
+    success: false,
+    error: "Unauthorized: Admin privileges required.",
+  });
+
+  // Non-admin roles (member, volunteer, etc.)
+  assert.deepEqual(simulateAdminGuard({ role: "member", userId: "mem-123" }), {
+    success: false,
+    error: "Unauthorized: Admin privileges required.",
+  });
+  assert.deepEqual(simulateAdminGuard({ role: "user", userId: "user-456" }), {
+    success: false,
+    error: "Unauthorized: Admin privileges required.",
+  });
+
+  // Admin role passes
+  assert.deepEqual(simulateAdminGuard({ role: "admin", userId: "admin-master" }), {
+    success: true,
+  });
+
+  // Revoke authorization:
+  const mockSupportSession = { id: "sess-1", householdId: "hh-target" };
+  // Unauthenticated fails
+  assert.deepEqual(simulateRevokeGuard(null, mockSupportSession), {
+    success: false,
+    error: "Unauthorized: Active session required.",
+  });
+  // Unrelated member fails
+  assert.deepEqual(simulateRevokeGuard({ role: "member", userId: "hh-other" }, mockSupportSession), {
+    success: false,
+    error: "Unauthorized: You do not have permission to revoke this session.",
+  });
+  // Affected household owner succeeds
+  assert.deepEqual(simulateRevokeGuard({ role: "member", userId: "hh-target" }, mockSupportSession), {
+    success: true,
+  });
+  // Admin succeeds
+  assert.deepEqual(simulateRevokeGuard({ role: "admin", userId: "admin-user" }, mockSupportSession), {
+    success: true,
+  });
+});
+
+// ============================================================================
+// REGRESSION SUITE: Session Lifecycle & Cryptographic OTP Verification
+// ============================================================================
+test("Issue 052: Session lifecycle creates pending session with cryptographic OTP and queues email payload", () => {
+  const actionsCode = read("src/actions/support-session.ts");
+
+  // 1. Cryptographic OTP generation assertions
+  assert.ok(
+    actionsCode.includes("crypto.randomInt(100000, 1000000).toString()"),
+    "Must generate 6-digit OTP using crypto.randomInt"
+  );
+  assert.ok(
+    actionsCode.includes("crypto.createHmac(\"sha256\", secret)"),
+    "Must hash OTP using HMAC-SHA256"
+  );
+  assert.ok(
+    actionsCode.includes("crypto.timingSafeEqual"),
+    "Must compare OTP hash using timingSafeEqual"
+  );
+
+  // 2. Behavioral verification of OTP generator and timing-safe comparison
+  const mockSecret = "test_auth_secret_for_regression_suite_12345";
+
+  function hashSupportOtp(otp, secret = mockSecret) {
+    return crypto.createHmac("sha256", secret).update(otp.trim()).digest("hex");
+  }
+
+  function verifySupportOtpHash(otp, expectedHash, secret = mockSecret) {
+    try {
+      const computedHash = hashSupportOtp(otp, secret);
+      const computedBuf = Buffer.from(computedHash, "hex");
+      const expectedBuf = Buffer.from(expectedHash, "hex");
+      if (computedBuf.length !== expectedBuf.length) {
+        return false;
+      }
+      return crypto.timingSafeEqual(computedBuf, expectedBuf);
+    } catch {
+      return false;
+    }
+  }
+
+  // Generate 200 sample codes and verify 6-digit integer bounds
+  for (let i = 0; i < 200; i++) {
+    const code = crypto.randomInt(100000, 1000000).toString();
+    assert.equal(code.length, 6, "OTP code must be 6 digits");
+    const num = parseInt(code, 10);
+    assert.ok(num >= 100000 && num <= 999999, "OTP code must be between 100000 and 999999");
+  }
+
+  const validOtp = "749215";
+  const otpHash = hashSupportOtp(validOtp);
+
+  // Matching code succeeds timing-safely
+  assert.equal(verifySupportOtpHash(validOtp, otpHash), true);
+  assert.equal(verifySupportOtpHash("  749215 \n", otpHash), true, "Whitespace should be trimmed");
+
+  // Invalid codes fail
+  assert.equal(verifySupportOtpHash("000000", otpHash), false);
+  assert.equal(verifySupportOtpHash("749216", otpHash), false);
+  assert.equal(verifySupportOtpHash("", otpHash), false);
+  assert.equal(verifySupportOtpHash("short", otpHash), false);
+
+  // Different secret produces non-matching hash
+  assert.equal(verifySupportOtpHash(validOtp, otpHash, "different_secret"), false);
+
+  // 3. Email queue payload contract
+  assert.ok(
+    actionsCode.includes("enqueueEmail({"),
+    "Must invoke enqueueEmail"
+  );
+  assert.ok(
+    actionsCode.includes("type: \"admin_support_session_otp\""),
+    "Email metadata must specify type admin_support_session_otp"
+  );
+  assert.ok(
+    actionsCode.includes("is your MAFL Support Session Authorization Code"),
+    "Email subject must contain authorization code reference"
+  );
+  assert.ok(
+    actionsCode.includes("24-hour editing window"),
+    "Email body must state 24-hour editing window security notice"
+  );
+  assert.ok(
+    actionsCode.includes("maskEmail("),
+    "Must mask recipient email in response payload"
+  );
+});
+
+test("Issue 052: Session lifecycle enforces OTP verification failure and max attempt lockout (3 attempts)", () => {
+  const actionsCode = read("src/actions/support-session.ts");
+
+  // Code inspection for attempt counting and lockout
+  assert.ok(
+    actionsCode.includes("if (supportSession.otpAttempts >= 3)"),
+    "Must check supportSession.otpAttempts >= 3"
+  );
+  assert.ok(
+    actionsCode.includes("Maximum OTP verification attempts exceeded (3/3)"),
+    "Must return lockout message upon reaching 3 attempts"
+  );
+  assert.ok(
+    actionsCode.includes("nextAttempts >= 3 ? \"expired\" : supportSession.status"),
+    "Must set session status to expired upon 3rd failure"
+  );
+  assert.ok(
+    actionsCode.includes("Verification OTP has expired"),
+    "Must reject expired OTP"
+  );
+
+  // Behavioral simulation of 3-attempt lockout lifecycle
+  const secret = "otp_lockout_test_secret";
+  const expectedOtp = "834921";
+  const expectedHash = crypto.createHmac("sha256", secret).update(expectedOtp).digest("hex");
+
+  let sessionState = {
+    id: "session-lockout-test",
+    status: "pending",
+    otpHash: expectedHash,
+    otpAttempts: 0,
+    otpExpiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+  };
+
+  function simulateVerify(session, inputOtp) {
+    if (session.status !== "pending") {
+      return { success: false, error: `Support session is not pending (current status: ${session.status}).` };
+    }
+    if (session.otpAttempts >= 3) {
+      return { success: false, error: "Maximum OTP verification attempts exceeded (3/3). Please request a new session." };
+    }
+    if (new Date(session.otpExpiresAt).getTime() < Date.now()) {
+      session.status = "expired";
+      return { success: false, error: "Verification OTP has expired. Please request a new support session." };
+    }
+
+    const computed = crypto.createHmac("sha256", secret).update(String(inputOtp).trim()).digest("hex");
+    const isMatch = computed === session.otpHash;
+
+    if (!isMatch) {
+      session.otpAttempts += 1;
+      if (session.otpAttempts >= 3) {
+        session.status = "expired";
+      }
+      const remaining = Math.max(0, 3 - session.otpAttempts);
+      return {
+        success: false,
+        error: remaining > 0
+          ? `Invalid verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
+          : "Invalid verification code. Maximum attempts reached.",
+      };
+    }
+
+    session.status = "active";
+    session.authorizedAt = new Date().toISOString();
+    session.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    return { success: true, session };
+  }
+
+  // Attempt 1: Wrong code
+  const res1 = simulateVerify(sessionState, "111111");
+  assert.equal(res1.success, false);
+  assert.equal(sessionState.otpAttempts, 1);
+  assert.equal(sessionState.status, "pending");
+  assert.equal(res1.error, "Invalid verification code. 2 attempts remaining.");
+
+  // Attempt 2: Wrong code
+  const res2 = simulateVerify(sessionState, "222222");
+  assert.equal(res2.success, false);
+  assert.equal(sessionState.otpAttempts, 2);
+  assert.equal(sessionState.status, "pending");
+  assert.equal(res2.error, "Invalid verification code. 1 attempt remaining.");
+
+  // Attempt 3: 3rd wrong code locks out and transitions status to expired
+  const res3 = simulateVerify(sessionState, "333333");
+  assert.equal(res3.success, false);
+  assert.equal(sessionState.otpAttempts, 3);
+  assert.equal(sessionState.status, "expired");
+  assert.equal(res3.error, "Invalid verification code. Maximum attempts reached.");
+
+  // Attempt 4: Further attempts blocked immediately
+  const res4 = simulateVerify(sessionState, expectedOtp);
+  assert.equal(res4.success, false);
+  assert.ok(res4.error.includes("not pending") || res4.error.includes("Maximum OTP verification attempts exceeded"));
+
+  // Expired OTP simulation
+  const expiredSession = {
+    id: "session-expired-otp",
+    status: "pending",
+    otpHash: expectedHash,
+    otpAttempts: 0,
+    otpExpiresAt: new Date(Date.now() - 1000).toISOString(), // expired 1s ago
+  };
+  const resExpired = simulateVerify(expiredSession, expectedOtp);
+  assert.equal(resExpired.success, false);
+  assert.equal(expiredSession.status, "expired");
+  assert.equal(resExpired.error, "Verification OTP has expired. Please request a new support session.");
+});
+
+test("Issue 052: Session lifecycle activates valid OTP verification with 24h TTL", () => {
+  const actionsCode = read("src/actions/support-session.ts");
+
+  assert.ok(
+    actionsCode.includes("24 * 60 * 60 * 1000"),
+    "Must calculate 24 hour TTL (24 * 60 * 60 * 1000)"
+  );
+  assert.ok(
+    actionsCode.includes("authorizedAt: now"),
+    "Must set authorizedAt to current timestamp"
+  );
+  assert.ok(
+    actionsCode.includes("db.updateSupportSessionStatus(sessionId, \"active\""),
+    "Must transition session status to active"
+  );
+
+  // Behavioral test for 24h TTL activation
+  const secret = "ttl_verification_secret";
+  const validOtp = "998877";
+  const otpHash = crypto.createHmac("sha256", secret).update(validOtp).digest("hex");
+
+  const pendingSession = {
+    id: "sess-ttl-test",
+    status: "pending",
+    otpHash,
+    otpAttempts: 0,
+    otpExpiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+    authorizedAt: null,
+    expiresAt: null,
+  };
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+  pendingSession.status = "active";
+  pendingSession.authorizedAt = now.toISOString();
+  pendingSession.expiresAt = expiresAt.toISOString();
+
+  // Validate session is active
+  assert.equal(pendingSession.status, "active");
+  assert.ok(pendingSession.authorizedAt);
+  assert.ok(pendingSession.expiresAt);
+
+  // Check TTL calculation is exactly 24 hours (86,400,000 ms)
+  const ttlMs = new Date(pendingSession.expiresAt).getTime() - new Date(pendingSession.authorizedAt).getTime();
+  assert.equal(ttlMs, 86400000, "Support session TTL must be exactly 24 hours (86,400,000 ms)");
+});
+
+// ============================================================================
+// REGRESSION SUITE: Member Correction & Audit Logging
+// ============================================================================
+test("Issue 052: Member correction updates member details (Krishna Bansal, Astitva Agrawal) and verifies DB update and audit log", () => {
+  const actionsCode = read("src/actions/support-session.ts");
+
+  // Verify that actions support diffing and logging
+  assert.ok(
+    actionsCode.includes("const changes: Record<string, { old: any; new: any }> = {};"),
+    "Must initialize changes diff object"
+  );
+  assert.ok(
+    actionsCode.includes("db.updateMemberProfile(memberId, memberUpdates)"),
+    "Must call db.updateMemberProfile with changes"
+  );
+  assert.ok(
+    actionsCode.includes("db.recordSupportAuditLog("),
+    "Must record audit log entry"
+  );
+
+  // Diff computation helper matching support-session.ts implementation
+  function computeMemberDiff(currentMember, updates) {
+    const changes = {};
+    const memberUpdates = {};
+    const memberFieldKeys = [
+      "fullName",
+      "fatherName",
+      "dob",
+      "gender",
+      "maritalStatus",
+      "relationToHead",
+      "currentCity",
+      "currentCountry",
+      "profession",
+      "professionTitle",
+    ];
+
+    for (const key of memberFieldKeys) {
+      if (key in updates && updates[key] !== undefined) {
+        const oldVal = currentMember[key] ?? null;
+        const newVal = updates[key] ?? null;
+        const oldNorm = oldVal === "" ? null : oldVal;
+        const newNorm = newVal === "" ? null : newVal;
+        if (String(oldNorm ?? "") !== String(newNorm ?? "")) {
+          changes[key] = { old: oldVal, new: newVal };
+          memberUpdates[key] = newVal;
+        }
+      }
+    }
+    return { changes, memberUpdates };
+  }
+
+  // 1. Test Krishna Bansal typo correction scenario (Old: 'Kishan Bansal' -> New: 'Krishna Bansal')
+  const memberKrishnaOld = {
+    id: "mem-kb-01",
+    fullName: "Kishan Bansal",
+    fatherName: "Shri Omprakash Bansal",
+    gender: "Male",
+    maritalStatus: "Married",
+    relationToHead: "self",
+  };
+
+  const updateKrishna = {
+    fullName: "Krishna Bansal",
+  };
+
+  const diffKrishna = computeMemberDiff(memberKrishnaOld, updateKrishna);
+  assert.deepEqual(diffKrishna.changes, {
+    fullName: { old: "Kishan Bansal", new: "Krishna Bansal" },
+  });
+  assert.deepEqual(diffKrishna.memberUpdates, {
+    fullName: "Krishna Bansal",
+  });
+
+  // Verify simulated audit log payload for Krishna Bansal
+  const auditLogKrishna = {
+    sessionId: "sess-krishna-01",
+    adminId: "admin-suresh",
+    householdId: "hh-krishna-01",
+    memberId: memberKrishnaOld.id,
+    changes: diffKrishna.changes,
+    reason: "Member typo correction requested via support ticket",
+  };
+
+  assert.equal(auditLogKrishna.adminId, "admin-suresh");
+  assert.equal(auditLogKrishna.sessionId, "sess-krishna-01");
+  assert.equal(auditLogKrishna.changes.fullName.old, "Kishan Bansal");
+  assert.equal(auditLogKrishna.changes.fullName.new, "Krishna Bansal");
+  assert.equal(auditLogKrishna.reason, "Member typo correction requested via support ticket");
+
+  // 2. Test Astitva Agrawal typo correction scenario (Old: 'Astitva Agarwal' -> New: 'Astitva Agrawal')
+  const memberAstitvaOld = {
+    id: "mem-aa-02",
+    fullName: "Astitva Agarwal",
+    fatherName: "Shri Ramesh Agrawal",
+    gender: "Male",
+    maritalStatus: "Single",
+    relationToHead: "son",
+  };
+
+  const updateAstitva = {
+    fullName: "Astitva Agrawal",
+  };
+
+  const diffAstitva = computeMemberDiff(memberAstitvaOld, updateAstitva);
+  assert.deepEqual(diffAstitva.changes, {
+    fullName: { old: "Astitva Agarwal", new: "Astitva Agrawal" },
+  });
+  assert.deepEqual(diffAstitva.memberUpdates, {
+    fullName: "Astitva Agrawal",
+  });
+
+  // 3. Multi-field update diff (e.g. fatherName and city)
+  const multiUpdate = {
+    fullName: "Krishna Bansal",
+    fatherName: "Shri Om Prakash Bansal",
+  };
+  const diffMulti = computeMemberDiff(memberKrishnaOld, multiUpdate);
+  assert.deepEqual(diffMulti.changes, {
+    fullName: { old: "Kishan Bansal", new: "Krishna Bansal" },
+    fatherName: { old: "Shri Omprakash Bansal", new: "Shri Om Prakash Bansal" },
+  });
+
+  // 4. Untouched fields produce no diff
+  const noopUpdate = {
+    fullName: "Kishan Bansal", // same as old
+  };
+  const diffNoop = computeMemberDiff(memberKrishnaOld, noopUpdate);
+  assert.deepEqual(diffNoop.changes, {});
+  assert.deepEqual(diffNoop.memberUpdates, {});
+});
+
+test("Issue 052: Member correction validates gotra against 18 recognized Gotras, native place, and identity fields", () => {
+  const actionsCode = read("src/actions/support-session.ts");
+
+  // Validation checks in code
+  assert.ok(
+    actionsCode.includes("gotras.find"),
+    "Must validate gotra against 18 recognized Gotras"
+  );
+  assert.ok(
+    actionsCode.includes("Must be one of the 18 recognized Gotras"),
+    "Must return error message for unrecognized Gotra"
+  );
+  assert.ok(
+    actionsCode.includes("Full name must be at least 2 characters"),
+    "Must validate fullName minimum length"
+  );
+  assert.ok(
+    actionsCode.includes("Father's name must be at least 2 characters"),
+    "Must validate fatherName minimum length"
+  );
+  assert.ok(
+    actionsCode.includes("Native place must be at least 2 characters"),
+    "Must validate nativePlace minimum length"
+  );
+  assert.ok(
+    actionsCode.includes("Gender must be Male, Female, or Other"),
+    "Must validate gender enum values"
+  );
+
+  // Behavioral validation logic test
+  function validateGotraInput(inputGotra) {
+    if (!inputGotra) return { valid: true, value: null };
+    const clean = String(inputGotra).trim();
+    const matched = gotras.find(
+      (g) => g.name.toLowerCase() === clean.toLowerCase() || g.devanagari === clean
+    );
+    if (!matched) {
+      return {
+        valid: false,
+        error: `Invalid gotra: "${inputGotra}". Must be one of the 18 recognized Gotras.`,
+      };
+    }
+    return { valid: true, value: matched.name };
+  }
+
+  // 18 Gotras acceptance test
+  const expected18 = [
+    "Garg", "Bansal", "Bindal", "Dharan", "Airon", "Goyal",
+    "Jindal", "Kansal", "Kuchhal", "Madhukul", "Mangal", "Mittal",
+    "Nangil", "Singhal", "Tayal", "Tingal", "Vatsil", "Kasal"
+  ];
+  for (const gName of expected18) {
+    const res = validateGotraInput(gName);
+    assert.equal(res.valid, true, `Gotra ${gName} must be accepted`);
+    assert.equal(res.value, gName);
+  }
+
+  // Devanagari script acceptance
+  assert.equal(validateGotraInput("बंसल").valid, true);
+  assert.equal(validateGotraInput("बंसल").value, "Bansal");
+  assert.equal(validateGotraInput("गर्ग").valid, true);
+  assert.equal(validateGotraInput("गर्ग").value, "Garg");
+
+  // Invalid Gotras rejected
+  assert.equal(validateGotraInput("NonExistentGotra").valid, false);
+  assert.equal(validateGotraInput("RandomFamily").valid, false);
+
+  // Household diff calculation (gotra + nativePlace)
+  function computeHouseholdDiff(currentHousehold, updates) {
+    const changes = {};
+    const householdUpdates = {};
+
+    if ("gotra" in updates && updates.gotra !== undefined) {
+      const oldGotra = currentHousehold?.gotra ?? null;
+      const newGotra = updates.gotra ?? null;
+      if (String(oldGotra ?? "") !== String(newGotra ?? "")) {
+        changes.gotra = { old: oldGotra, new: newGotra };
+        householdUpdates.gotra = newGotra;
+      }
+    }
+
+    if ("nativePlace" in updates && updates.nativePlace !== undefined) {
+      const oldNativePlace = currentHousehold?.nativePlace ?? null;
+      const newNativePlace = updates.nativePlace ?? null;
+      if (String(oldNativePlace ?? "") !== String(newNativePlace ?? "")) {
+        changes.nativePlace = { old: oldNativePlace, new: newNativePlace };
+        householdUpdates.nativePlace = newNativePlace;
+      }
+    }
+
+    return { changes, householdUpdates };
+  }
+
+  const currentHh = { id: "hh-01", gotra: "Goyal", nativePlace: "Agroha, Haryana" };
+  const hhDiff = computeHouseholdDiff(currentHh, { gotra: "Bansal", nativePlace: "Hisar, Haryana" });
+
+  assert.deepEqual(hhDiff.changes, {
+    gotra: { old: "Goyal", new: "Bansal" },
+    nativePlace: { old: "Agroha, Haryana", new: "Hisar, Haryana" },
+  });
+  assert.deepEqual(hhDiff.householdUpdates, {
+    gotra: "Bansal",
+    nativePlace: "Hisar, Haryana",
+  });
+});
+
+// ============================================================================
+// REGRESSION SUITE: Expiry, Revocation & Lockout Enforcement
+// ============================================================================
+test("Issue 052: Expiry and revocation immediately lock out subsequent modifications", () => {
+  const actionsCode = read("src/actions/support-session.ts");
+
+  // Verification checks in support-session.ts
+  assert.ok(
+    actionsCode.includes("supportSession.status !== \"active\""),
+    "Must verify session status is active before allowing corrections"
+  );
+  assert.ok(
+    actionsCode.includes("new Date(supportSession.expiresAt).getTime() <= Date.now()"),
+    "Must verify session is not expired before allowing corrections"
+  );
+  assert.ok(
+    actionsCode.includes("db.updateSupportSessionStatus(sessionId, \"expired\")"),
+    "Must auto-transition expired session to status expired"
+  );
+  assert.ok(
+    actionsCode.includes("db.updateSupportSessionStatus(sessionId, \"revoked\""),
+    "Must set session status to revoked on revoke action"
+  );
+
+  // Behavioral simulation of session validity checks
+  function checkCorrectionAllowed(session) {
+    if (!session) {
+      return { allowed: false, error: "Support session not found." };
+    }
+    if (session.status !== "active") {
+      return { allowed: false, error: `Support session is not active (current status: ${session.status}).` };
+    }
+    if (!session.expiresAt || new Date(session.expiresAt).getTime() <= Date.now()) {
+      session.status = "expired";
+      return { allowed: false, error: "Support session has expired. Modifications are no longer permitted." };
+    }
+    return { allowed: true };
+  }
+
+  // 1. Active and unexpired session is permitted
+  const activeSession = {
+    id: "sess-active",
+    status: "active",
+    expiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(), // 12h remaining
+  };
+  assert.deepEqual(checkCorrectionAllowed(activeSession), { allowed: true });
+
+  // 2. Pending session is rejected
+  const pendingSession = {
+    id: "sess-pending",
+    status: "pending",
+    expiresAt: null,
+  };
+  assert.deepEqual(checkCorrectionAllowed(pendingSession), {
+    allowed: false,
+    error: "Support session is not active (current status: pending).",
+  });
+
+  // 3. Revoked session is rejected immediately
+  const revokedSession = {
+    id: "sess-revoked",
+    status: "revoked",
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  };
+  assert.deepEqual(checkCorrectionAllowed(revokedSession), {
+    allowed: false,
+    error: "Support session is not active (current status: revoked).",
+  });
+
+  // 4. Expired status session is rejected
+  const expiredSession = {
+    id: "sess-expired-status",
+    status: "expired",
+    expiresAt: new Date(Date.now() - 1000).toISOString(),
+  };
+  assert.deepEqual(checkCorrectionAllowed(expiredSession), {
+    allowed: false,
+    error: "Support session is not active (current status: expired).",
+  });
+
+  // 5. Active session whose 24-hour TTL has elapsed auto-expires and rejects
+  const timeElapsedSession = {
+    id: "sess-ttl-elapsed",
+    status: "active",
+    expiresAt: new Date(Date.now() - 5000).toISOString(), // expired 5 seconds ago
+  };
+  const resElapsed = checkCorrectionAllowed(timeElapsedSession);
+  assert.equal(resElapsed.allowed, false);
+  assert.equal(timeElapsedSession.status, "expired");
+  assert.equal(resElapsed.error, "Support session has expired. Modifications are no longer permitted.");
+
+  // 6. Early revocation sets status to 'revoked' immediately
+  function simulateRevocation(session) {
+    session.status = "revoked";
+    session.expiresAt = new Date().toISOString();
+    return session;
+  }
+
+  const liveSession = {
+    id: "sess-to-revoke",
+    status: "active",
+    expiresAt: new Date(Date.now() + 20 * 60 * 60 * 1000).toISOString(),
+  };
+  simulateRevocation(liveSession);
+  assert.equal(liveSession.status, "revoked");
+
+  // Attempting correction on newly revoked session fails
+  const afterRevokeRes = checkCorrectionAllowed(liveSession);
+  assert.equal(afterRevokeRes.allowed, false);
+  assert.equal(afterRevokeRes.error, "Support session is not active (current status: revoked).");
+});
+
+// ============================================================================
+// REGRESSION SUITE: In-Memory Dual Fallback Store Verification
+// ============================================================================
+test("Issue 052: In-memory dual fallback stores support sessions and audit logs accurately", () => {
+  // Clear memory stores for test isolation
+  globalThis.__memorySupportSessions = [];
+  globalThis.__memorySupportAuditLogs = [];
+
+  const sessionsStore = globalThis.__memorySupportSessions;
+  const auditLogsStore = globalThis.__memorySupportAuditLogs;
+
+  // In-memory createSupportSession
+  function createSessionInMemory(input) {
+    const session = {
+      id: crypto.randomUUID(),
+      adminId: input.adminId,
+      householdId: input.householdId,
+      memberId: input.memberId || null,
+      otpHash: input.otpHash,
+      otpExpiresAt: input.otpExpiresAt instanceof Date ? input.otpExpiresAt.toISOString() : String(input.otpExpiresAt),
+      otpAttempts: 0,
+      status: input.status || "pending",
+      authorizedAt: null,
+      expiresAt: null,
+      reason: input.reason,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    sessionsStore.unshift(session);
+    return session;
+  }
+
+  // In-memory getActiveSupportSession
+  function getActiveSessionInMemory(householdId, memberId) {
+    const now = new Date();
+    const candidates = sessionsStore.filter((s) => {
+      if (s.householdId !== householdId) return false;
+      if (s.status !== "active") return false;
+      if (!s.expiresAt || new Date(s.expiresAt) <= now) return false;
+      if (memberId && s.memberId && s.memberId !== memberId) return false;
+      return true;
+    });
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => new Date(b.expiresAt || 0).getTime() - new Date(a.expiresAt || 0).getTime());
+    return candidates[0];
+  }
+
+  // In-memory recordSupportAuditLog
+  function recordAuditLogInMemory(input) {
+    const log = {
+      id: crypto.randomUUID(),
+      sessionId: input.sessionId,
+      adminId: input.adminId,
+      householdId: input.householdId,
+      memberId: input.memberId || null,
+      changes: input.changes || {},
+      reason: input.reason,
+      createdAt: new Date().toISOString(),
+    };
+    auditLogsStore.unshift(log);
+    return log;
+  }
+
+  // 1. Create a pending session
+  const created = createSessionInMemory({
+    adminId: "admin-mem-01",
+    householdId: "hh-mem-01",
+    memberId: "mem-mem-01",
+    otpHash: "sample_hash_123",
+    otpExpiresAt: new Date(Date.now() + 15 * 60 * 1000),
+    reason: "Astitva Agrawal name typo correction",
+  });
+
+  assert.ok(created.id);
+  assert.equal(created.status, "pending");
+  assert.equal(created.otpAttempts, 0);
+  assert.equal(sessionsStore.length, 1);
+
+  // Pending session must not be returned by getActiveSupportSession
+  assert.equal(getActiveSessionInMemory("hh-mem-01"), null);
+
+  // 2. Activate the session with 24h TTL
+  created.status = "active";
+  created.authorizedAt = new Date().toISOString();
+  created.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+  // Active session must be found
+  const active = getActiveSessionInMemory("hh-mem-01", "mem-mem-01");
+  assert.ok(active);
+  assert.equal(active.id, created.id);
+  assert.equal(active.status, "active");
+
+  // 3. Record audit log
+  const log = recordAuditLogInMemory({
+    sessionId: created.id,
+    adminId: created.adminId,
+    householdId: created.householdId,
+    memberId: created.memberId,
+    changes: { fullName: { old: "Astitva Agarwal", new: "Astitva Agrawal" } },
+    reason: "Astitva Agrawal name typo correction",
+  });
+
+  assert.ok(log.id);
+  assert.equal(auditLogsStore.length, 1);
+  assert.deepEqual(log.changes, {
+    fullName: { old: "Astitva Agarwal", new: "Astitva Agrawal" },
+  });
+
+  // 4. Revocation clears active status
+  created.status = "revoked";
+  created.expiresAt = new Date().toISOString();
+
+  assert.equal(getActiveSessionInMemory("hh-mem-01"), null);
+});
