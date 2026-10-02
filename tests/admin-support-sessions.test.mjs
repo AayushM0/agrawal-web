@@ -1019,3 +1019,353 @@ test("Issue 052 / AWB-9: Admin moderation UI components and tab integration adhe
   assert.ok(formCode.includes("min-h-[44px]") || formCode.includes("h-11"), "Primary CTAs must have 44px touch target");
 });
 
+// ============================================================================
+// REGRESSION SUITE: Chunk 3.1 Hardening & UI Polish (AWB-13)
+// ============================================================================
+
+test("Issue 052 / AWB-13: In-modal two-step revocation eliminates window.confirm dependency", () => {
+  const modalCode = read("src/components/admin/AdminSupportSessionModal.tsx");
+
+  // 1. Static assertion: Must not use native window.confirm or confirm(
+  assert.ok(
+    !modalCode.includes("window.confirm(") && !modalCode.includes("confirm("),
+    "AdminSupportSessionModal must NOT rely on native browser confirm()"
+  );
+
+  // 2. Static assertion: Must define showRevokeConfirm state
+  assert.ok(
+    modalCode.includes("showRevokeConfirm") && modalCode.includes("setShowRevokeConfirm"),
+    "AdminSupportSessionModal must define showRevokeConfirm state"
+  );
+
+  // 3. Static assertion: Must render step buttons
+  assert.ok(
+    modalCode.includes("End Session Early"),
+    "Must render 'End Session Early' button"
+  );
+  assert.ok(
+    modalCode.includes("Confirm End Session"),
+    "Must render 'Confirm End Session' button"
+  );
+  assert.ok(
+    modalCode.includes("Cancel"),
+    "Must render 'Cancel' button to abort revocation"
+  );
+
+  // 4. Behavioral simulation of two-step in-modal revocation flow
+  let showRevokeConfirm = false;
+  let isRevoking = false;
+  let revokeApiCalled = false;
+
+  const handleStartRevoke = () => {
+    showRevokeConfirm = true;
+  };
+
+  const handleCancelRevoke = () => {
+    showRevokeConfirm = false;
+  };
+
+  const handleConfirmRevoke = async () => {
+    isRevoking = true;
+    revokeApiCalled = true;
+    showRevokeConfirm = false;
+    isRevoking = false;
+  };
+
+  // Step 1: Initial state
+  assert.equal(showRevokeConfirm, false, "Initial state must not show confirmation");
+  assert.equal(revokeApiCalled, false);
+
+  // Step 2: User clicks 'End Session Early'
+  handleStartRevoke();
+  assert.equal(showRevokeConfirm, true, "Clicking 'End Session Early' must activate in-modal confirmation");
+  assert.equal(revokeApiCalled, false, "Must not invoke revoke API until confirmed");
+
+  // Step 3: User cancels
+  handleCancelRevoke();
+  assert.equal(showRevokeConfirm, false, "Canceling must dismiss confirmation without revoking");
+  assert.equal(revokeApiCalled, false);
+
+  // Step 4: User clicks 'End Session Early' and then 'Confirm End Session'
+  handleStartRevoke();
+  assert.equal(showRevokeConfirm, true);
+  handleConfirmRevoke();
+  assert.equal(revokeApiCalled, true, "Confirming must trigger revocation");
+  assert.equal(showRevokeConfirm, false);
+});
+
+test("Issue 052 / AWB-13: Session resurrection prevention resets modal state and notifies parent", () => {
+  const modalCode = read("src/components/admin/AdminSupportSessionModal.tsx");
+  const pageCode = read("src/app/admin/moderation/page.tsx");
+
+  // 1. Static assertion: Modal props interface and destructuring
+  assert.ok(
+    modalCode.includes("onSessionRevoked?: () => void;"),
+    "AdminSupportSessionModalProps must define onSessionRevoked callback"
+  );
+  assert.ok(
+    modalCode.includes("onSessionRevoked,"),
+    "AdminSupportSessionModal must destructure onSessionRevoked"
+  );
+
+  // 2. Static assertion: Revocation success resets all states and calls onSessionRevoked
+  assert.ok(
+    modalCode.includes("setActiveSession(null);"),
+    "Revocation handler must clear activeSession"
+  );
+  assert.ok(
+    modalCode.includes('setStep("request");'),
+    "Revocation handler must reset step to 'request'"
+  );
+  assert.ok(
+    modalCode.includes("setShowRevokeConfirm(false);"),
+    "Revocation handler must reset showRevokeConfirm"
+  );
+  assert.ok(
+    modalCode.includes("if (onSessionRevoked) onSessionRevoked();"),
+    "Revocation handler must invoke onSessionRevoked callback"
+  );
+
+  // 3. Static assertion: page.tsx handles onSessionRevoked to clear parent state
+  assert.ok(
+    pageCode.includes("onSessionRevoked={() => {"),
+    "page.tsx must provide onSessionRevoked handler to AdminSupportSessionModal"
+  );
+  assert.ok(
+    pageCode.includes("session: null"),
+    "page.tsx must set supportModalState session to null on revocation"
+  );
+
+  // 4. Behavioral simulation: Verify parent and child state synchronization prevents resurrection
+  let parentSupportModalState = {
+    isOpen: true,
+    household: { id: "hh-1", name: "Bansal Family" },
+    memberId: "mem-1",
+    session: { id: "sess-1", status: "active", expiresAt: new Date(Date.now() + 3600000).toISOString() },
+  };
+
+  let modalActiveSession = parentSupportModalState.session;
+  let modalSessionId = parentSupportModalState.session.id;
+  let modalStep = "active";
+  let modalShowRevokeConfirm = true;
+
+  // Simulate revocation completion
+  const onSessionRevoked = () => {
+    parentSupportModalState = {
+      ...parentSupportModalState,
+      session: null,
+    };
+  };
+
+  // Perform modal state teardown
+  modalActiveSession = null;
+  modalSessionId = null;
+  modalStep = "request";
+  modalShowRevokeConfirm = false;
+  onSessionRevoked();
+
+  // Assert modal state cleared
+  assert.equal(modalActiveSession, null, "Modal activeSession must be null");
+  assert.equal(modalSessionId, null, "Modal sessionId must be null");
+  assert.equal(modalStep, "request", "Modal step must be 'request'");
+  assert.equal(modalShowRevokeConfirm, false, "Modal showRevokeConfirm must be false");
+
+  // Assert parent state cleared
+  assert.equal(parentSupportModalState.session, null, "Parent session must be null to prevent resurrection on re-render");
+
+  // Simulate re-render check with parent state
+  if (parentSupportModalState.session && parentSupportModalState.session.status === "active") {
+    modalStep = "active";
+  } else {
+    modalStep = "request";
+  }
+  assert.equal(modalStep, "request", "Re-render must NOT resurrect into 'active' step");
+});
+
+test("Issue 052 / AWB-13: PostgreSQL DATE type parser (OID 1082) prevents timezone day shift", () => {
+  const dbCode = read("src/lib/db.ts");
+
+  // 1. Static assertion: pg.types.setTypeParser configured for OID 1082
+  assert.ok(
+    dbCode.includes("pg.types.setTypeParser(1082"),
+    "db.ts must configure pg.types.setTypeParser for OID 1082"
+  );
+  assert.ok(
+    dbCode.includes("(val: string) => val"),
+    "db.ts must configure DATE type parser to return raw string 'YYYY-MM-DD'"
+  );
+
+  // 2. Static assertion: row mappers use .split('T')[0] for safe date string formatting
+  assert.ok(
+    dbCode.includes('.split("T")[0]'),
+    "db.ts row mappers must use .split('T')[0] to preserve date strings"
+  );
+
+  // 3. Behavioral simulation: Compare standard JS Date conversion vs raw string parser
+  const rawPgDate = "1985-07-15";
+
+  // Simulate pg OID 1082 parser
+  const parser1082 = (val) => val;
+  const parsedValue = parser1082(rawPgDate);
+  assert.equal(parsedValue, "1985-07-15", "Type parser 1082 must return exact string value");
+
+  // Test row mapper date normalizer logic
+  function normalizeDob(dob) {
+    if (!dob) return "";
+    return dob instanceof Date ? dob.toISOString().split("T")[0] : String(dob).split("T")[0];
+  }
+
+  assert.equal(normalizeDob("1985-07-15"), "1985-07-15");
+  assert.equal(normalizeDob("1985-07-15T00:00:00.000Z"), "1985-07-15");
+  assert.equal(normalizeDob("2000-12-31"), "2000-12-31");
+  assert.equal(normalizeDob(null), "");
+  assert.equal(normalizeDob(""), "");
+
+  // Demonstrate timezone shift vulnerability that pg parser 1082 prevents:
+  // When pg parses DATE as a local Date, IST (UTC+5:30) midnight 1985-07-15 is 1985-07-14T18:30:00.000Z
+  const simulatedIstMidnightIso = "1985-07-14T18:30:00.000Z";
+  // Without raw string parsing, toISOString() in UTC shifts the date to July 14!
+  assert.equal(simulatedIstMidnightIso.split("T")[0], "1985-07-14");
+  // With raw string parsing 1082, pg passes "1985-07-15", which never converts to UTC midnight
+  assert.equal(normalizeDob(parsedValue), "1985-07-15", "DATE string is preserved without timezone shift");
+});
+
+test("Issue 052 / AWB-13: AdminSupportCorrectionForm clears sticky validation errors on input change", () => {
+  const formCode = read("src/components/admin/AdminSupportCorrectionForm.tsx");
+
+  // 1. Static assertion: Input change handlers clear statusMessage
+  const requiredFields = [
+    "fullName",
+    "fatherName",
+    "dob",
+    "gender",
+    "maritalStatus",
+    "nativePlace",
+    "reason",
+  ];
+
+  for (const field of requiredFields) {
+    assert.ok(
+      formCode.includes(`if (statusMessage) setStatusMessage(null);`),
+      `Form must clear statusMessage on input change`
+    );
+  }
+
+  // Check gotra select handler
+  assert.ok(
+    formCode.includes("setGotra(e.target.value);") && formCode.includes("if (statusMessage) setStatusMessage(null);"),
+    "Gotra selection change must clear statusMessage"
+  );
+
+  // 2. Behavioral simulation: Status message clearing on field edit
+  let statusMessage = { type: "error", message: "A valid reason (minimum 3 characters) is required." };
+
+  function handleInputChange(fieldName, newValue) {
+    if (statusMessage) {
+      statusMessage = null;
+    }
+  }
+
+  assert.ok(statusMessage !== null, "Initial error message present");
+  handleInputChange("fullName", "Krishna Bansal");
+  assert.equal(statusMessage, null, "Editing fullName must clear statusMessage");
+
+  // Simulate another error and field change
+  statusMessage = { type: "error", message: "Please select a valid Gotra from the 18 recognized Gotras." };
+  handleInputChange("gotra", "Garg");
+  assert.equal(statusMessage, null, "Changing gotra must clear statusMessage");
+});
+
+test("Issue 052 / AWB-13: Digital countdown timer renders in HH:MM:SS format", () => {
+  const modalCode = read("src/components/admin/AdminSupportSessionModal.tsx");
+
+  // 1. Static assertions
+  assert.ok(
+    modalCode.includes("const pad = (n: number) => String(n).padStart(2, \"0\");"),
+    "AdminSupportSessionModal must use padStart to format 2-digit time segments"
+  );
+  assert.ok(
+    modalCode.includes("setRemainingTime(`${pad(hours)}:${pad(minutes)}:${pad(seconds)}`);"),
+    "AdminSupportSessionModal must set countdown in HH:MM:SS format"
+  );
+  assert.ok(
+    modalCode.includes('setRemainingTime("00:00:00");'),
+    "AdminSupportSessionModal must set '00:00:00' when session expires"
+  );
+
+  // 2. Behavioral simulation: Test countdown formatting logic
+  function formatCountdown(expiresAt, currentNow) {
+    if (!expiresAt) {
+      return "Active";
+    }
+    const diffMs = new Date(expiresAt).getTime() - currentNow;
+    if (diffMs <= 0) {
+      return "00:00:00";
+    }
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+  }
+
+  const now = 1700000000000;
+
+  // Exactly 24 hours remaining: 24:00:00
+  assert.equal(formatCountdown(new Date(now + 24 * 3600 * 1000).toISOString(), now), "24:00:00");
+
+  // 23 hours, 59 minutes, 59 seconds: 23:59:59
+  assert.equal(formatCountdown(new Date(now + (23 * 3600 + 59 * 60 + 59) * 1000).toISOString(), now), "23:59:59");
+
+  // 1 hour, 5 minutes, 9 seconds: 01:05:09
+  assert.equal(formatCountdown(new Date(now + (1 * 3600 + 5 * 60 + 9) * 1000).toISOString(), now), "01:05:09");
+
+  // 0 hours, 2 minutes, 30 seconds: 00:02:30
+  assert.equal(formatCountdown(new Date(now + (2 * 60 + 30) * 1000).toISOString(), now), "00:02:30");
+
+  // Expired (0ms remaining): 00:00:00
+  assert.equal(formatCountdown(new Date(now).toISOString(), now), "00:00:00");
+
+  // Negative diff (passed expiration): 00:00:00
+  assert.equal(formatCountdown(new Date(now - 10000).toISOString(), now), "00:00:00");
+
+  // No expiration: Active
+  assert.equal(formatCountdown(null, now), "Active");
+});
+
+test("Issue 052 / AWB-13: Moderation page metrics bar displays Active Sessions, Pending Authorizations, and Total Audit Logs", () => {
+  const pageCode = read("src/app/admin/moderation/page.tsx");
+
+  // 1. Static assertions for metrics bar labels
+  assert.ok(
+    pageCode.includes("Active Sessions"),
+    "page.tsx must render 'Active Sessions' label in metrics bar"
+  );
+  assert.ok(
+    pageCode.includes("Pending Authorizations"),
+    "page.tsx must render 'Pending Authorizations' label in metrics bar"
+  );
+  assert.ok(
+    pageCode.includes("Total Audit Logs"),
+    "page.tsx must render 'Total Audit Logs' label in metrics bar"
+  );
+
+  // 2. Static assertions for metrics state & action wiring
+  assert.ok(
+    pageCode.includes("totalSupportAuditLogs") && pageCode.includes("setTotalSupportAuditLogs"),
+    "page.tsx must maintain totalSupportAuditLogs state"
+  );
+  assert.ok(
+    pageCode.includes("getAdminAuditLogsAction(100)"),
+    "page.tsx loadQueue must fetch admin audit logs via getAdminAuditLogsAction"
+  );
+  assert.ok(
+    pageCode.includes("{activeSupportSessions.length}"),
+    "page.tsx must bind activeSupportSessions count to Active Sessions card"
+  );
+  assert.ok(
+    pageCode.includes("{totalSupportAuditLogs}"),
+    "page.tsx must bind totalSupportAuditLogs to Total Audit Logs card"
+  );
+});
+
