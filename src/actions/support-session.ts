@@ -235,13 +235,13 @@ export async function verifyAdminSupportSession(
     return { success: false, error: "Support session not found." };
   }
 
-  // 3. Ensure session status is 'pending', otp_attempts < 3, and not expired
-  if (supportSession.status !== "pending") {
-    return { success: false, error: `Support session is not pending (current status: ${supportSession.status}).` };
-  }
-
+  // 3. Ensure otp_attempts < 3, session status is 'pending', and not expired
   if (supportSession.otpAttempts >= 3) {
     return { success: false, error: "Maximum OTP verification attempts exceeded (3/3). Please request a new session." };
+  }
+
+  if (supportSession.status !== "pending") {
+    return { success: false, error: `Support session is not pending (current status: ${supportSession.status}).` };
   }
 
   if (new Date(supportSession.otpExpiresAt).getTime() < Date.now()) {
@@ -279,6 +279,8 @@ export async function verifyAdminSupportSession(
     session: updatedSession || undefined,
   };
 }
+
+export const verifyOtpAction = verifyAdminSupportSession;
 
 export interface GetActiveSupportSessionInput {
   householdId: string;
