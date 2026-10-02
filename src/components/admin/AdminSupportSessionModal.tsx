@@ -19,6 +19,7 @@ interface AdminSupportSessionModalProps {
   initialMemberId?: string | null;
   initialSession?: AdminSupportSession | null;
   onSessionChanged?: () => void;
+  onSessionRevoked?: () => void;
 }
 
 export default function AdminSupportSessionModal({
@@ -28,6 +29,7 @@ export default function AdminSupportSessionModal({
   initialMemberId,
   initialSession,
   onSessionChanged,
+  onSessionRevoked,
 }: AdminSupportSessionModalProps) {
   // Modal step state: 'request' | 'verify' | 'active'
   const [step, setStep] = useState<"request" | "verify" | "active">("request");
@@ -46,12 +48,13 @@ export default function AdminSupportSessionModal({
   // Step 3: Active Session
   const [activeSession, setActiveSession] = useState<AdminSupportSession | null>(null);
   const [isRevoking, setIsRevoking] = useState(false);
+  const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
   const [remainingTime, setRemainingTime] = useState("");
 
   // Error / message state
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Timer calculation for countdown pill
+  // Timer calculation for digital countdown pill: format HH:MM:SS (displays time remaining)
   const updateCountdown = useCallback((expiresAt?: string | null) => {
     if (!expiresAt) {
       setRemainingTime("Active");
@@ -59,12 +62,14 @@ export default function AdminSupportSessionModal({
     }
     const diffMs = new Date(expiresAt).getTime() - Date.now();
     if (diffMs <= 0) {
-      setRemainingTime("Expired");
+      setRemainingTime("00:00:00");
       return;
     }
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    setRemainingTime(`${hours}h ${minutes}m remaining`);
+    const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    setRemainingTime(`${pad(hours)}:${pad(minutes)}:${pad(seconds)}`);
   }, []);
 
   useEffect(() => {
@@ -72,7 +77,7 @@ export default function AdminSupportSessionModal({
     updateCountdown(activeSession.expiresAt);
     const interval = setInterval(() => {
       updateCountdown(activeSession.expiresAt);
-    }, 10000);
+    }, 1000);
     return () => clearInterval(interval);
   }, [activeSession, step, updateCountdown]);
 
@@ -83,6 +88,7 @@ export default function AdminSupportSessionModal({
     setErrorMessage(null);
     setOtp("");
     setDevOtp(null);
+    setShowRevokeConfirm(false);
 
     if (initialSession && initialSession.status === "active") {
       const isUnexpired = initialSession.expiresAt && new Date(initialSession.expiresAt).getTime() > Date.now();
@@ -186,9 +192,6 @@ export default function AdminSupportSessionModal({
   // Step 3: End Session Early (Revoke)
   const handleRevokeSession = async () => {
     if (!activeSession) return;
-    if (!confirm("Are you sure you want to end this support session early? No further modifications will be permitted until a new authorization is requested.")) {
-      return;
-    }
 
     setIsRevoking(true);
     setErrorMessage(null);
@@ -202,6 +205,8 @@ export default function AdminSupportSessionModal({
         setActiveSession(null);
         setSessionId(null);
         setStep("request");
+        setShowRevokeConfirm(false);
+        if (onSessionRevoked) onSessionRevoked();
         if (onSessionChanged) onSessionChanged();
       } else {
         setErrorMessage(res.error || "Failed to revoke support session.");
@@ -402,16 +407,37 @@ export default function AdminSupportSessionModal({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleRevokeSession}
-                    disabled={isRevoking}
-                    className="h-10 px-3.5 rounded-xl text-xs font-bold text-red-700 bg-white hover:bg-red-50 border border-red-300 shadow-2xs transition flex items-center gap-1.5 min-h-[40px]"
-                    title="Immediately end and revoke this support session"
-                  >
-                    <span>🔒</span>
-                    <span>{isRevoking ? "Ending..." : "End Session Early"}</span>
-                  </button>
+                  {!showRevokeConfirm ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowRevokeConfirm(true)}
+                      disabled={isRevoking}
+                      className="h-10 px-3.5 rounded-xl text-xs font-bold text-red-700 bg-white hover:bg-red-50 border border-red-300 shadow-2xs transition flex items-center gap-1.5 min-h-[40px]"
+                      title="Immediately end and revoke this support session"
+                    >
+                      <span>🔒</span>
+                      <span>End Session Early</span>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleRevokeSession}
+                        disabled={isRevoking}
+                        className="h-10 px-3.5 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 shadow-xs transition flex items-center gap-1.5 min-h-[40px]"
+                      >
+                        <span>{isRevoking ? "Ending..." : "Confirm End Session"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowRevokeConfirm(false)}
+                        disabled={isRevoking}
+                        className="h-10 px-3 rounded-xl text-xs font-bold text-body-heading bg-white hover:bg-canvas-warm border border-brand-accent/30 transition min-h-[40px]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

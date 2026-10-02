@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { clearSession } from "@/actions/auth";
 import {
   approveHousehold,
   approveAllHouseholds,
@@ -20,6 +22,7 @@ import {
   approveBusinessProfileAction,
   rejectBusinessProfileAction,
   resendBusinessCertificateAction,
+  getAdminAuditLogsAction,
 } from "@/actions/moderate";
 import { getIncompleteRegistrations } from "@/actions/draft";
 import { Household } from "@/types/household";
@@ -34,6 +37,9 @@ import AdminSupportSessionModal from "@/components/admin/AdminSupportSessionModa
 import { ShieldCheck } from "@/components/admin/AdminSupportIcons";
 
 export default function ModerationQueuePage() {
+  const router = useRouter();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [totalSupportAuditLogs, setTotalSupportAuditLogs] = useState(0);
   const [households, setHouseholds] = useState<Household[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [inquiries, setInquiries] = useState<any[]>([]);
@@ -105,7 +111,7 @@ export default function ModerationQueuePage() {
 
   const loadQueue = async () => {
     setIsLoading(true);
-    const [data, repRes, inqRes, draftRes, qRes, bizRes, approvedBizRes, rejectedBizRes, jobsRes, suppRes] = await Promise.all([
+    const [data, repRes, inqRes, draftRes, qRes, bizRes, approvedBizRes, rejectedBizRes, jobsRes, suppRes, auditLogsRes] = await Promise.all([
       getModerationHouseholds(),
       getMessageReports(),
       getAdminSupportInquiries(),
@@ -116,6 +122,7 @@ export default function ModerationQueuePage() {
       getRejectedBusinessProfilesAction(),
       getLiveJobPostingsAction(),
       getAllActiveSupportSessionsAction(),
+      getAdminAuditLogsAction(100),
     ]);
     setHouseholds(data);
     if (repRes.success) {
@@ -146,7 +153,37 @@ export default function ModerationQueuePage() {
     if (suppRes.success) {
       setActiveSupportSessions(suppRes.sessions || []);
     }
+    if (auditLogsRes.success) {
+      setTotalSupportAuditLogs(auditLogsRes.logs?.length || 0);
+    }
     setIsLoading(false);
+  };
+
+  const handleAdminSignOut = async () => {
+    setIsSigningOut(true);
+    try {
+      await clearSession();
+    } catch {
+      // non-fatal
+    }
+    // Clear client state to prevent DOM lingering
+    setHouseholds([]);
+    setReports([]);
+    setInquiries([]);
+    setDrafts([]);
+    setPendingBusinesses([]);
+    setApprovedBusinesses([]);
+    setRejectedBusinesses([]);
+    setLiveJobs([]);
+    setActiveSupportSessions([]);
+    setSupportModalState({
+      isOpen: false,
+      household: null,
+      memberId: null,
+      session: null,
+    });
+    router.push("/");
+    router.refresh();
   };
 
   const handleApproveBusiness = async (businessId: string) => {
@@ -390,6 +427,17 @@ export default function ModerationQueuePage() {
             >
               <span>🔄</span>
               <span>Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleAdminSignOut}
+              disabled={isSigningOut}
+              className="px-3.5 py-2 rounded-2xl text-xs font-bold text-red-700 bg-white hover:bg-red-50 border border-red-300 shadow-xs transition flex items-center gap-1.5 min-h-[38px]"
+              title="Sign out of Admin Moderation Portal"
+            >
+              <span>🚪</span>
+              <span>{isSigningOut ? "Signing Out..." : "Sign Out"}</span>
             </button>
 
             {pendingHouseholds.length > 0 && (
@@ -1279,6 +1327,34 @@ export default function ModerationQueuePage() {
                     Admins cannot unilaterally mutate member data: an authorization code is dispatched to the member&apos;s registered email. Once verified, a 24-hour editing window opens, and all modifications are immutably logged with field diffs.
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* Support Sessions Metrics Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white p-4 rounded-3xl border border-brand-accent/30 shadow-2xs">
+                <span className="text-[11px] font-bold text-body-muted uppercase tracking-wider block">
+                  Active Sessions
+                </span>
+                <span className="text-xl font-black text-brand-primary mt-0.5 block">
+                  {activeSupportSessions.length}
+                </span>
+              </div>
+              <div className="bg-white p-4 rounded-3xl border border-brand-accent/30 shadow-2xs">
+                <span className="text-[11px] font-bold text-body-muted uppercase tracking-wider block">
+                  Pending Authorizations
+                </span>
+                <span className="text-xl font-black text-amber-700 mt-0.5 block">
+                  0
+                </span>
+              </div>
+              <div className="bg-white p-4 rounded-3xl border border-brand-accent/30 shadow-2xs">
+                <span className="text-[11px] font-bold text-body-muted uppercase tracking-wider block">
+                  Total Audit Logs
+                </span>
+                <span className="text-xl font-black text-emerald-700 mt-0.5 block">
+                  {totalSupportAuditLogs}
+                </span>
               </div>
             </div>
 
@@ -2225,7 +2301,17 @@ export default function ModerationQueuePage() {
             household={supportModalState.household}
             initialMemberId={supportModalState.memberId}
             initialSession={supportModalState.session}
+            onSessionRevoked={() => {
+              setSupportModalState((prev) => ({
+                ...prev,
+                session: null,
+              }));
+            }}
             onSessionChanged={() => {
+              setSupportModalState((prev) => ({
+                ...prev,
+                session: null,
+              }));
               loadActiveSupportSessions();
               getModerationHouseholds().then(setHouseholds);
             }}

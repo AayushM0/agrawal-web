@@ -430,7 +430,10 @@ export default function AdminSupportCorrectionForm({
             <input
               type="text"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              onChange={(e) => {
+                setFullName(e.target.value);
+                if (statusMessage) setStatusMessage(null);
+              }}
               required
               minLength={2}
               className="w-full px-3.5 py-2.5 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[40px]"
@@ -446,7 +449,10 @@ export default function AdminSupportCorrectionForm({
             <input
               type="text"
               value={fatherName}
-              onChange={(e) => setFatherName(e.target.value)}
+              onChange={(e) => {
+                setFatherName(e.target.value);
+                if (statusMessage) setStatusMessage(null);
+              }}
               className="w-full px-3.5 py-2.5 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[40px]"
               placeholder="e.g. Shri Omprakash Bansal"
             />
@@ -465,6 +471,7 @@ export default function AdminSupportCorrectionForm({
                   onChange={(e) => {
                     setIsDobNotSpecified(e.target.checked);
                     if (e.target.checked) setDob("");
+                    if (statusMessage) setStatusMessage(null);
                   }}
                   className="rounded border-brand-accent/40 text-brand-primary focus:ring-brand-primary w-3.5 h-3.5"
                 />
@@ -475,7 +482,10 @@ export default function AdminSupportCorrectionForm({
               type="date"
               value={dob}
               disabled={isDobNotSpecified}
-              onChange={(e) => setDob(e.target.value)}
+              onChange={(e) => {
+                setDob(e.target.value);
+                if (statusMessage) setStatusMessage(null);
+              }}
               className={`w-full px-3.5 py-2.5 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[40px] ${
                 isDobNotSpecified ? "opacity-50 cursor-not-allowed bg-gray-100" : ""
               }`}
@@ -489,7 +499,10 @@ export default function AdminSupportCorrectionForm({
             </label>
             <select
               value={gender}
-              onChange={(e) => setGender(e.target.value)}
+              onChange={(e) => {
+                setGender(e.target.value);
+                if (statusMessage) setStatusMessage(null);
+              }}
               className="w-full px-3.5 py-2.5 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[40px]"
             >
               {GENDERS.map((g) => (
@@ -507,7 +520,10 @@ export default function AdminSupportCorrectionForm({
             </label>
             <select
               value={maritalStatus}
-              onChange={(e) => setMaritalStatus(e.target.value)}
+              onChange={(e) => {
+                setMaritalStatus(e.target.value);
+                if (statusMessage) setStatusMessage(null);
+              }}
               className="w-full px-3.5 py-2.5 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[40px]"
             >
               {MARITAL_STATUSES.map((ms) => (
@@ -525,7 +541,10 @@ export default function AdminSupportCorrectionForm({
             </label>
             <select
               value={gotra}
-              onChange={(e) => setGotra(e.target.value)}
+              onChange={(e) => {
+                setGotra(e.target.value);
+                if (statusMessage) setStatusMessage(null);
+              }}
               className="w-full px-3.5 py-2.5 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[40px]"
             >
               {gotras.map((g) => (
@@ -544,7 +563,10 @@ export default function AdminSupportCorrectionForm({
             <input
               type="text"
               value={nativePlace}
-              onChange={(e) => setNativePlace(e.target.value)}
+              onChange={(e) => {
+                setNativePlace(e.target.value);
+                if (statusMessage) setStatusMessage(null);
+              }}
               className="w-full px-3.5 py-2.5 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[40px]"
               placeholder="e.g. Agroha, Haryana / Hisar / Pilani"
             />
@@ -560,7 +582,10 @@ export default function AdminSupportCorrectionForm({
             </label>
             <textarea
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              onChange={(e) => {
+                setReason(e.target.value);
+                if (statusMessage) setStatusMessage(null);
+              }}
               required
               minLength={3}
               rows={2}
@@ -622,7 +647,9 @@ export default function AdminSupportCorrectionForm({
             <span>
               {isSubmitting
                 ? "Saving & Recording Audit Trail..."
-                : `Save Corrections (${activeDiff.length} Change${activeDiff.length === 1 ? "" : "s"})`}
+                : activeDiff.length === 0
+                ? "Review Changes"
+                : "Apply Corrections"}
             </span>
           </button>
         </div>
