@@ -1402,7 +1402,11 @@ export const db = {
   },
 
   async getHouseholdById(householdId: string): Promise<any | null> {
-    if (!pool) throw new Error("Database not connected");
+    if (!pool) {
+      const list: any[] = (globalThis as any).__memoryHouseholds || [];
+      const h = list.find((item: any) => item.id === householdId || item.householdCode === householdId || item.serialNo === householdId);
+      return h || null;
+    }
     try {
       const res = await pool.query(
         "SELECT * FROM households WHERE id::text = $1 OR household_code = $1 OR serial_no = $1 LIMIT 1;",
@@ -1436,7 +1440,32 @@ export const db = {
   },
 
   async getMemberById(memberId: string): Promise<any | null> {
-    if (!pool) throw new Error("Database not connected");
+    if (!pool) {
+      const list: any[] = (globalThis as any).__memoryHouseholds || [];
+      for (const h of list) {
+        if (h.members && Array.isArray(h.members)) {
+          const m = h.members.find((mem: any) => mem.id === memberId || mem.serialNo === memberId);
+          if (m) {
+            return {
+              ...m,
+              householdId: String(m.householdId || h.id),
+              dob: m.dob ? (m.dob instanceof Date ? m.dob.toISOString() : String(m.dob)) : "",
+              serialNo: m.serialNo || m.householdSerialNo || h.householdCode,
+              householdSerialNo: h.serialNo || h.householdCode,
+              householdCode: h.householdCode,
+              gotra: h.gotra,
+              nativePlace: h.nativePlace,
+              visibility: {
+                contactInfo: m.visibility_contact ?? m.visibility?.contactInfo,
+                dob: m.visibility_dob ?? m.visibility?.dob,
+                photo: m.visibility_photo ?? m.visibility?.photo,
+              },
+            };
+          }
+        }
+      }
+      return null;
+    }
     try {
       const query = `
         SELECT 
@@ -2068,7 +2097,22 @@ export const db = {
   },
 
   async updateMemberProfile(memberId: string, updates: Omit<Partial<Member>, "dob" | "photoUrl" | "postalCode" | "state" | "fullAddress"> & { dob?: string | null; photoUrl?: string | null; postalCode?: string | null; state?: string | null; fullAddress?: string | null }): Promise<boolean> {
-    if (!pool) return true;
+    if (!pool) {
+      const list: any[] = (globalThis as any).__memoryHouseholds || [];
+      for (const h of list) {
+        if (h.members && Array.isArray(h.members)) {
+          const m = h.members.find((mem: any) => mem.id === memberId || mem.serialNo === memberId);
+          if (m) {
+            Object.assign(m, updates);
+            if (updates.fullName && updates.relationToHead === "self") {
+              h.headName = updates.fullName.trim();
+            }
+            return true;
+          }
+        }
+      }
+      return true;
+    }
     try {
       const safeDob = updates.dob !== undefined ? (updates.dob ? sanitizeDate(updates.dob) : null) : undefined;
       const res = await pool.query(
@@ -2136,7 +2180,14 @@ export const db = {
   },
 
   async updateHouseholdProfile(householdId: string, updates: { nativePlace?: string; gotra?: string; headName?: string; country?: string; city?: string; postalCode?: string | null; state?: string | null; fullAddress?: string | null }): Promise<boolean> {
-    if (!pool) return true;
+    if (!pool) {
+      const list: any[] = (globalThis as any).__memoryHouseholds || [];
+      const h = list.find((item: any) => item.id === householdId || item.householdCode === householdId);
+      if (h) {
+        Object.assign(h, updates);
+      }
+      return true;
+    }
     try {
       const res = await pool.query(
         `UPDATE households 

@@ -86,3 +86,37 @@ test("Issue 052: Database helper methods implemented in db.ts with idempotent en
   assert.ok(db.includes("export const recordSupportAuditLog = db.recordSupportAuditLog;"), "db.ts must export recordSupportAuditLog");
   assert.ok(db.includes("export const getSupportAuditLogsBySession = db.getSupportAuditLogsBySession;"), "db.ts must export getSupportAuditLogsBySession");
 });
+
+test("Issue 052: Server Actions and authorization engine implemented in support-session.ts", () => {
+  const actionsCode = read("src/actions/support-session.ts");
+
+  // Server action directive
+  assert.ok(actionsCode.includes("'use server'"), "Must have 'use server' directive");
+
+  // Exported actions
+  assert.ok(actionsCode.includes("export async function requestAdminSupportSession"), "Must export requestAdminSupportSession");
+  assert.ok(actionsCode.includes("export async function verifyAdminSupportSession"), "Must export verifyAdminSupportSession");
+  assert.ok(actionsCode.includes("export async function getActiveSupportSessionAction"), "Must export getActiveSupportSessionAction");
+  assert.ok(actionsCode.includes("export async function adminCorrectMemberDetailsAction"), "Must export adminCorrectMemberDetailsAction");
+  assert.ok(actionsCode.includes("export async function revokeAdminSupportSessionAction"), "Must export revokeAdminSupportSessionAction");
+  assert.ok(actionsCode.includes("export async function getSupportAuditLogsAction"), "Must export getSupportAuditLogsAction");
+
+  // Aliases for developer convenience
+  assert.ok(actionsCode.includes("export const getActiveSupportSession = getActiveSupportSessionAction"), "Must export getActiveSupportSession alias");
+  assert.ok(actionsCode.includes("export const adminCorrectMemberDetails = adminCorrectMemberDetailsAction"), "Must export adminCorrectMemberDetails alias");
+  assert.ok(actionsCode.includes("export const revokeAdminSupportSession = revokeAdminSupportSessionAction"), "Must export revokeAdminSupportSession alias");
+  assert.ok(actionsCode.includes("export const getSupportAuditLogs = getSupportAuditLogsAction"), "Must export getSupportAuditLogs alias");
+
+  // Security & cryptographic guards
+  assert.ok(actionsCode.includes("AUTH_SECRET"), "Must use AUTH_SECRET for HMAC-SHA256 OTP hashing");
+  assert.ok(actionsCode.includes("crypto.timingSafeEqual"), "Must use timingSafeEqual for OTP verification");
+  assert.ok(actionsCode.includes("session.role !== \"admin\""), "Must enforce admin role authorization");
+  assert.ok(actionsCode.includes("15 * 60 * 1000"), "Must set 15 minute OTP expiration");
+  assert.ok(actionsCode.includes("24 * 60 * 60 * 1000"), "Must set 24 hour session window");
+
+  // Audit logging and validation
+  assert.ok(actionsCode.includes("recordSupportAuditLog"), "Must invoke db.recordSupportAuditLog");
+  assert.ok(actionsCode.includes("gotras.find"), "Must validate gotra against 18 recognized Gotras");
+  assert.ok(actionsCode.includes("enqueueEmail"), "Must queue authorization email to member/head");
+});
+
