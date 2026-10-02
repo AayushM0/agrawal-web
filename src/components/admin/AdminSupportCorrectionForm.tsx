@@ -640,7 +640,7 @@ export default function AdminSupportCorrectionForm({
         <div className="pt-2">
           <button
             type="submit"
-            disabled={isSubmitting || activeDiff.length === 0 || !reason.trim()}
+            disabled={isSubmitting || activeDiff.length === 0 || reason.trim().length < 3}
             className="w-full h-11 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-brand-primary hover:bg-brand-primary/95 disabled:opacity-50 disabled:cursor-not-allowed shadow-warm transition-all flex items-center justify-center gap-2 min-h-[44px]"
           >
             <ShieldCheck className="w-4 h-4" />

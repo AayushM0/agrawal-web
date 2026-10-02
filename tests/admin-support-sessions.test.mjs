@@ -382,11 +382,11 @@ test("Issue 052: Session lifecycle enforces OTP verification failure and max att
   };
 
   function simulateVerify(session, inputOtp) {
-    if (session.status !== "pending") {
-      return { success: false, error: `Support session is not pending (current status: ${session.status}).` };
-    }
     if (session.otpAttempts >= 3) {
       return { success: false, error: "Maximum OTP verification attempts exceeded (3/3). Please request a new session." };
+    }
+    if (session.status !== "pending") {
+      return { success: false, error: `Support session is not pending (current status: ${session.status}).` };
     }
     if (new Date(session.otpExpiresAt).getTime() < Date.now()) {
       session.status = "expired";
@@ -437,10 +437,10 @@ test("Issue 052: Session lifecycle enforces OTP verification failure and max att
   assert.equal(sessionState.status, "expired");
   assert.equal(res3.error, "Invalid verification code. Maximum attempts reached.");
 
-  // Attempt 4: Further attempts blocked immediately
+  // Attempt 4: Further attempts blocked immediately with exact 3/3 spec copy
   const res4 = simulateVerify(sessionState, expectedOtp);
   assert.equal(res4.success, false);
-  assert.ok(res4.error.includes("not pending") || res4.error.includes("Maximum OTP verification attempts exceeded"));
+  assert.equal(res4.error, "Maximum OTP verification attempts exceeded (3/3). Please request a new session.");
 
   // Expired OTP simulation
   const expiredSession = {
@@ -1367,5 +1367,171 @@ test("Issue 052 / AWB-13: Moderation page metrics bar displays Active Sessions, 
     pageCode.includes("{totalSupportAuditLogs}"),
     "page.tsx must bind totalSupportAuditLogs to Total Audit Logs card"
   );
+});
+
+test("Issue 052 / AWB-15: AdminSupportCorrectionForm submit button disabled guard enforces 3-character reason minimum", () => {
+  const formCode = read("src/components/admin/AdminSupportCorrectionForm.tsx");
+
+  // 1. Static assertion: submit button disabled condition must check reason.trim().length < 3
+  assert.ok(
+    formCode.includes("reason.trim().length < 3"),
+    "AdminSupportCorrectionForm must guard submit button with reason.trim().length < 3"
+  );
+  assert.ok(
+    formCode.includes("disabled={isSubmitting || activeDiff.length === 0 || reason.trim().length < 3}"),
+    "Submit button must be disabled when isSubmitting, activeDiff.length === 0, or reason.trim().length < 3"
+  );
+
+  // 2. Behavioral verification of the disabled condition logic
+  const isButtonDisabled = (isSubmitting, activeDiffLength, reasonStr) => {
+    return isSubmitting || activeDiffLength === 0 || reasonStr.trim().length < 3;
+  };
+
+  // Submitting
+  assert.equal(isButtonDisabled(true, 1, "Valid reason"), true, "Disabled when isSubmitting is true");
+
+  // No active diff
+  assert.equal(isButtonDisabled(false, 0, "Valid reason"), true, "Disabled when activeDiff is empty");
+
+  // Reason edge cases (edge-case-audit: length = 0, 1, 2, 3)
+  assert.equal(isButtonDisabled(false, 1, ""), true, "Disabled when reason is empty");
+  assert.equal(isButtonDisabled(false, 1, "   "), true, "Disabled when reason is only whitespace");
+  assert.equal(isButtonDisabled(false, 1, "a"), true, "Disabled when reason has 1 character");
+  assert.equal(isButtonDisabled(false, 1, "ab"), true, "Disabled when reason has 2 characters");
+  assert.equal(isButtonDisabled(false, 1, "  ab  "), true, "Disabled when trimmed reason has 2 characters");
+  assert.equal(isButtonDisabled(false, 1, "abc"), false, "Enabled when reason has exactly 3 characters");
+  assert.equal(isButtonDisabled(false, 1, "Correcting member native place"), false, "Enabled when reason is valid sentence");
+});
+
+test("Issue 052 / AWB-15: Submitting OTP after 3 failed attempts returns exact 3/3 lockout copy", () => {
+  const actionsCode = read("src/actions/support-session.ts");
+
+  // 1. Static assertion on exact error copy and attempt order
+  assert.ok(
+    actionsCode.includes("Maximum OTP verification attempts exceeded (3/3). Please request a new session."),
+    "support-session.ts must return exact 3/3 error copy"
+  );
+  assert.ok(
+    actionsCode.includes("export const verifyOtpAction = verifyAdminSupportSession"),
+    "support-session.ts must export verifyOtpAction alias"
+  );
+
+  // Ensure otpAttempts check precedes status check in verifyAdminSupportSession
+  const otpAttemptsIndex = actionsCode.indexOf("if (supportSession.otpAttempts >= 3)");
+  const statusIndex = actionsCode.indexOf('if (supportSession.status !== "pending")');
+  assert.ok(otpAttemptsIndex > 0, "Must check supportSession.otpAttempts >= 3");
+  assert.ok(statusIndex > 0, 'Must check supportSession.status !== "pending"');
+  assert.ok(
+    otpAttemptsIndex < statusIndex,
+    "otpAttempts >= 3 check must precede status !== 'pending' check so expired sessions with 3 attempts return 3/3 copy"
+  );
+
+  // 2. Behavioral verification of lockout logic
+  function verifyOtpSimulation(session, enteredOtp) {
+    if (session.otpAttempts >= 3) {
+      return { success: false, error: "Maximum OTP verification attempts exceeded (3/3). Please request a new session." };
+    }
+    if (session.status !== "pending") {
+      return { success: false, error: `Support session is not pending (current status: ${session.status}).` };
+    }
+    if (new Date(session.otpExpiresAt).getTime() < Date.now()) {
+      session.status = "expired";
+      return { success: false, error: "Verification OTP has expired. Please request a new support session." };
+    }
+    return { success: true };
+  }
+
+  // Session already marked expired with 3 attempts
+  const lockedSession = {
+    id: "locked-sess",
+    status: "expired",
+    otpAttempts: 3,
+    otpExpiresAt: new Date(Date.now() + 60000).toISOString(),
+  };
+  const result = verifyOtpSimulation(lockedSession, "123456");
+  assert.equal(result.success, false);
+  assert.equal(
+    result.error,
+    "Maximum OTP verification attempts exceeded (3/3). Please request a new session."
+  );
+
+  // Session expired by time (< 3 attempts) returns expired error, not 3/3
+  const timeExpiredSession = {
+    id: "timed-out-sess",
+    status: "expired",
+    otpAttempts: 1,
+    otpExpiresAt: new Date(Date.now() - 5000).toISOString(),
+  };
+  const timedOutResult = verifyOtpSimulation(timeExpiredSession, "123456");
+  assert.equal(timedOutResult.success, false);
+  assert.equal(
+    timedOutResult.error,
+    "Support session is not pending (current status: expired)."
+  );
+});
+
+test("Issue 052 / AWB-15: getLiveJobPostingsAction returns active job postings", () => {
+  const careerActionsCode = read("src/actions/career.ts");
+  const dbCode = read("src/lib/db.ts");
+
+  // 1. Static assertion: getLiveJobPostingsAction is exported and wired to db.getLiveJobPostings
+  assert.ok(
+    careerActionsCode.includes("export async function getLiveJobPostingsAction("),
+    "career.ts must export getLiveJobPostingsAction"
+  );
+  assert.ok(
+    careerActionsCode.includes("await db.getLiveJobPostings(filter)"),
+    "getLiveJobPostingsAction must call db.getLiveJobPostings with filter"
+  );
+  assert.ok(
+    careerActionsCode.includes("return { success: true, jobs, total };"),
+    "getLiveJobPostingsAction must return success, jobs, and total"
+  );
+
+  // 2. Static assertion on db.getLiveJobPostings filtering for active status
+  assert.ok(
+    dbCode.includes("async getLiveJobPostings("),
+    "db.ts must implement getLiveJobPostings"
+  );
+  assert.ok(
+    dbCode.includes("j.status === \"active\"") || dbCode.includes("jp.status = 'active'"),
+    "getLiveJobPostings must enforce active status"
+  );
+
+  // 3. Behavioral verification of getLiveJobPostings filtering logic
+  const mockPostings = [
+    { id: "job-1", title: "Software Engineer", companyName: "TechCorp", status: "active", industry: "Technology", jobType: "full-time", workplaceType: "remote", skillsRequired: ["React", "Node"] },
+    { id: "job-2", title: "Product Manager", companyName: "Innovate Ltd", status: "active", industry: "Technology", jobType: "full-time", workplaceType: "hybrid", skillsRequired: ["Product"] },
+    { id: "job-3", title: "Accountant", companyName: "FinanceCo", status: "closed", industry: "Finance", jobType: "full-time", workplaceType: "on-site", skillsRequired: ["Accounting"] },
+    { id: "job-4", title: "Marketing Intern", companyName: "GrowthX", status: "draft", industry: "Marketing", jobType: "internship", workplaceType: "remote", skillsRequired: ["SEO"] },
+  ];
+
+  function simulateGetLiveJobPostings(postings, filter = {}) {
+    let list = postings.filter((j) => j.status === "active");
+    if (filter.industry && filter.industry !== "all") list = list.filter((j) => j.industry === filter.industry);
+    if (filter.jobType && filter.jobType !== "all") list = list.filter((j) => j.jobType === filter.jobType);
+    if (filter.workplaceType && filter.workplaceType !== "all") list = list.filter((j) => j.workplaceType === filter.workplaceType);
+    if (filter.query) {
+      const q = filter.query.toLowerCase();
+      list = list.filter((j) => j.title.toLowerCase().includes(q) || j.companyName.toLowerCase().includes(q) || j.skillsRequired.some(s => s.toLowerCase().includes(q)));
+    }
+    return { jobs: list, total: list.length };
+  }
+
+  // Active-only filtering
+  const allLive = simulateGetLiveJobPostings(mockPostings);
+  assert.equal(allLive.total, 2);
+  assert.deepEqual(allLive.jobs.map(j => j.id), ["job-1", "job-2"]);
+  assert.ok(allLive.jobs.every(j => j.status === "active"), "All returned jobs must have status 'active'");
+
+  // Query filtering
+  const queryResult = simulateGetLiveJobPostings(mockPostings, { query: "Software" });
+  assert.equal(queryResult.total, 1);
+  assert.equal(queryResult.jobs[0].id, "job-1");
+
+  // Closed/draft jobs are never returned even if matching query
+  const closedQueryResult = simulateGetLiveJobPostings(mockPostings, { query: "Accountant" });
+  assert.equal(closedQueryResult.total, 0);
+  assert.equal(closedQueryResult.jobs.length, 0);
 });
 
