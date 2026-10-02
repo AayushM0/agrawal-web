@@ -262,7 +262,7 @@ export async function verifyAdminSupportSession(
       success: false,
       error: remaining > 0
         ? `Invalid verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
-        : "Invalid verification code. Maximum attempts reached.",
+        : "Maximum OTP verification attempts exceeded (3/3). Please request a new session.",
     };
   }
 

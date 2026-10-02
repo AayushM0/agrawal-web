@@ -304,7 +304,7 @@ export default function CareerDirectoryPage() {
                       onClick={resetJobFilters}
                       className="px-3 py-2 text-xs font-bold text-brand-primary bg-amber-50 hover:bg-amber-100 border border-brand-accent/40 rounded-xl transition min-h-[38px]"
                     >
-                      Reset
+                      Reset Filters
                     </button>
                   )}
                 </div>
@@ -506,7 +506,7 @@ export default function CareerDirectoryPage() {
                       onClick={resetFilters}
                       className="px-3 py-2 text-xs font-bold text-brand-primary bg-amber-50 hover:bg-amber-100 border border-brand-accent/40 rounded-xl transition min-h-[38px]"
                     >
-                      Reset
+                      Reset Filters
                     </button>
                   )}
                 </div>

@@ -406,7 +406,7 @@ test("Issue 052: Session lifecycle enforces OTP verification failure and max att
         success: false,
         error: remaining > 0
           ? `Invalid verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`
-          : "Invalid verification code. Maximum attempts reached.",
+          : "Maximum OTP verification attempts exceeded (3/3). Please request a new session.",
       };
     }
 
@@ -435,7 +435,7 @@ test("Issue 052: Session lifecycle enforces OTP verification failure and max att
   assert.equal(res3.success, false);
   assert.equal(sessionState.otpAttempts, 3);
   assert.equal(sessionState.status, "expired");
-  assert.equal(res3.error, "Invalid verification code. Maximum attempts reached.");
+  assert.equal(res3.error, "Maximum OTP verification attempts exceeded (3/3). Please request a new session.");
 
   // Attempt 4: Further attempts blocked immediately with exact 3/3 spec copy
   const res4 = simulateVerify(sessionState, expectedOtp);
