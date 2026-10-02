@@ -28,6 +28,10 @@ import { getLiveJobPostingsAction } from "@/actions/career";
 import type { JobPosting } from "@/types/career";
 import { gotras } from "@/data/gotras";
 import AdminAssistedProfilesCreator from "@/components/admin/AdminAssistedProfilesCreator";
+import { getAllActiveSupportSessionsAction } from "@/actions/support-session";
+import type { AdminSupportSession } from "@/types/support-session";
+import AdminSupportSessionModal from "@/components/admin/AdminSupportSessionModal";
+import { ShieldCheck } from "@/components/admin/AdminSupportIcons";
 
 export default function ModerationQueuePage() {
   const [households, setHouseholds] = useState<Household[]>([]);
@@ -40,7 +44,21 @@ export default function ModerationQueuePage() {
   const [liveJobs, setLiveJobs] = useState<JobPosting[]>([]);
   const [rejectingBusinessId, setRejectingBusinessId] = useState<string | null>(null);
   const [businessRejectReason, setBusinessRejectReason] = useState("");
-  const [filter, setFilter] = useState<"pending" | "approved" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue" | "businesses" | "careers" | "assisted">("pending");
+  const [filter, setFilter] = useState<"pending" | "approved" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue" | "businesses" | "careers" | "assisted" | "support">("pending");
+  const [activeSupportSessions, setActiveSupportSessions] = useState<AdminSupportSession[]>([]);
+  const [supportModalState, setSupportModalState] = useState<{
+    isOpen: boolean;
+    household: Household | null;
+    memberId?: string | null;
+    session?: AdminSupportSession | null;
+  }>({
+    isOpen: false,
+    household: null,
+    memberId: null,
+    session: null,
+  });
+  const [supportSearchTerm, setSupportSearchTerm] = useState("");
+  const [supportSelectedGotra, setSupportSelectedGotra] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGotra, setSelectedGotra] = useState("all");
   const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -78,9 +96,16 @@ export default function ModerationQueuePage() {
     }
   };
 
+  const loadActiveSupportSessions = async () => {
+    const res = await getAllActiveSupportSessionsAction();
+    if (res.success && res.sessions) {
+      setActiveSupportSessions(res.sessions);
+    }
+  };
+
   const loadQueue = async () => {
     setIsLoading(true);
-    const [data, repRes, inqRes, draftRes, qRes, bizRes, approvedBizRes, rejectedBizRes, jobsRes] = await Promise.all([
+    const [data, repRes, inqRes, draftRes, qRes, bizRes, approvedBizRes, rejectedBizRes, jobsRes, suppRes] = await Promise.all([
       getModerationHouseholds(),
       getMessageReports(),
       getAdminSupportInquiries(),
@@ -90,6 +115,7 @@ export default function ModerationQueuePage() {
       getLiveVerifiedBusinessProfilesAction(),
       getRejectedBusinessProfilesAction(),
       getLiveJobPostingsAction(),
+      getAllActiveSupportSessionsAction(),
     ]);
     setHouseholds(data);
     if (repRes.success) {
@@ -116,6 +142,9 @@ export default function ModerationQueuePage() {
     }
     if (jobsRes.success) {
       setLiveJobs(jobsRes.jobs || []);
+    }
+    if (suppRes.success) {
+      setActiveSupportSessions(suppRes.sessions || []);
     }
     setIsLoading(false);
   };
@@ -511,6 +540,19 @@ export default function ModerationQueuePage() {
             <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">✨ Assist &amp; Create</span>
             <span className="text-lg font-black text-amber-900">Direct</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setFilter("support")}
+            className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
+              filter === "support"
+                ? "bg-amber-100/90 border-brand-primary ring-2 ring-brand-primary/30"
+                : "bg-white border-brand-accent/30 hover:bg-amber-50/40"
+            }`}
+          >
+            <span className="text-[10px] font-bold text-brand-primary uppercase tracking-wider block">Support</span>
+            <span className="text-lg font-black text-brand-primary">{activeSupportSessions.length}</span>
+          </button>
         </div>
 
         {/* Tab Navigation Bar */}
@@ -693,6 +735,25 @@ export default function ModerationQueuePage() {
               }`}
             >
               <span>✨ Create on Behalf</span>
+            </button>
+
+            <button
+              onClick={() => setFilter("support")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center gap-1.5 ${
+                filter === "support"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Support Sessions (सक्रिय सहायता)</span>
+              {activeSupportSessions.length > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                  filter === "support" ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-800"
+                }`}>
+                  {activeSupportSessions.length} active
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -1193,6 +1254,313 @@ export default function ModerationQueuePage() {
                 </div>
               )}
             </div>
+          </div>
+        ) : filter === "support" ? (
+          <div className="space-y-6">
+            {/* Header Description & Security Notice */}
+            <div className="bg-white p-5 sm:p-6 rounded-3xl border-2 border-brand-accent/30 shadow-warm">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full inline-block">
+                      Issue 052 • Member-Authorized Support Sessions
+                    </span>
+                    {activeSupportSessions.length > 0 && (
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+                        {activeSupportSessions.length} Session{activeSupportSessions.length === 1 ? "" : "s"} Currently Active
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-lg sm:text-xl font-black text-brand-primary">
+                    Support Sessions &amp; Personal Detail Corrections (सहायता कार्यक्षेत्र)
+                  </h2>
+                  <p className="text-xs text-body-muted mt-1 max-w-3xl leading-relaxed">
+                    Correct misspelled names, birth dates, gotras, and family details without un-audited SQL interventions.
+                    Admins cannot unilaterally mutate member data: an authorization code is dispatched to the member&apos;s registered email. Once verified, a 24-hour editing window opens, and all modifications are immutably logged with field diffs.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Active Sessions Fast Bar (if any session is active) */}
+            {activeSupportSessions.length > 0 && (
+              <div className="p-4 bg-emerald-50/80 border-2 border-emerald-300 rounded-3xl space-y-2.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>Active Support Sessions Running ({activeSupportSessions.length})</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={loadActiveSupportSessions}
+                    className="text-[11px] font-bold text-emerald-800 hover:underline min-h-[28px]"
+                  >
+                    Refresh Sessions
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {activeSupportSessions.map((sess) => {
+                    const matchedHh = households.find((h) => h.id === sess.householdId);
+                    const remainingMs = sess.expiresAt ? new Date(sess.expiresAt).getTime() - Date.now() : 0;
+                    const remHours = Math.max(0, Math.floor(remainingMs / (1000 * 60 * 60)));
+                    const remMins = Math.max(0, Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60)));
+                    return (
+                      <div
+                        key={sess.id}
+                        className="bg-white p-3 rounded-2xl border border-emerald-300 flex items-center justify-between gap-2 shadow-2xs"
+                      >
+                        <div className="min-w-0">
+                          <span className="font-bold text-xs text-brand-primary block truncate">
+                            {matchedHh ? matchedHh.headName : `Household #${sess.householdId.slice(0, 8)}`}
+                          </span>
+                          <span className="text-[11px] text-emerald-800 font-mono font-medium block">
+                            ⏳ {remHours}h {remMins}m remaining
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (matchedHh) {
+                              setSupportModalState({
+                                isOpen: true,
+                                household: matchedHh,
+                                memberId: sess.memberId,
+                                session: sess,
+                              });
+                            }
+                          }}
+                          disabled={!matchedHh}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-800 shadow-xs transition shrink-0 min-h-[36px]"
+                        >
+                          Open Session
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Support Search and Filter Bar */}
+            <div className="bg-white p-3.5 rounded-2xl border border-brand-accent/30 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex-1 relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-body-muted text-xs">🔍</span>
+                <input
+                  type="text"
+                  value={supportSearchTerm}
+                  onChange={(e) => setSupportSearchTerm(e.target.value)}
+                  placeholder="Search by reference code (#...), name, phone, email, or family member..."
+                  className="w-full pl-9 pr-4 py-2 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[38px]"
+                />
+                {supportSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSupportSearchTerm("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-body-muted hover:text-brand-primary"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={supportSelectedGotra}
+                  onChange={(e) => setSupportSelectedGotra(e.target.value)}
+                  className="px-3 py-2 bg-canvas-warm/40 border border-brand-accent/30 rounded-xl text-xs text-body-heading font-medium focus:outline-none focus:ring-2 focus:ring-brand-primary min-h-[38px]"
+                >
+                  <option value="all">All 18 Gotras</option>
+                  {gotras.map((g) => (
+                    <option key={g.name} value={g.name}>
+                      {g.name} ({g.devanagari})
+                    </option>
+                  ))}
+                </select>
+
+                {(supportSearchTerm || supportSelectedGotra !== "all") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSupportSearchTerm("");
+                      setSupportSelectedGotra("all");
+                    }}
+                    className="px-3 py-2 text-xs font-bold text-brand-primary bg-amber-50 hover:bg-amber-100 border border-brand-accent/40 rounded-xl transition min-h-[38px]"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Households & Members List */}
+            {(() => {
+              const matchingHouseholds = households.filter((h) => {
+                if (supportSelectedGotra !== "all" && h.gotra !== supportSelectedGotra) return false;
+                if (!supportSearchTerm.trim()) return true;
+                const q = supportSearchTerm.toLowerCase().trim();
+                const matchHead = h.headName?.toLowerCase().includes(q);
+                const matchGotra = h.gotra?.toLowerCase().includes(q);
+                const matchCity = h.city?.toLowerCase().includes(q);
+                const matchContact = h.verifiedContact?.toLowerCase().includes(q);
+                const matchSerial = h.serialNo?.toLowerCase().includes(q) || h.householdCode?.toLowerCase().includes(q);
+                const matchMembers = h.members?.some((m: any) =>
+                  m.fullName?.toLowerCase().includes(q) ||
+                  m.fatherName?.toLowerCase().includes(q) ||
+                  m.phone?.toLowerCase().includes(q) ||
+                  m.email?.toLowerCase().includes(q) ||
+                  m.serialNo?.toLowerCase().includes(q)
+                );
+                return matchHead || matchGotra || matchCity || matchContact || matchSerial || matchMembers;
+              });
+
+              if (matchingHouseholds.length === 0) {
+                return (
+                  <div className="text-center py-16 bg-white border border-brand-accent/30 rounded-3xl p-8 shadow-warm">
+                    <div className="text-3xl mb-2">🔍</div>
+                    <p className="text-sm font-bold text-brand-primary mb-1">
+                      No Matching Households or Members Found
+                    </p>
+                    <p className="text-xs text-body-muted max-w-md mx-auto">
+                      Try searching with a different name, gotra, reference code, or mobile number.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-xs text-body-muted px-1">
+                    <span>Showing {matchingHouseholds.length} family profile{matchingHouseholds.length === 1 ? "" : "s"} available for support:</span>
+                  </div>
+
+                  {matchingHouseholds.map((h) => {
+                    const activeSession = activeSupportSessions.find((s) => s.householdId === h.id);
+                    const isSessionActive = Boolean(activeSession && activeSession.status === "active");
+
+                    return (
+                      <div
+                        key={h.id}
+                        className={`bg-white rounded-3xl p-5 sm:p-6 border-2 transition-all shadow-warm space-y-4 ${
+                          isSessionActive
+                            ? "border-emerald-400 ring-2 ring-emerald-400/20 bg-emerald-50/10"
+                            : "border-brand-accent/30 hover:border-brand-accent/50"
+                        }`}
+                      >
+                        {/* Header Row */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-brand-accent/20">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                              <h3 className="text-base font-bold text-brand-primary">
+                                {h.headName}
+                              </h3>
+                              <span className="text-xs font-bold va-badge-gold px-2.5 py-0.5 rounded-full">
+                                Gotra: {h.gotra}
+                              </span>
+                              <span className="text-xs font-mono font-bold text-brand-primary bg-canvas-warm px-2.5 py-0.5 rounded-full border border-brand-accent/40">
+                                #{h.serialNo || h.householdCode}
+                              </span>
+                              {isSessionActive && (
+                                <span className="text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+                                  <span>Active Support Session</span>
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-body-text mt-1">
+                              <p>
+                                <strong>Ancestral Native:</strong> {h.nativePlace || "N/A"}
+                              </p>
+                              <p>
+                                <strong>Verified Contact:</strong> {h.verifiedContact || "N/A"}
+                              </p>
+                              <p className="sm:col-span-2">
+                                <strong>Address:</strong> {h.fullAddress || "N/A"}, {h.city || ""}, {h.state || ""} ({h.country || "India"})
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Primary CTA (44px touch target) */}
+                          <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSupportModalState({
+                                  isOpen: true,
+                                  household: h,
+                                  memberId: null,
+                                  session: activeSession || null,
+                                });
+                              }}
+                              className={`h-11 px-5 rounded-2xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-2 min-h-[44px] ${
+                                isSessionActive
+                                  ? "bg-emerald-700 hover:bg-emerald-800 text-white"
+                                  : "bg-brand-primary hover:bg-brand-primary/95 text-white"
+                              }`}
+                            >
+                              <ShieldCheck className="w-4 h-4" />
+                              <span>
+                                {isSessionActive ? "Manage Active Support Session" : "Initiate Support Session"}
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Members Breakdown */}
+                        {h.members && h.members.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-[11px] font-bold text-body-muted uppercase tracking-wider px-1">
+                              <span>Registered Family Members ({h.members.length})</span>
+                              <span>Click edit to correct member profile</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                              {h.members.map((m) => (
+                                <div
+                                  key={m.id}
+                                  className="p-3 bg-canvas-warm/30 rounded-2xl border border-brand-accent/20 flex items-center justify-between gap-2 hover:bg-amber-50/60 transition group"
+                                >
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-bold text-xs text-body-heading truncate">
+                                        {m.fullName}
+                                      </span>
+                                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white border border-brand-accent/20 text-body-muted shrink-0 capitalize">
+                                        {m.relationToHead === "self" ? "Head" : m.relationToHead}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-body-muted truncate mt-0.5">
+                                      {m.fatherName ? `Father/Spouse: ${m.fatherName}` : (m.gender || "Gender not specified")}
+                                      {m.dob ? ` • DOB: ${String(m.dob).split("T")[0]}` : " • DOB: Not specified"}
+                                    </p>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSupportModalState({
+                                        isOpen: true,
+                                        household: h,
+                                        memberId: m.id,
+                                        session: activeSession || null,
+                                      });
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-brand-primary bg-white hover:bg-amber-100 border border-brand-accent/30 shadow-2xs transition shrink-0 min-h-[34px]"
+                                    title={`Initiate support session specifically for ${m.fullName}`}
+                                  >
+                                    Edit ✏️
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         ) : filter === "assisted" ? (
           <AdminAssistedProfilesCreator />
@@ -1840,6 +2208,28 @@ export default function ModerationQueuePage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Admin Support Session Modal (Issue 052) */}
+        {supportModalState.isOpen && supportModalState.household && (
+          <AdminSupportSessionModal
+            isOpen={supportModalState.isOpen}
+            onClose={() =>
+              setSupportModalState({
+                isOpen: false,
+                household: null,
+                memberId: null,
+                session: null,
+              })
+            }
+            household={supportModalState.household}
+            initialMemberId={supportModalState.memberId}
+            initialSession={supportModalState.session}
+            onSessionChanged={() => {
+              loadActiveSupportSessions();
+              getModerationHouseholds().then(setHouseholds);
+            }}
+          />
         )}
       </div>
     </main>

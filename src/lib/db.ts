@@ -5012,6 +5012,18 @@ export const db = {
     return mapSupportSessionRow(res.rows[0]);
   },
 
+  async getAllActiveSupportSessions(): Promise<AdminSupportSession[]> {
+    if (!pool) {
+      const list: AdminSupportSession[] = (globalThis as any).__memorySupportSessions || [];
+      const now = new Date();
+      return list.filter((s) => s.status === "active" && s.expiresAt && new Date(s.expiresAt) > now);
+    }
+    const res = await pool.query(
+      `SELECT * FROM admin_support_sessions WHERE status = 'active' AND expires_at > NOW() ORDER BY expires_at DESC;`
+    );
+    return res.rows.map(mapSupportSessionRow);
+  },
+
   async updateSupportSessionStatus(id: string, status: string, updates?: UpdateSupportSessionInput): Promise<AdminSupportSession | null> {
     const nowIso = new Date().toISOString();
     if (!pool) {
@@ -5402,6 +5414,7 @@ function mapSupportAuditLogRow(row: any): AdminSupportAuditLog {
 export const createSupportSession = db.createSupportSession;
 export const getSupportSessionById = db.getSupportSessionById;
 export const getActiveSupportSession = db.getActiveSupportSession;
+export const getAllActiveSupportSessions = db.getAllActiveSupportSessions;
 export const updateSupportSessionStatus = db.updateSupportSessionStatus;
 export const recordSupportAuditLog = db.recordSupportAuditLog;
 export const getSupportAuditLogsBySession = db.getSupportAuditLogsBySession;

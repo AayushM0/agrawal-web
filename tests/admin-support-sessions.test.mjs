@@ -968,3 +968,54 @@ test("Issue 052: In-memory dual fallback stores support sessions and audit logs 
 
   assert.equal(getActiveSessionInMemory("hh-mem-01"), null);
 });
+
+// ============================================================================
+// REGRESSION SUITE: Admin Moderation UI Components & Integration (AWB-9)
+// ============================================================================
+test("Issue 052 / AWB-9: Admin moderation UI components and tab integration adhere to contracts", () => {
+  const modalCode = read("src/components/admin/AdminSupportSessionModal.tsx");
+  const formCode = read("src/components/admin/AdminSupportCorrectionForm.tsx");
+  const iconsCode = read("src/components/admin/AdminSupportIcons.tsx");
+  const pageCode = read("src/app/admin/moderation/page.tsx");
+
+  // 1. AdminSupportSessionModal contract
+  assert.ok(modalCode.includes("export default function AdminSupportSessionModal"), "Must export AdminSupportSessionModal");
+  assert.ok(modalCode.includes("requestAdminSupportSession"), "Modal Step 1 must call requestAdminSupportSession");
+  assert.ok(modalCode.includes("verifyAdminSupportSession"), "Modal Step 2 must call verifyAdminSupportSession");
+  assert.ok(modalCode.includes("revokeAdminSupportSessionAction"), "Modal Step 3 must call revokeAdminSupportSessionAction");
+  assert.ok(modalCode.includes("Send Authorization Code"), "Must have Send Authorization Code button");
+  assert.ok(modalCode.includes("Verify & Activate Session"), "Must have Verify & Activate Session button");
+  assert.ok(modalCode.includes("End Session Early"), "Must have End Session Early button");
+  assert.ok(modalCode.includes("remaining"), "Must display session countdown pill with remaining time");
+
+  // 2. AdminSupportCorrectionForm contract
+  assert.ok(formCode.includes("export default function AdminSupportCorrectionForm"), "Must export AdminSupportCorrectionForm");
+  assert.ok(formCode.includes("adminCorrectMemberDetailsAction"), "Form must call adminCorrectMemberDetailsAction");
+  assert.ok(formCode.includes("getSupportAuditLogsAction"), "Form must call getSupportAuditLogsAction");
+  assert.ok(formCode.includes("fullName"), "Form must edit fullName");
+  assert.ok(formCode.includes("fatherName"), "Form must edit fatherName");
+  assert.ok(formCode.includes("dob"), "Form must edit dob");
+  assert.ok(formCode.includes("Not specified"), "Form must support Not specified DOB toggle");
+  assert.ok(formCode.includes("gender"), "Form must edit gender");
+  assert.ok(formCode.includes("maritalStatus"), "Form must edit maritalStatus");
+  assert.ok(formCode.includes("gotras"), "Form must support gotra dropdown from gotras");
+  assert.ok(formCode.includes("nativePlace"), "Form must edit nativePlace");
+  assert.ok(formCode.includes("Visual Diff Review"), "Form must display visual diff review box");
+  assert.ok(formCode.includes("Immutable Session Audit Trail"), "Form must display audit log panel");
+
+  // 3. Page integration contract
+  assert.ok(pageCode.includes('"support"'), "page.tsx filter state must include 'support'");
+  assert.ok(pageCode.includes("Support Sessions"), "page.tsx must have Support Sessions tab button");
+  assert.ok(pageCode.includes("Initiate Support Session"), "page.tsx must have Initiate Support Session action button");
+  assert.ok(pageCode.includes("AdminSupportSessionModal"), "page.tsx must mount AdminSupportSessionModal");
+
+  // 4. Design invariants
+  assert.ok(iconsCode.includes("ShieldCheck"), "Must define ShieldCheck icon");
+  assert.ok(iconsCode.includes("KeyRound"), "Must define KeyRound icon");
+  assert.ok(iconsCode.includes("Clock"), "Must define Clock icon");
+  assert.ok(iconsCode.includes("History"), "Must define History icon");
+  assert.ok(iconsCode.includes("UserCheck"), "Must define UserCheck icon");
+  assert.ok(modalCode.includes("min-h-[44px]") || modalCode.includes("h-11"), "Primary CTAs must have 44px touch target");
+  assert.ok(formCode.includes("min-h-[44px]") || formCode.includes("h-11"), "Primary CTAs must have 44px touch target");
+});
+

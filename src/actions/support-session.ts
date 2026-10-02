@@ -19,12 +19,12 @@ function getAuthSecret(): string {
   return secret;
 }
 
-export function hashSupportOtp(otp: string): string {
+function hashSupportOtp(otp: string): string {
   const secret = getAuthSecret();
   return crypto.createHmac("sha256", secret).update(otp.trim()).digest("hex");
 }
 
-export function verifySupportOtpHash(otp: string, expectedHash: string): boolean {
+function verifySupportOtpHash(otp: string, expectedHash: string): boolean {
   try {
     const computedHash = hashSupportOtp(otp);
     const computedBuf = Buffer.from(computedHash, "hex");
@@ -322,6 +322,25 @@ export async function getActiveSupportSessionAction(
 }
 
 export const getActiveSupportSession = getActiveSupportSessionAction;
+
+/**
+ * Retrieve all active support sessions for the admin moderation dashboard.
+ */
+export async function getAllActiveSupportSessionsAction(): Promise<{
+  success: boolean;
+  error?: string;
+  sessions: AdminSupportSession[];
+}> {
+  const session = await getSession();
+  if (!session || session.role !== "admin") {
+    return { success: false, error: "Unauthorized: Admin privileges required.", sessions: [] };
+  }
+
+  const sessions = await db.getAllActiveSupportSessions();
+  return { success: true, sessions: sessions || [] };
+}
+
+export const getAllActiveSupportSessions = getAllActiveSupportSessionsAction;
 
 export interface AdminCorrectMemberDetailsInput {
   sessionId: string;
