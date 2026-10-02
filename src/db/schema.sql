@@ -611,6 +611,37 @@ CREATE TABLE IF NOT EXISTS job_applications (
 CREATE INDEX IF NOT EXISTS idx_job_applications_posting ON job_applications(job_posting_id);
 CREATE INDEX IF NOT EXISTS idx_job_applications_applicant ON job_applications(applicant_member_id);
 
+-- 9h. Admin Support Sessions & Audit Logs (Issue 052)
+CREATE TABLE IF NOT EXISTS admin_support_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_id TEXT NOT NULL,
+    household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+    member_id UUID REFERENCES members(id) ON DELETE CASCADE,
+    otp_hash TEXT NOT NULL,
+    otp_expires_at TIMESTAMPTZ NOT NULL,
+    otp_attempts INT DEFAULT 0,
+    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+    authorized_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ,
+    reason TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS admin_support_audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES admin_support_sessions(id) ON DELETE CASCADE,
+    admin_id TEXT NOT NULL,
+    household_id UUID NOT NULL,
+    member_id UUID,
+    changes JSONB NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_support_sessions_lookup ON admin_support_sessions(household_id, status, expires_at);
+CREATE INDEX IF NOT EXISTS idx_admin_support_audit_logs_session ON admin_support_audit_logs(session_id);
+
 -- 10. Row-Level Security (RLS) Configuration (Supabase Hardening)
 -- Enable RLS on all tables to prevent public anonymous REST API data exfiltration
 ALTER TABLE households ENABLE ROW LEVEL SECURITY;
@@ -631,6 +662,8 @@ ALTER TABLE business_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE career_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE job_postings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_support_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admin_support_audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- Households, Members, Message Reports, Rate Limits, and Admin Attempts have NO policies defined.
 -- In PostgreSQL, this default deny-all state blocks all public anon/authenticated REST/GraphQL operations.

@@ -14,6 +14,14 @@ import type {
   CreateJobPostingInput,
   JobApplication,
 } from "../types/career";
+import type {
+  AdminSupportSession,
+  AdminSupportAuditLog,
+  SupportSessionStatus,
+  CreateSupportSessionInput,
+  UpdateSupportSessionInput,
+  RecordSupportAuditLogInput,
+} from "../types/support-session";
 
 const globalForPg = globalThis as unknown as {
   pgPool?: Pool;
@@ -590,6 +598,36 @@ async function ensureSchema(client: any) {
       CREATE INDEX IF NOT EXISTS idx_job_applications_posting ON job_applications(job_posting_id);
       CREATE INDEX IF NOT EXISTS idx_job_applications_applicant ON job_applications(applicant_member_id);
       ALTER TABLE job_applications ENABLE ROW LEVEL SECURITY;
+
+      CREATE TABLE IF NOT EXISTS admin_support_sessions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          admin_id TEXT NOT NULL,
+          household_id UUID NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+          member_id UUID REFERENCES members(id) ON DELETE CASCADE,
+          otp_hash TEXT NOT NULL,
+          otp_expires_at TIMESTAMPTZ NOT NULL,
+          otp_attempts INT DEFAULT 0,
+          status VARCHAR(32) NOT NULL DEFAULT 'pending',
+          authorized_at TIMESTAMPTZ,
+          expires_at TIMESTAMPTZ,
+          reason TEXT NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS admin_support_audit_logs (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          session_id UUID NOT NULL REFERENCES admin_support_sessions(id) ON DELETE CASCADE,
+          admin_id TEXT NOT NULL,
+          household_id UUID NOT NULL,
+          member_id UUID,
+          changes JSONB NOT NULL,
+          reason TEXT NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_admin_support_sessions_lookup ON admin_support_sessions(household_id, status, expires_at);
+      CREATE INDEX IF NOT EXISTS idx_admin_support_audit_logs_session ON admin_support_audit_logs(session_id);
+      ALTER TABLE admin_support_sessions ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE admin_support_audit_logs ENABLE ROW LEVEL SECURITY;
     `);
     schemaEnsured = true;
     globalForPg.schemaEnsured = true;
@@ -4830,6 +4868,198 @@ export const db = {
     const res = await pool.query(query, [jobPostingId, applicantMemberId]);
     return (res.rowCount || 0) > 0;
   },
+
+  // --- Admin Support Sessions (Issue 052) ---
+  async createSupportSession(data: CreateSupportSessionInput): Promise<AdminSupportSession> {
+    const nowIso = new Date().toISOString();
+    const otpExp = data.otpExpiresAt instanceof Date ? data.otpExpiresAt.toISOString() : String(data.otpExpiresAt);
+    const initialStatus: SupportSessionStatus = data.status || "pending";
+
+    if (!pool) {
+      const newSession: AdminSupportSession = {
+        id: crypto.randomUUID(),
+        adminId: data.adminId,
+        householdId: data.householdId,
+        memberId: data.memberId || null,
+        otpHash: data.otpHash,
+        otpExpiresAt: otpExp,
+        otpAttempts: 0,
+        status: initialStatus,
+        authorizedAt: null,
+        expiresAt: null,
+        reason: data.reason,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+      const list: AdminSupportSession[] = ((globalThis as any).__memorySupportSessions ||= []);
+      list.unshift(newSession);
+      return newSession;
+    }
+
+    const query = `
+      INSERT INTO admin_support_sessions (
+        admin_id, household_id, member_id, otp_hash, otp_expires_at, reason, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *;
+    `;
+    const res = await pool.query(query, [
+      data.adminId,
+      data.householdId,
+      data.memberId || null,
+      data.otpHash,
+      otpExp,
+      data.reason,
+      initialStatus,
+    ]);
+    return mapSupportSessionRow(res.rows[0]);
+  },
+
+  async getSupportSessionById(id: string): Promise<AdminSupportSession | null> {
+    if (!pool) {
+      const list: AdminSupportSession[] = (globalThis as any).__memorySupportSessions || [];
+      return list.find((s) => s.id === id) || null;
+    }
+
+    const res = await pool.query(
+      `SELECT * FROM admin_support_sessions WHERE id::text = $1 LIMIT 1;`,
+      [id]
+    );
+    if (!res.rows[0]) return null;
+    return mapSupportSessionRow(res.rows[0]);
+  },
+
+  async getActiveSupportSession(householdId: string, memberId?: string): Promise<AdminSupportSession | null> {
+    if (!pool) {
+      const list: AdminSupportSession[] = (globalThis as any).__memorySupportSessions || [];
+      const now = new Date();
+      const candidates = list.filter((s) => {
+        if (s.householdId !== householdId) return false;
+        if (s.status !== "active") return false;
+        if (!s.expiresAt || new Date(s.expiresAt) <= now) return false;
+        if (memberId && s.memberId && s.memberId !== memberId) return false;
+        return true;
+      });
+      if (candidates.length === 0) return null;
+      candidates.sort((a, b) => new Date(b.expiresAt || 0).getTime() - new Date(a.expiresAt || 0).getTime());
+      return candidates[0];
+    }
+
+    let query = `
+      SELECT * FROM admin_support_sessions
+      WHERE household_id::text = $1
+        AND status = 'active'
+        AND expires_at > NOW()
+    `;
+    const params: any[] = [householdId];
+    if (memberId) {
+      query += ` AND (member_id::text = $2 OR member_id IS NULL)`;
+      params.push(memberId);
+    }
+    query += ` ORDER BY expires_at DESC LIMIT 1;`;
+    const res = await pool.query(query, params);
+    if (!res.rows[0]) return null;
+    return mapSupportSessionRow(res.rows[0]);
+  },
+
+  async updateSupportSessionStatus(id: string, status: string, updates?: UpdateSupportSessionInput): Promise<AdminSupportSession | null> {
+    const nowIso = new Date().toISOString();
+    if (!pool) {
+      const list: AdminSupportSession[] = (globalThis as any).__memorySupportSessions || [];
+      const session = list.find((s) => s.id === id);
+      if (!session) return null;
+      session.status = status as SupportSessionStatus;
+      if (updates && "authorizedAt" in updates) {
+        session.authorizedAt = updates.authorizedAt instanceof Date ? updates.authorizedAt.toISOString() : (updates.authorizedAt || null);
+      }
+      if (updates && "expiresAt" in updates) {
+        session.expiresAt = updates.expiresAt instanceof Date ? updates.expiresAt.toISOString() : (updates.expiresAt || null);
+      }
+      if (updates && typeof updates.otpAttempts === "number") {
+        session.otpAttempts = updates.otpAttempts;
+      }
+      session.updatedAt = nowIso;
+      return session;
+    }
+
+    const setClauses: string[] = ["status = $2", "updated_at = NOW()"];
+    const params: any[] = [id, status];
+    let paramIndex = 3;
+
+    if (updates && "authorizedAt" in updates) {
+      setClauses.push(`authorized_at = $${paramIndex++}`);
+      params.push(updates.authorizedAt instanceof Date ? updates.authorizedAt.toISOString() : (updates.authorizedAt || null));
+    }
+    if (updates && "expiresAt" in updates) {
+      setClauses.push(`expires_at = $${paramIndex++}`);
+      params.push(updates.expiresAt instanceof Date ? updates.expiresAt.toISOString() : (updates.expiresAt || null));
+    }
+    if (updates && typeof updates.otpAttempts === "number") {
+      setClauses.push(`otp_attempts = $${paramIndex++}`);
+      params.push(updates.otpAttempts);
+    }
+
+    const query = `
+      UPDATE admin_support_sessions
+      SET ${setClauses.join(", ")}
+      WHERE id::text = $1
+      RETURNING *;
+    `;
+    const res = await pool.query(query, params);
+    if (!res.rows[0]) return null;
+    return mapSupportSessionRow(res.rows[0]);
+  },
+
+  async recordSupportAuditLog(data: RecordSupportAuditLogInput): Promise<AdminSupportAuditLog> {
+    const nowIso = new Date().toISOString();
+    if (!pool) {
+      const list: AdminSupportAuditLog[] = ((globalThis as any).__memorySupportAuditLogs ||= []);
+      const newLog: AdminSupportAuditLog = {
+        id: crypto.randomUUID(),
+        sessionId: data.sessionId,
+        adminId: data.adminId,
+        householdId: data.householdId,
+        memberId: data.memberId || null,
+        changes: data.changes || {},
+        reason: data.reason,
+        createdAt: nowIso,
+      };
+      list.unshift(newLog);
+      return newLog;
+    }
+
+    const query = `
+      INSERT INTO admin_support_audit_logs (
+        session_id, admin_id, household_id, member_id, changes, reason
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *;
+    `;
+    const res = await pool.query(query, [
+      data.sessionId,
+      data.adminId,
+      data.householdId,
+      data.memberId || null,
+      JSON.stringify(data.changes || {}),
+      data.reason,
+    ]);
+    return mapSupportAuditLogRow(res.rows[0]);
+  },
+
+  async getSupportAuditLogsBySession(sessionId: string): Promise<AdminSupportAuditLog[]> {
+    if (!pool) {
+      const list: AdminSupportAuditLog[] = (globalThis as any).__memorySupportAuditLogs || [];
+      return list
+        .filter((l) => l.sessionId === sessionId)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+
+    const query = `
+      SELECT * FROM admin_support_audit_logs
+      WHERE session_id::text = $1
+      ORDER BY created_at DESC;
+    `;
+    const res = await pool.query(query, [sessionId]);
+    return res.rows.map(mapSupportAuditLogRow);
+  },
 };
 
 function mapMatrimonialRow(row: any): MatrimonialProfile {
@@ -5078,4 +5308,51 @@ function mapJobApplicationRow(row: any): JobApplication {
     applicantResumeUrl: row.applicant_resume_url || row.applicantResumeUrl || undefined,
   };
 }
+
+function mapSupportSessionRow(row: any): AdminSupportSession {
+  return {
+    id: String(row.id),
+    adminId: String(row.admin_id || row.adminId || ""),
+    householdId: String(row.household_id || row.householdId || ""),
+    memberId: row.member_id || row.memberId || null,
+    otpHash: String(row.otp_hash || row.otpHash || ""),
+    otpExpiresAt: row.otp_expires_at instanceof Date ? row.otp_expires_at.toISOString() : String(row.otp_expires_at || row.otpExpiresAt || ""),
+    otpAttempts: typeof row.otp_attempts === "number" ? row.otp_attempts : (parseInt(row.otp_attempts, 10) || 0),
+    status: (row.status as SupportSessionStatus) || "pending",
+    authorizedAt: row.authorized_at ? (row.authorized_at instanceof Date ? row.authorized_at.toISOString() : String(row.authorized_at)) : null,
+    expiresAt: row.expires_at ? (row.expires_at instanceof Date ? row.expires_at.toISOString() : String(row.expires_at)) : null,
+    reason: String(row.reason || ""),
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || new Date().toISOString()),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || new Date().toISOString()),
+  };
+}
+
+function mapSupportAuditLogRow(row: any): AdminSupportAuditLog {
+  let changes = row.changes;
+  if (typeof changes === "string") {
+    try {
+      changes = JSON.parse(changes);
+    } catch {
+      changes = {};
+    }
+  }
+  return {
+    id: String(row.id),
+    sessionId: String(row.session_id || row.sessionId || ""),
+    adminId: String(row.admin_id || row.adminId || ""),
+    householdId: String(row.household_id || row.householdId || ""),
+    memberId: row.member_id || row.memberId || null,
+    changes: changes || {},
+    reason: String(row.reason || ""),
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || new Date().toISOString()),
+  };
+}
+
+export const createSupportSession = db.createSupportSession;
+export const getSupportSessionById = db.getSupportSessionById;
+export const getActiveSupportSession = db.getActiveSupportSession;
+export const updateSupportSessionStatus = db.updateSupportSessionStatus;
+export const recordSupportAuditLog = db.recordSupportAuditLog;
+export const getSupportAuditLogsBySession = db.getSupportAuditLogsBySession;
+
 
