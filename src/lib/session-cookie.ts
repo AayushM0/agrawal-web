@@ -12,7 +12,7 @@ export interface SessionData {
 }
 
 export async function readSession(): Promise<SessionData | null> {
-  if (process.env.NODE_ENV !== "production" && (globalThis as any).__TEST_SESSION__ !== undefined) {
+  if (process.env.NODE_ENV === "test" && (globalThis as any).__TEST_SESSION__ !== undefined) {
     return (globalThis as any).__TEST_SESSION__;
   }
   try {

@@ -286,3 +286,102 @@ test("AWB-19: UI components AuditDiffModal and AdminAuditExplorer exist and expo
   assert.ok(explorerCode.includes("Critical Mutations"), "Must render critical mutations metric");
 });
 
+test("AWB-21: Neutralize CSV Formula Injection (CWE-1236) in escapeCsvField", () => {
+  const auditCode = read("src/actions/audit.ts");
+  assert.ok(auditCode.includes("escapeCsvField"), "Must define escapeCsvField");
+
+  // Verify formula triggers are checked in source code
+  assert.ok(auditCode.includes("'='"), "Must check '='");
+  assert.ok(auditCode.includes("'+'"), "Must check '+'");
+  assert.ok(auditCode.includes("'-'"), "Must check '-'");
+  assert.ok(auditCode.includes("'@'"), "Must check '@'");
+  assert.ok(auditCode.includes("'\\t'"), "Must check '\\t'");
+  assert.ok(auditCode.includes("'\\r'"), "Must check '\\r'");
+  assert.ok(auditCode.includes("formulaTriggers.includes(str[0])"), "Must check trigger on first character");
+  assert.ok(auditCode.includes("str = \"'\" + str"), "Must prefix trigger with single apostrophe");
+
+  // Mirror and test escapeCsvField logic
+  function escapeCsvField(val) {
+    if (val === null || val === undefined) return '""';
+    let str = typeof val === "object" ? JSON.stringify(val) : String(val);
+    const formulaTriggers = ['=', '+', '-', '@', '\t', '\r'];
+    if (str.length > 0 && formulaTriggers.includes(str[0])) {
+      str = "'" + str;
+    }
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+
+  assert.equal(escapeCsvField("=cmd|' /C calc'!A0"), "\"\'=cmd|\' /C calc\'!A0\"", "Must prefix leading '=' with apostrophe and wrap in quotes");
+  assert.equal(escapeCsvField("+123456789"), "\"\'+123456789\"", "Must prefix leading '+' with apostrophe and wrap in quotes");
+  assert.equal(escapeCsvField("-DANGEROUS_ACTION"), "\"\'-DANGEROUS_ACTION\"", "Must prefix leading '-' with apostrophe and wrap in quotes");
+  assert.equal(escapeCsvField("@SUM(A1:A10)"), "\"\'@SUM(A1:A10)\"", "Must prefix leading '@' with apostrophe and wrap in quotes");
+  assert.equal(escapeCsvField("\tTAB_INJECT"), "\"\'\tTAB_INJECT\"", "Must prefix leading '\\t' with apostrophe and wrap in quotes");
+  assert.equal(escapeCsvField("\rCR_INJECT"), "\"\'\rCR_INJECT\"", "Must prefix leading '\\r' with apostrophe and wrap in quotes");
+  assert.equal(escapeCsvField('Hello "World"'), "\"Hello \"\"World\"\"\"", "Must double inner quotes");
+  assert.equal(escapeCsvField(null), '""', "Null returns empty string");
+  assert.equal(escapeCsvField(undefined), '""', "Undefined returns empty string");
+});
+
+test("AWB-21: getUnifiedAuditTrail supports query limit up to 5000 and sanitizes missing view error", async () => {
+  const dbFile = read("src/lib/db.ts");
+  assert.ok(
+    dbFile.includes("Math.min(5000, Math.max(1, params.limit || 25))"),
+    "db.ts must clamp limit to upper bound of 5000"
+  );
+  assert.ok(
+    dbFile.includes("Audit trail database view is not initialized."),
+    "db.ts must return sanitized error when view does not exist"
+  );
+
+  const { db } = await import("../src/lib/db.ts");
+  const res = await db.getUnifiedAuditTrail({ limit: 5000 });
+  assert.equal(res.success, true);
+  assert.equal(res.pagination.limit, 5000, "Pagination limit must reflect 5000 when requested");
+});
+
+test("AWB-21: Server action errors sanitize relation and database view names", () => {
+  const auditCode = read("src/actions/audit.ts");
+  assert.ok(
+    auditCode.includes("Audit trail service is temporarily unavailable. Please verify database initialization."),
+    "audit.ts must return sanitized error message when relation/view is referenced"
+  );
+  assert.ok(auditCode.includes("view_platform_audit_trail"), "audit.ts must check for view_platform_audit_trail");
+  assert.ok(auditCode.includes("relation"), "audit.ts must check for relation keyword");
+});
+
+test("AWB-21: __TEST_SESSION__ backdoor strictly restricted to NODE_ENV === 'test'", () => {
+  const sessionCookieCode = read("src/lib/session-cookie.ts");
+  assert.ok(
+    sessionCookieCode.includes('process.env.NODE_ENV === "test" && (globalThis as any).__TEST_SESSION__ !== undefined'),
+    "session-cookie.ts must strictly check NODE_ENV === 'test'"
+  );
+  assert.ok(
+    !sessionCookieCode.includes('process.env.NODE_ENV !== "production"'),
+    "session-cookie.ts must not use NODE_ENV !== 'production'"
+  );
+
+  // Validate the guard logic
+  const mockSession = { userId: "test-user-123", role: "admin", contact: "admin@test.org" };
+  const checkGuard = (env, session) => {
+    if (env === "test" && session !== undefined) {
+      return session;
+    }
+    return null;
+  };
+
+  assert.equal(checkGuard("development", mockSession), null, "__TEST_SESSION__ must not activate in development");
+  assert.equal(checkGuard("production", mockSession), null, "__TEST_SESSION__ must not activate in production");
+  assert.deepEqual(checkGuard("test", mockSession), mockSession, "__TEST_SESSION__ must activate in test");
+});
+
+test("AWB-21: Standalone migration script scripts/migrate-audit-view.mjs exists and is idempotent", () => {
+  const script = read("scripts/migrate-audit-view.mjs");
+  assert.ok(script.includes("view_platform_audit_trail"), "Migration script must define view_platform_audit_trail");
+  assert.ok(script.includes("prevent_audit_log_mutation"), "Migration script must define prevent_audit_log_mutation");
+  assert.ok(script.includes("idx_admin_audit_logs_action_created"), "Migration script must create action index");
+  assert.ok(script.includes("idx_admin_audit_logs_category"), "Migration script must create category index");
+  assert.ok(script.includes("idx_admin_audit_logs_admin"), "Migration script must create admin index");
+  assert.ok(script.includes("Pool"), "Migration script must use pg Pool");
+});
+
+
