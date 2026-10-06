@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   getAuditTrailLogsAction,
   getAuditTrailStatsAction,
@@ -38,15 +38,27 @@ export default function AdminAuditExplorer({ initialCategory = "ALL" }: { initia
   );
   const [severity, setSeverity] = useState<AuditSeverity | "ALL">("ALL");
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [dateRange, setDateRange] = useState<"all" | "today" | "7d" | "30d">("all");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
+  // Sequence guard for asynchronous race conditions
+  const activeRequestIdRef = useRef(0);
+
   // Modal inspection state
   const [activeLog, setActiveLog] = useState<AuditTrailItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Debounce search input updates with 300ms delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const calculateDateBounds = useCallback(() => {
     if (dateRange === "all") return {};
@@ -67,33 +79,41 @@ export default function AdminAuditExplorer({ initialCategory = "ALL" }: { initia
   }, [dateRange]);
 
   const loadData = useCallback(async () => {
+    const reqId = ++activeRequestIdRef.current;
     setIsLoading(true);
     const dateBounds = calculateDateBounds();
-    const [logsRes, statsRes] = await Promise.all([
-      getAuditTrailLogsAction({
-        page,
-        limit,
-        category,
-        severity,
-        search: searchTerm.trim() || undefined,
-        ...dateBounds,
-      }),
-      getAuditTrailStatsAction(),
-    ]);
+    try {
+      const [logsRes, statsRes] = await Promise.all([
+        getAuditTrailLogsAction({
+          page,
+          limit,
+          category,
+          severity,
+          search: debouncedSearchTerm.trim() || undefined,
+          ...dateBounds,
+        }),
+        getAuditTrailStatsAction(),
+      ]);
 
-    if (logsRes.success) {
-      setLogs(logsRes.logs);
-      setTotal(logsRes.pagination.total);
-      setTotalPages(logsRes.pagination.totalPages);
-    } else {
-      setStatusMessage(logsRes.error || "Failed to load audit logs.");
-    }
+      if (reqId !== activeRequestIdRef.current) return;
 
-    if (statsRes.success && statsRes.stats) {
-      setStats(statsRes.stats);
+      if (logsRes.success) {
+        setLogs(logsRes.logs);
+        setTotal(logsRes.pagination.total);
+        setTotalPages(logsRes.pagination.totalPages);
+      } else {
+        setStatusMessage(logsRes.error || "Failed to load audit logs.");
+      }
+
+      if (statsRes.success && statsRes.stats) {
+        setStats(statsRes.stats);
+      }
+    } finally {
+      if (reqId === activeRequestIdRef.current) {
+        setIsLoading(false);
+      }
     }
-    setIsLoading(false);
-  }, [page, limit, category, severity, searchTerm, calculateDateBounds]);
+  }, [page, limit, category, severity, debouncedSearchTerm, calculateDateBounds]);
 
   useEffect(() => {
     loadData();
@@ -105,7 +125,7 @@ export default function AdminAuditExplorer({ initialCategory = "ALL" }: { initia
     const res = await exportAuditTrailCsvAction({
       category,
       severity,
-      search: searchTerm.trim() || undefined,
+      search: debouncedSearchTerm.trim() || undefined,
       ...dateBounds,
     });
     setIsExporting(false);

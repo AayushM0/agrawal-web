@@ -10,16 +10,48 @@ interface AuditDiffModalProps {
 }
 
 export default function AuditDiffModal({ isOpen, onClose, log }: AuditDiffModalProps) {
-  const [copyFeedback, setCopyFeedback] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<"copied" | "failed" | null>(null);
 
   if (!isOpen || !log) return null;
 
-  const handleCopyJson = () => {
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(JSON.stringify(log, null, 2));
-      setCopyFeedback(true);
-      setTimeout(() => setCopyFeedback(false), 2000);
+  const handleCopyJson = async () => {
+    const textToCopy = JSON.stringify(log, null, 2);
+    let success = false;
+
+    if (typeof navigator !== "undefined" && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        success = true;
+      } catch {
+        success = false;
+      }
     }
+
+    if (!success && typeof document !== "undefined") {
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = textToCopy;
+        textarea.style.position = "fixed";
+        textarea.style.top = "0";
+        textarea.style.left = "-9999px";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        success = document.execCommand("copy");
+        document.body.removeChild(textarea);
+      } catch {
+        success = false;
+      }
+    }
+
+    if (success) {
+      setCopyFeedback("copied");
+    } else {
+      setCopyFeedback("failed");
+    }
+
+    setTimeout(() => setCopyFeedback(null), 2000);
   };
 
   const changes = log.details?.changes as Record<string, { old: any; new: any }> | undefined;
@@ -174,7 +206,13 @@ export default function AuditDiffModal({ isOpen, onClose, log }: AuditDiffModalP
                   <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
                   <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
                 </svg>
-                <span>{copyFeedback ? "Copied JSON!" : "Copy Payload"}</span>
+                <span>
+                  {copyFeedback === "copied"
+                    ? "Copied JSON!"
+                    : copyFeedback === "failed"
+                    ? "Copy Failed (Blocked)"
+                    : "Copy Payload"}
+                </span>
               </button>
             </div>
             <pre className="p-4 bg-slate-900 text-slate-100 rounded-2xl text-xs font-mono overflow-x-auto max-h-64 leading-relaxed border border-slate-800">
