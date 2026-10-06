@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { clearSession } from "@/actions/auth";
 import {
   approveHousehold,
@@ -35,6 +36,7 @@ import { getAllActiveSupportSessionsAction } from "@/actions/support-session";
 import type { AdminSupportSession } from "@/types/support-session";
 import AdminSupportSessionModal from "@/components/admin/AdminSupportSessionModal";
 import { ShieldCheck } from "@/components/admin/AdminSupportIcons";
+import AdminAuditExplorer from "@/components/admin/AdminAuditExplorer";
 
 export default function ModerationQueuePage() {
   const router = useRouter();
@@ -50,7 +52,7 @@ export default function ModerationQueuePage() {
   const [liveJobs, setLiveJobs] = useState<JobPosting[]>([]);
   const [rejectingBusinessId, setRejectingBusinessId] = useState<string | null>(null);
   const [businessRejectReason, setBusinessRejectReason] = useState("");
-  const [filter, setFilter] = useState<"pending" | "approved" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue" | "businesses" | "careers" | "assisted" | "support">("pending");
+  const [filter, setFilter] = useState<"pending" | "approved" | "all" | "rejected" | "reports" | "inquiries" | "incomplete" | "queue" | "businesses" | "careers" | "assisted" | "support" | "audit">("pending");
   const [activeSupportSessions, setActiveSupportSessions] = useState<AdminSupportSession[]>([]);
   const [supportModalState, setSupportModalState] = useState<{
     isOpen: boolean;
@@ -601,6 +603,19 @@ export default function ModerationQueuePage() {
             <span className="text-[10px] font-bold text-brand-primary uppercase tracking-wider block">Support</span>
             <span className="text-lg font-black text-brand-primary">{activeSupportSessions.length}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setFilter("audit")}
+            className={`p-3 rounded-2xl text-left border transition-all shadow-2xs ${
+              filter === "audit"
+                ? "bg-emerald-100/90 border-emerald-500 ring-2 ring-emerald-400/30"
+                : "bg-white border-brand-accent/30 hover:bg-emerald-50/40"
+            }`}
+          >
+            <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">🛡️ Audit Trail</span>
+            <span className="text-lg font-black text-emerald-800">{totalSupportAuditLogs}</span>
+          </button>
         </div>
 
         {/* Tab Navigation Bar */}
@@ -802,6 +817,17 @@ export default function ModerationQueuePage() {
                   {activeSupportSessions.length} active
                 </span>
               )}
+            </button>
+
+            <button
+              onClick={() => setFilter("audit")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all min-h-[38px] flex items-center gap-1.5 ${
+                filter === "audit"
+                  ? "bg-brand-primary text-white shadow-xs"
+                  : "text-body-muted hover:text-brand-primary hover:bg-canvas-warm/50"
+              }`}
+            >
+              <span>🛡️ Audit Trail</span>
             </button>
           </div>
         </div>
@@ -1641,6 +1667,24 @@ export default function ModerationQueuePage() {
           </div>
         ) : filter === "assisted" ? (
           <AdminAssistedProfilesCreator />
+        ) : filter === "audit" ? (
+          <section className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-brand-primary">Platform Audit Ledger</h2>
+                <p className="text-xs text-body-muted">
+                  Live stream of administrative actions, support sessions, and entity lifecycles.
+                </p>
+              </div>
+              <Link
+                href="/admin/audit"
+                className="px-3.5 py-2 rounded-2xl text-xs font-bold text-brand-primary bg-white hover:bg-canvas-warm border border-brand-accent/30 shadow-2xs transition flex items-center gap-1.5"
+              >
+                <span>Open Dedicated Explorer ↗</span>
+              </Link>
+            </div>
+            <AdminAuditExplorer />
+          </section>
         ) : filter === "careers" ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between">

@@ -60,7 +60,8 @@ function escapeCsvField(val: any): string {
   return `"${str.replace(/"/g, '""')}"`;
 }
 
-export function generateAuditCsvString(logs: AuditTrailItem[]): string {
+// export function generateAuditCsvString
+export async function generateAuditCsvString(logs: AuditTrailItem[]): Promise<string> {
   const headers = [
     "Timestamp",
     "Admin Contact",
@@ -109,7 +110,7 @@ export async function exportAuditTrailCsvAction(
       return { success: false, error: result.error || "Failed to fetch logs for export." };
     }
 
-    const csv = generateAuditCsvString(result.logs);
+    const csv = await generateAuditCsvString(result.logs);
     const dateStamp = new Date().toISOString().split("T")[0];
     const filename = `agrawal-platform-audit-${dateStamp}.csv`;
 
