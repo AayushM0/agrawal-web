@@ -266,3 +266,23 @@ test("AWB-18: matrimony.ts instruments updateMatrimonialProfileStatus with audit
   assert.ok(matrimony.includes("db.recordPlatformAuditLog"), "matrimony.ts must call db.recordPlatformAuditLog");
 });
 
+test("AWB-19: UI components AuditDiffModal and AdminAuditExplorer exist and export properly", () => {
+  const modalCode = read("src/components/admin/AuditDiffModal.tsx");
+  const explorerCode = read("src/components/admin/AdminAuditExplorer.tsx");
+
+  assert.ok(modalCode.includes("export default function AuditDiffModal"), "Must export AuditDiffModal default");
+  assert.ok(modalCode.includes("Old Value") || modalCode.includes("Previous"), "Diff viewer must render before/after diff");
+  assert.ok(modalCode.includes("New Value") || modalCode.includes("Updated"), "Diff viewer must render new value");
+  assert.ok(modalCode.includes("Copy Payload") || modalCode.includes("copyFeedback"), "Must provide copy payload functionality");
+  assert.ok(modalCode.includes("Verified Immutable"), "Must display immutability verified badge");
+
+  assert.ok(explorerCode.includes("export default function AdminAuditExplorer"), "Must export AdminAuditExplorer default");
+  assert.ok(explorerCode.includes("getAuditTrailLogsAction"), "Must call getAuditTrailLogsAction");
+  assert.ok(explorerCode.includes("getAuditTrailStatsAction"), "Must call getAuditTrailStatsAction");
+  assert.ok(explorerCode.includes("exportAuditTrailCsvAction"), "Must support CSV export");
+  assert.ok(explorerCode.includes("AuditDiffModal"), "Must embed AuditDiffModal");
+  assert.ok(explorerCode.includes("Inspect Diff"), "Must provide Inspect Diff button in audit table");
+  assert.ok(explorerCode.includes("Total Platform Logs"), "Must render total platform logs metric");
+  assert.ok(explorerCode.includes("Critical Mutations"), "Must render critical mutations metric");
+});
+
