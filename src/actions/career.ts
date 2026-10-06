@@ -1,7 +1,9 @@
 'use server';
 
+import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { getSession } from "@/actions/auth";
+import { getClientIp } from "@/lib/turnstile";
 import type {
   CareerProfile,
   CreateCareerProfileInput,
@@ -654,3 +656,69 @@ export async function getMyHouseholdJobPostingsAction(): Promise<{
   }
 }
 
+/**
+ * Toggle the status of a job posting (e.g. between active and paused, or closed).
+ */
+export async function toggleJobPostingStatusAction(
+  id: string,
+  targetStatus?: "active" | "paused" | "closed"
+): Promise<{
+  success: boolean;
+  newStatus?: "active" | "paused" | "closed";
+  error?: string;
+}> {
+  const session = await getSession();
+  if (!session || !session.userId) {
+    return { success: false, error: "Unauthorized." };
+  }
+
+  try {
+    const existing = await db.getJobPostingById(id);
+    if (!existing) {
+      return { success: false, error: "Job posting not found." };
+    }
+
+    const isAdmin = session.role === "admin";
+    let isOwner = false;
+    if (!isAdmin) {
+      const household = await db.getHouseholdByContact(session.contact);
+      if (household && household.id === existing.householdId) {
+        isOwner = true;
+      }
+    }
+
+    if (!isAdmin && !isOwner) {
+      return { success: false, error: "Unauthorized to update this job posting." };
+    }
+
+    const nextStatus = targetStatus || (existing.status === "active" ? "paused" : "active");
+    await db.updateJobPosting(id, { status: nextStatus });
+
+    let clientIp = "127.0.0.1";
+    try {
+      const reqHeaders = await headers();
+      clientIp = getClientIp(reqHeaders);
+    } catch {
+      // ignore
+    }
+
+    await db.recordPlatformAuditLog({
+      adminId: session.userId || "admin",
+      adminContact: session.contact || "admin",
+      action: "JOB_POSTING_STATUS_CHANGED",
+      category: "CAREER_JOB",
+      severity: "INFO",
+      targetType: "job_posting",
+      targetId: id,
+      details: { previousStatus: existing.status, newStatus: nextStatus },
+      ipAddress: clientIp,
+    });
+
+    return { success: true, newStatus: nextStatus };
+  } catch (err: any) {
+    console.error("[CAREER ACTION ERROR] toggleJobPostingStatusAction:", err);
+    return { success: false, error: "Failed to toggle job posting status." };
+  }
+}
+
+export const toggleJobPostingStatus = toggleJobPostingStatusAction;

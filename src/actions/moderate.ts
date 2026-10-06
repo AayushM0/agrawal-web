@@ -801,5 +801,9 @@ export async function rejectBusinessProfileAction(params: {
   }
 }
 
-
-
+// Backward compatibility re-exports for Unified Platform Audit Trail
+export {
+  getAuditTrailLogsAction,
+  getAuditTrailStatsAction,
+  exportAuditTrailCsvAction,
+} from "./audit";

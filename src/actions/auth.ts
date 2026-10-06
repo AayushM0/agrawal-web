@@ -52,15 +52,51 @@ export async function verifyAdminPassword(password: string): Promise<{ success: 
 
 export async function loginAdmin(password: string, contact?: string): Promise<{ success: boolean; error?: string }> {
   const verification = await verifyAdminPassword(password);
-  if (!verification.success) return verification;
+  let clientIp = "127.0.0.1";
+  try {
+    const reqHeaders = await headers();
+    clientIp = getClientIp(reqHeaders);
+  } catch {
+    // fallback in environments where headers() is not available
+  }
+  const canonicalContact = contact?.trim() || "admin@agarwal-foundation.org";
 
+  if (!verification.success) {
+    await db.recordPlatformAuditLog({
+      adminId: "unauthenticated",
+      adminContact: canonicalContact,
+      action: "ADMIN_LOGIN_FAILED",
+      category: "IDENTITY_ACCESS",
+      severity: "WARN",
+      targetType: "admin_auth",
+      targetId: canonicalContact,
+      details: { reason: verification.error || "Invalid password", clientIp },
+      ipAddress: clientIp,
+    });
+    return verification;
+  }
+
+  const adminUserId = `admin-${Date.now()}`;
   await sessionCreateSession({
-    userId: `admin-${Date.now()}`,
+    userId: adminUserId,
     role: "admin",
-    contact: contact?.trim() || "admin@agarwal-foundation.org",
+    contact: canonicalContact,
     householdStatus: "live",
     isActivated: true,
   });
+
+  await db.recordPlatformAuditLog({
+    adminId: adminUserId,
+    adminContact: canonicalContact,
+    action: "ADMIN_LOGIN_SUCCESS",
+    category: "IDENTITY_ACCESS",
+    severity: "INFO",
+    targetType: "admin_auth",
+    targetId: adminUserId,
+    details: { contact: canonicalContact, clientIp },
+    ipAddress: clientIp,
+  });
+
   return { success: true };
 }
 
