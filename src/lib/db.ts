@@ -1083,7 +1083,7 @@ export const db = {
 
   async getUnifiedAuditTrail(params: GetAuditTrailInput = {}): Promise<AuditTrailResponse> {
     const page = Math.max(1, params.page || 1);
-    const limit = Math.min(100, Math.max(1, params.limit || 25));
+    const limit = Math.min(5000, Math.max(1, params.limit || 25));
     const offset = (page - 1) * limit;
 
     if (!pool) {
@@ -1266,6 +1266,21 @@ export const db = {
       };
     } catch (err: any) {
       console.error("[DB] getUnifiedAuditTrail error:", err);
+      const msg = err?.message || "";
+      const code = err?.code;
+      if (
+        code === "42P01" ||
+        msg.includes("does not exist") ||
+        msg.includes("view_platform_audit_trail") ||
+        msg.includes("relation")
+      ) {
+        return {
+          success: false,
+          logs: [],
+          pagination: { page, limit, total: 0, totalPages: 1 },
+          error: "Audit trail database view is not initialized.",
+        };
+      }
       return {
         success: false,
         logs: [],

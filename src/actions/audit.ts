@@ -9,6 +9,14 @@ import type {
   AuditTrailItem,
 } from "@/types/audit";
 
+function sanitizeAuditError(rawError: string | undefined, defaultFallback: string): string {
+  const msg = rawError || defaultFallback;
+  if (msg.includes("relation") || msg.includes("view_platform_audit_trail")) {
+    return "Audit trail service is temporarily unavailable. Please verify database initialization.";
+  }
+  return msg;
+}
+
 export async function getAuditTrailLogsAction(
   params: GetAuditTrailInput = {}
 ): Promise<AuditTrailResponse> {
@@ -23,14 +31,21 @@ export async function getAuditTrailLogsAction(
   }
 
   try {
-    return await db.getUnifiedAuditTrail(params);
+    const result = await db.getUnifiedAuditTrail(params);
+    if (!result.success && result.error) {
+      return {
+        ...result,
+        error: sanitizeAuditError(result.error, "Failed to load audit logs."),
+      };
+    }
+    return result;
   } catch (err: any) {
     console.error("[ACTION ERROR] getAuditTrailLogsAction:", err);
     return {
       success: false,
       logs: [],
       pagination: { page: 1, limit: 25, total: 0, totalPages: 1 },
-      error: err?.message || "Failed to load audit logs.",
+      error: sanitizeAuditError(err?.message, "Failed to load audit logs."),
     };
   }
 }
@@ -50,13 +65,17 @@ export async function getAuditTrailStatsAction(): Promise<{
     return { success: true, stats };
   } catch (err: any) {
     console.error("[ACTION ERROR] getAuditTrailStatsAction:", err);
-    return { success: false, error: err?.message || "Failed to load audit statistics." };
+    return { success: false, error: sanitizeAuditError(err?.message, "Failed to load audit statistics.") };
   }
 }
 
 function escapeCsvField(val: any): string {
   if (val === null || val === undefined) return '""';
-  const str = typeof val === "object" ? JSON.stringify(val) : String(val);
+  let str = typeof val === "object" ? JSON.stringify(val) : String(val);
+  const formulaTriggers = ['=', '+', '-', '@', '\t', '\r'];
+  if (str.length > 0 && formulaTriggers.includes(str[0])) {
+    str = "'" + str;
+  }
   return `"${str.replace(/"/g, '""')}"`;
 }
 
@@ -107,7 +126,7 @@ export async function exportAuditTrailCsvAction(
     // Export up to 5,000 logs matching the criteria
     const result = await db.getUnifiedAuditTrail({ ...params, page: 1, limit: 5000 });
     if (!result.success) {
-      return { success: false, error: result.error || "Failed to fetch logs for export." };
+      return { success: false, error: sanitizeAuditError(result.error, "Failed to fetch logs for export.") };
     }
 
     const csv = await generateAuditCsvString(result.logs);
@@ -117,7 +136,7 @@ export async function exportAuditTrailCsvAction(
     return { success: true, csv, filename };
   } catch (err: any) {
     console.error("[ACTION ERROR] exportAuditTrailCsvAction:", err);
-    return { success: false, error: err?.message || "Failed to export audit logs." };
+    return { success: false, error: sanitizeAuditError(err?.message, "Failed to export audit logs.") };
   }
 }
 
