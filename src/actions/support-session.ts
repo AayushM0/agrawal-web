@@ -1,15 +1,26 @@
 'use server';
 
 import crypto from "crypto";
+import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { getSession } from "@/actions/auth";
 import { enqueueEmail } from "@/lib/email-queue";
 import { maskEmail } from "@/lib/privacy";
 import { gotras } from "@/data/gotras";
+import { getClientIp } from "@/lib/turnstile";
 import type {
   AdminSupportSession,
   AdminSupportAuditLog,
 } from "@/types/support-session";
+
+async function getAdminIp(): Promise<string> {
+  try {
+    const h = await headers();
+    return getClientIp(h);
+  } catch {
+    return "127.0.0.1";
+  }
+}
 
 function getAuthSecret(): string {
   const secret = process.env.AUTH_SECRET;
@@ -191,6 +202,18 @@ export async function requestAdminSupportSession(
     console.error("[SUPPORT SESSION] Failed to queue authorization email:", emailErr);
   }
 
+  await db.recordPlatformAuditLog({
+    adminId: session.userId || "admin",
+    adminContact: session.contact || "admin",
+    action: "SUPPORT_SESSION_REQUESTED",
+    category: "SUPPORT_SESSION",
+    severity: "INFO",
+    targetType: memberId ? "member" : "household",
+    targetId: memberId || householdId,
+    details: { sessionId: createdSession.id, reason: cleanReason, maskedEmail: masked },
+    ipAddress: await getAdminIp(),
+  });
+
   return {
     success: true,
     sessionId: createdSession.id,
@@ -272,6 +295,18 @@ export async function verifyAdminSupportSession(
   const updatedSession = await db.updateSupportSessionStatus(sessionId, "active", {
     authorizedAt: now,
     expiresAt,
+  });
+
+  await db.recordPlatformAuditLog({
+    adminId: session.userId || "admin",
+    adminContact: session.contact || "admin",
+    action: "SUPPORT_SESSION_AUTHORIZED",
+    category: "SUPPORT_SESSION",
+    severity: "INFO",
+    targetType: "support_session",
+    targetId: sessionId,
+    details: { expiresAt: updatedSession?.expiresAt || expiresAt.toISOString() },
+    ipAddress: await getAdminIp(),
   });
 
   return {
@@ -634,6 +669,18 @@ export async function revokeAdminSupportSessionAction(
   const now = new Date();
   await db.updateSupportSessionStatus(sessionId, "revoked", {
     expiresAt: now,
+  });
+
+  await db.recordPlatformAuditLog({
+    adminId: session.userId || "admin",
+    adminContact: session.contact || "admin",
+    action: "SUPPORT_SESSION_REVOKED",
+    category: "SUPPORT_SESSION",
+    severity: "WARN",
+    targetType: "support_session",
+    targetId: sessionId,
+    details: { reason: "Session explicitly revoked" },
+    ipAddress: await getAdminIp(),
   });
 
   return { success: true, message: "Support session revoked successfully." };

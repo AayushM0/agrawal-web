@@ -1,7 +1,9 @@
 'use server';
 
+import { headers } from "next/headers";
 import { db } from "@/lib/db";
 import { getSession } from "@/actions/auth";
+import { getClientIp } from "@/lib/turnstile";
 import { sanitizeSearchString, sanitizeNameString } from "@/lib/sanitizer";
 import { sanitizeMatrimonialProfile } from "@/lib/privacy";
 import { uploadMemberPhoto } from "@/lib/storage";
@@ -549,6 +551,27 @@ export async function updateMatrimonialProfileStatus(
 
     const householdConstraint = session.role === "admin" ? undefined : (household?.id || profile.householdId);
     const updated = await db.updateMatrimonialProfile(id, { status }, householdConstraint);
+    if (updated) {
+      let clientIp = "127.0.0.1";
+      try {
+        const reqHeaders = await headers();
+        clientIp = getClientIp(reqHeaders);
+      } catch {
+        // ignore
+      }
+
+      await db.recordPlatformAuditLog({
+        adminId: session.userId || "admin",
+        adminContact: session.contact || "admin",
+        action: "MATRIMONY_PROFILE_STATUS_CHANGED",
+        category: "MATRIMONY",
+        severity: "INFO",
+        targetType: "matrimonial_profile",
+        targetId: id,
+        details: { previousStatus: profile.status, newStatus: status },
+        ipAddress: clientIp,
+      });
+    }
     return { success: Boolean(updated) };
   } catch (err: any) {
     console.error("[ACTION ERROR] updateMatrimonialProfileStatus:", err);

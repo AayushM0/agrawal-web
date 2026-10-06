@@ -130,3 +130,139 @@ test("AWB-17: db in-memory fallback supports filtering, pagination, search, and 
   assert.ok(resPaged.pagination.totalPages >= 2);
 });
 
+test("AWB-18: Server action getAuditTrailLogsAction enforces admin role and supports filtering", () => {
+  const auditCode = read("src/actions/audit.ts");
+
+  assert.ok(auditCode.includes("'use server'"), "Must have 'use server' directive");
+  assert.ok(auditCode.includes("export async function getAuditTrailLogsAction"), "Must export getAuditTrailLogsAction");
+  assert.ok(auditCode.includes("export async function exportAuditTrailCsvAction"), "Must export exportAuditTrailCsvAction");
+  assert.ok(auditCode.includes("export async function getAuditTrailStatsAction"), "Must export getAuditTrailStatsAction");
+  assert.ok(auditCode.includes("export const getAuditTrailLogs = getAuditTrailLogsAction"), "Must export getAuditTrailLogs alias");
+  assert.ok(auditCode.includes("export const getAuditTrailStats = getAuditTrailStatsAction"), "Must export getAuditTrailStats alias");
+  assert.ok(auditCode.includes("export const exportAuditTrailCsv = exportAuditTrailCsvAction"), "Must export exportAuditTrailCsv alias");
+
+  // Admin role enforcement check
+  assert.ok(auditCode.includes('session?.role !== "admin"'), "getAuditTrailLogsAction must check session.role === 'admin'");
+  assert.ok(auditCode.includes("Unauthorized"), "Must return Unauthorized on non-admin session");
+
+  // Export limit 5000 check
+  assert.ok(auditCode.includes("limit: 5000"), "CSV export must fetch up to 5000 logs");
+  assert.ok(auditCode.includes("agrawal-platform-audit-"), "CSV export must generate timestamped filename");
+});
+
+test("AWB-18: CSV export formats RFC 4180 compliant CSV string with escaping", () => {
+  const auditCode = read("src/actions/audit.ts");
+  assert.ok(auditCode.includes("export function generateAuditCsvString"), "Must export generateAuditCsvString");
+
+  function escapeCsvField(val) {
+    if (val === null || val === undefined) return '""';
+    const str = typeof val === "object" ? JSON.stringify(val) : String(val);
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+
+  function generateAuditCsvString(logs) {
+    const headers = [
+      "Timestamp",
+      "Admin Contact",
+      "Admin ID",
+      "Category",
+      "Severity",
+      "Action",
+      "Target Type",
+      "Target Name",
+      "Target ID",
+      "Details",
+      "IP Address",
+      "Checksum",
+    ];
+
+    const rows = logs.map((log) => [
+      escapeCsvField(log.timestamp),
+      escapeCsvField(log.adminContact),
+      escapeCsvField(log.adminId),
+      escapeCsvField(log.category),
+      escapeCsvField(log.severity),
+      escapeCsvField(log.action),
+      escapeCsvField(log.targetType),
+      escapeCsvField(log.targetName || log.targetId),
+      escapeCsvField(log.targetId),
+      escapeCsvField(log.details),
+      escapeCsvField(log.ipAddress || ""),
+      escapeCsvField(log.checksum || ""),
+    ]);
+
+    return [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+  }
+
+  const sampleLogs = [
+    {
+      id: "log-1",
+      timestamp: "2026-10-02T10:00:00.000Z",
+      adminId: "admin-1",
+      adminContact: "admin@foundation.org",
+      action: "APPROVE_HOUSEHOLD",
+      category: "MODERATION",
+      severity: "INFO",
+      targetType: "household",
+      targetId: "hh-1",
+      targetName: "Rajesh Kumar (HHN-001)",
+      details: { note: "All verified" },
+      ipAddress: "10.0.0.1",
+      checksum: "abc123hash",
+      sourceTable: "admin_audit_logs",
+    },
+  ];
+
+  const csv = generateAuditCsvString(sampleLogs);
+  assert.ok(csv.includes("Timestamp,Admin Contact,Admin ID,Category,Severity,Action,Target Type,Target Name,Target ID,Details,IP Address,Checksum"));
+  assert.ok(csv.includes("Rajesh Kumar (HHN-001)"));
+  assert.ok(csv.includes("APPROVE_HOUSEHOLD"));
+
+  // Explicit escaping verification
+  assert.equal(escapeCsvField('Hello "World"'), '"Hello ""World"""', "Quotes must be doubled");
+  assert.equal(escapeCsvField("Field, with comma"), '"Field, with comma"', "Commas preserved inside quotes");
+  assert.equal(escapeCsvField(null), '""', "Null produces empty quoted field");
+});
+
+test("AWB-18: moderate.ts re-exports audit server actions for backward compatibility", () => {
+  const moderate = read("src/actions/moderate.ts");
+
+  assert.ok(moderate.includes("getAuditTrailLogsAction"), "moderate.ts must re-export getAuditTrailLogsAction");
+  assert.ok(moderate.includes("getAuditTrailStatsAction"), "moderate.ts must re-export getAuditTrailStatsAction");
+  assert.ok(moderate.includes("exportAuditTrailCsvAction"), "moderate.ts must re-export exportAuditTrailCsvAction");
+  assert.ok(moderate.includes('from "./audit"'), "moderate.ts must re-export from ./audit");
+});
+
+test("AWB-18: career.ts exports toggleJobPostingStatusAction and records audit log", () => {
+  const career = read("src/actions/career.ts");
+
+  assert.ok(career.includes("export async function toggleJobPostingStatusAction"), "career.ts must export toggleJobPostingStatusAction");
+  assert.ok(career.includes("export const toggleJobPostingStatus = toggleJobPostingStatusAction"), "career.ts must export toggleJobPostingStatus alias");
+  assert.ok(career.includes("JOB_POSTING_STATUS_CHANGED"), "career.ts must record JOB_POSTING_STATUS_CHANGED audit action");
+  assert.ok(career.includes("db.recordPlatformAuditLog"), "career.ts must call db.recordPlatformAuditLog");
+});
+
+test("AWB-18: auth.ts instruments loginAdmin with ADMIN_LOGIN_SUCCESS and ADMIN_LOGIN_FAILED audit logs", () => {
+  const auth = read("src/actions/auth.ts");
+
+  assert.ok(auth.includes("ADMIN_LOGIN_SUCCESS"), "auth.ts must record ADMIN_LOGIN_SUCCESS");
+  assert.ok(auth.includes("ADMIN_LOGIN_FAILED"), "auth.ts must record ADMIN_LOGIN_FAILED");
+  assert.ok(auth.includes("db.recordPlatformAuditLog"), "auth.ts must call db.recordPlatformAuditLog");
+});
+
+test("AWB-18: support-session.ts instruments REQUESTED, AUTHORIZED, and REVOKED audit logs", () => {
+  const support = read("src/actions/support-session.ts");
+
+  assert.ok(support.includes("SUPPORT_SESSION_REQUESTED"), "support-session.ts must record SUPPORT_SESSION_REQUESTED");
+  assert.ok(support.includes("SUPPORT_SESSION_AUTHORIZED"), "support-session.ts must record SUPPORT_SESSION_AUTHORIZED");
+  assert.ok(support.includes("SUPPORT_SESSION_REVOKED"), "support-session.ts must record SUPPORT_SESSION_REVOKED");
+  assert.ok(support.includes("db.recordPlatformAuditLog"), "support-session.ts must call db.recordPlatformAuditLog");
+});
+
+test("AWB-18: matrimony.ts instruments updateMatrimonialProfileStatus with audit log", () => {
+  const matrimony = read("src/actions/matrimony.ts");
+
+  assert.ok(matrimony.includes("MATRIMONY_PROFILE_STATUS_CHANGED"), "matrimony.ts must record MATRIMONY_PROFILE_STATUS_CHANGED");
+  assert.ok(matrimony.includes("db.recordPlatformAuditLog"), "matrimony.ts must call db.recordPlatformAuditLog");
+});
+
