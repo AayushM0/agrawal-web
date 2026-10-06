@@ -684,7 +684,7 @@ async function ensureSchema(client: any) {
         CASE
           WHEN l.target_type = 'household' THEN (SELECT h.head_name || ' (' || COALESCE(h.serial_no, h.household_code, 'ID') || ')' FROM households h WHERE h.id::text = l.target_id LIMIT 1)
           WHEN l.target_type = 'member' THEN (SELECT m.full_name || ' (' || COALESCE(m.serial_no, 'ID') || ')' FROM members m WHERE m.id::text = l.target_id LIMIT 1)
-          WHEN l.target_type IN ('business', 'business_profile') THEN (SELECT b.business_name || ' (' || COALESCE(b.serial_no, 'ID') || ')' FROM business_profiles b WHERE b.id::text = l.target_id LIMIT 1)
+          WHEN l.target_type IN ('business', 'business_profile') THEN (SELECT b.business_name || ' (' || COALESCE(b.business_serial_no, 'ID') || ')' FROM business_profiles b WHERE b.id::text = l.target_id LIMIT 1)
           WHEN l.target_type = 'career_profile' THEN (SELECT m.full_name || ' (Career Profile)' FROM career_profiles cp JOIN members m ON m.id = cp.member_id WHERE cp.id::text = l.target_id LIMIT 1)
           WHEN l.target_type = 'matrimonial_profile' THEN (SELECT m.full_name || ' (Matrimonial Profile)' FROM matrimonial_profiles mp JOIN members m ON m.id = mp.member_id WHERE mp.id::text = l.target_id LIMIT 1)
           WHEN l.target_type = 'job_posting' THEN (SELECT jp.title || ' @ ' || jp.company_name FROM job_postings jp WHERE jp.id::text = l.target_id LIMIT 1)

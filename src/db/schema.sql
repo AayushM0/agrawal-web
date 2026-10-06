@@ -714,7 +714,7 @@ SELECT
       FROM members m WHERE m.id::text = l.target_id LIMIT 1
     )
     WHEN l.target_type IN ('business', 'business_profile') THEN (
-      SELECT b.business_name || ' (' || COALESCE(b.serial_no, 'ID') || ')'
+      SELECT b.business_name || ' (' || COALESCE(b.business_serial_no, 'ID') || ')'
       FROM business_profiles b WHERE b.id::text = l.target_id LIMIT 1
     )
     WHEN l.target_type = 'career_profile' THEN (
