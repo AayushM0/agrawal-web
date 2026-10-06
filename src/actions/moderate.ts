@@ -801,9 +801,22 @@ export async function rejectBusinessProfileAction(params: {
   }
 }
 
-// Backward compatibility re-exports for Unified Platform Audit Trail
-export {
-  getAuditTrailLogsAction,
-  getAuditTrailStatsAction,
-  exportAuditTrailCsvAction,
+import {
+  getAuditTrailLogsAction as _getAuditTrailLogsAction,
+  getAuditTrailStatsAction as _getAuditTrailStatsAction,
+  exportAuditTrailCsvAction as _exportAuditTrailCsvAction,
 } from "./audit";
+
+// Backward compatibility re-exports for Unified Platform Audit Trail
+export async function getAuditTrailLogsAction(...args: Parameters<typeof _getAuditTrailLogsAction>) {
+  return _getAuditTrailLogsAction(...args);
+}
+
+export async function getAuditTrailStatsAction(...args: Parameters<typeof _getAuditTrailStatsAction>) {
+  return _getAuditTrailStatsAction(...args);
+}
+
+export async function exportAuditTrailCsvAction(...args: Parameters<typeof _exportAuditTrailCsvAction>) {
+  return _exportAuditTrailCsvAction(...args);
+}
+

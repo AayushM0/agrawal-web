@@ -999,3 +999,35 @@ test("Seam 37: Member-Authorized Admin Support Sessions & Personal Detail Correc
   assert.ok(typesCode.includes("export interface AdminSupportSession"), "types must export AdminSupportSession");
   assert.ok(typesCode.includes("export interface AdminSupportAuditLog"), "types must export AdminSupportAuditLog");
 });
+
+// --- SEAM 38: Unified Platform Audit Trail & Admin Audit Table ---
+test("Seam 38: Unified Platform Audit Trail & Admin Audit Table architecture", () => {
+  const schemaSql = fs.readFileSync(path.join(webRoot, "src/db/schema.sql"), "utf8");
+  const dbLib = fs.readFileSync(path.join(webRoot, "src/lib/db.ts"), "utf8");
+  const auditAction = fs.readFileSync(path.join(webRoot, "src/actions/audit.ts"), "utf8");
+  const auditTypes = fs.readFileSync(path.join(webRoot, "src/types/audit.ts"), "utf8");
+  const auditPage = fs.readFileSync(path.join(webRoot, "src/app/admin/audit/page.tsx"), "utf8");
+  const moderationPage = fs.readFileSync(path.join(webRoot, "src/app/admin/moderation/page.tsx"), "utf8");
+
+  // 1. Schema & View definitions
+  assert.ok(schemaSql.includes("view_platform_audit_trail"), "schema.sql must create unified audit view");
+  assert.ok(schemaSql.includes("prevent_audit_log_mutation"), "schema.sql must define immutability trigger");
+  assert.ok(dbLib.includes("view_platform_audit_trail"), "db.ts must create unified audit view");
+  assert.ok(dbLib.includes("recordPlatformAuditLog"), "db.ts must export recordPlatformAuditLog");
+  assert.ok(dbLib.includes("getUnifiedAuditTrail"), "db.ts must export getUnifiedAuditTrail");
+
+  // 2. Server actions
+  assert.ok(auditAction.includes("getAuditTrailLogsAction"), "audit.ts must export getAuditTrailLogsAction");
+  assert.ok(auditAction.includes("exportAuditTrailCsvAction"), "audit.ts must export exportAuditTrailCsvAction");
+  assert.ok(auditAction.includes("getAuditTrailStatsAction"), "audit.ts must export getAuditTrailStatsAction");
+
+  // 3. Types
+  assert.ok(auditTypes.includes("AuditTrailItem"), "types/audit.ts must define AuditTrailItem");
+  assert.ok(auditTypes.includes("AuditCategory"), "types/audit.ts must define AuditCategory");
+
+  // 4. Admin Routing & Moderation Integration
+  assert.ok(auditPage.includes("AdminAuditExplorer"), "admin/audit/page.tsx must embed AdminAuditExplorer");
+  assert.ok(moderationPage.includes("AdminAuditExplorer"), "moderation/page.tsx must embed AdminAuditExplorer");
+  assert.ok(moderationPage.includes("Audit Trail") || moderationPage.includes("Audit Logs"), "moderation/page.tsx must feature an Audit Trail tab/button");
+});
+
