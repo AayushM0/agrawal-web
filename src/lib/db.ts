@@ -1,4 +1,5 @@
-import { normalizePhoneNumber } from "@/lib/phone";
+import { normalizePhoneNumber } from "./phone.ts";
+import crypto from "crypto";
 import pg, { Pool } from "pg";
 
 // Configure pg to return PostgreSQL DATE (OID 1082) as raw string 'YYYY-MM-DD'
@@ -27,6 +28,16 @@ import type {
   UpdateSupportSessionInput,
   RecordSupportAuditLogInput,
 } from "../types/support-session";
+import type {
+  AuditCategory,
+  AuditSeverity,
+  AuditAction,
+  AuditTrailItem,
+  GetAuditTrailInput,
+  AuditTrailResponse,
+  AuditTrailStats,
+  RecordPlatformAuditLogInput,
+} from "../types/audit";
 
 const globalForPg = globalThis as unknown as {
   pgPool?: Pool;
@@ -851,6 +862,60 @@ async function generateNextSerialNo(client: any): Promise<string> {
   return generateNextHouseholdNo(client);
 }
 
+function computeAuditChecksum(entry: {
+  timestamp: string;
+  adminId: string;
+  action: string;
+  targetId: string;
+  details: any;
+}): string {
+  const content = `${entry.timestamp}|${entry.adminId}|${entry.action}|${entry.targetId}|${JSON.stringify(entry.details || {})}`;
+  return crypto.createHash("sha256").update(content).digest("hex");
+}
+
+function inferAuditCategoryAndSeverity(action: string): { category: AuditCategory; severity: AuditSeverity } {
+  if (action.startsWith("ADMIN_LOGIN") || action.startsWith("ADMIN_LOGOUT") || action.includes("LOCKOUT")) {
+    return {
+      category: "IDENTITY_ACCESS",
+      severity: action === "ADMIN_LOGIN_FAILED" || action.includes("LOCKOUT") ? "WARN" : "INFO",
+    };
+  }
+  if (action.includes("SUPPORT_SESSION") || action.includes("MEMBER_DETAILS_CORRECTED")) {
+    return {
+      category: "SUPPORT_SESSION",
+      severity: action.includes("CORRECTED") ? "CRITICAL" : "INFO",
+    };
+  }
+  if (action.includes("BUSINESS")) {
+    return {
+      category: "BUSINESS",
+      severity: action.includes("REJECT") ? "WARN" : "INFO",
+    };
+  }
+  if (action.includes("CAREER") || action.includes("JOB")) {
+    return {
+      category: "CAREER_JOB",
+      severity: "INFO",
+    };
+  }
+  if (action.includes("MATRIMONY")) {
+    return {
+      category: "MATRIMONY",
+      severity: "INFO",
+    };
+  }
+  if (action.includes("REPORT") || action.includes("INQUIRY")) {
+    return {
+      category: "COMMUNICATION",
+      severity: action.includes("SUSPEND") ? "CRITICAL" : "INFO",
+    };
+  }
+  return {
+    category: "MODERATION",
+    severity: action.includes("REJECT") || action.includes("WARNING") ? "WARN" : "INFO",
+  };
+}
+
 export const db = {
   async getHouseholds(): Promise<Household[]> {
     if (!pool) throw new Error("Database not connected");
@@ -926,6 +991,84 @@ export const db = {
     }
   },
 
+  async recordPlatformAuditLog(entry: RecordPlatformAuditLogInput): Promise<AuditTrailItem> {
+    const nowIso = new Date().toISOString();
+    const inferred = inferAuditCategoryAndSeverity(entry.action);
+    const category = entry.category || inferred.category;
+    const severity = entry.severity || inferred.severity;
+    const checksum = computeAuditChecksum({
+      timestamp: nowIso,
+      adminId: entry.adminId,
+      action: entry.action,
+      targetId: entry.targetId,
+      details: entry.details || {},
+    });
+
+    if (!pool) {
+      const list: AuditTrailItem[] = ((globalThis as any).__memoryAuditLogs ||= []);
+      const item: AuditTrailItem = {
+        id: crypto.randomUUID(),
+        timestamp: nowIso,
+        adminId: entry.adminId,
+        adminContact: entry.adminContact,
+        action: entry.action,
+        category,
+        severity,
+        targetType: entry.targetType,
+        targetId: entry.targetId,
+        targetName: entry.targetId,
+        details: entry.details || {},
+        ipAddress: entry.ipAddress || null,
+        checksum,
+        sourceTable: "admin_audit_logs",
+      };
+      list.unshift(item);
+      return item;
+    }
+
+    try {
+      const res = await pool.query(
+        `INSERT INTO admin_audit_logs (
+          admin_id, admin_contact, action, category, severity,
+          target_type, target_id, details, ip_address, checksum, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING id, created_at;`,
+        [
+          entry.adminId,
+          entry.adminContact,
+          entry.action,
+          category,
+          severity,
+          entry.targetType,
+          entry.targetId,
+          JSON.stringify(entry.details || {}),
+          entry.ipAddress || null,
+          checksum,
+          nowIso,
+        ]
+      );
+
+      return {
+        id: String(res.rows[0].id),
+        timestamp: res.rows[0].created_at instanceof Date ? res.rows[0].created_at.toISOString() : String(res.rows[0].created_at),
+        adminId: entry.adminId,
+        adminContact: entry.adminContact,
+        action: entry.action,
+        category,
+        severity,
+        targetType: entry.targetType,
+        targetId: entry.targetId,
+        details: entry.details || {},
+        ipAddress: entry.ipAddress || null,
+        checksum,
+        sourceTable: "admin_audit_logs",
+      };
+    } catch (err) {
+      console.warn("[DB] recordPlatformAuditLog error:", err);
+      throw err;
+    }
+  },
+
   async recordAdminAuditLog(entry: {
     adminId: string;
     adminContact: string;
@@ -935,25 +1078,270 @@ export const db = {
     details?: any;
     ipAddress?: string;
   }): Promise<void> {
-    if (!pool) return;
-    try {
-      await pool.query(
-        `INSERT INTO admin_audit_logs (admin_id, admin_contact, action, target_type, target_id, details, ip_address)
-         VALUES ($1, $2, $3, $4, $5, $6, $7);`,
-        [
-          entry.adminId,
-          entry.adminContact,
-          entry.action,
-          entry.targetType,
-          entry.targetId,
-          JSON.stringify(entry.details || {}),
-          entry.ipAddress || null,
-        ]
+    await db.recordPlatformAuditLog(entry);
+  },
+
+  async getUnifiedAuditTrail(params: GetAuditTrailInput = {}): Promise<AuditTrailResponse> {
+    const page = Math.max(1, params.page || 1);
+    const limit = Math.min(100, Math.max(1, params.limit || 25));
+    const offset = (page - 1) * limit;
+
+    if (!pool) {
+      let list: AuditTrailItem[] = [...((globalThis as any).__memoryAuditLogs || [])];
+
+      // Also bring in memory support audit logs if any
+      const supportList: any[] = (globalThis as any).__memorySupportAuditLogs || [];
+      const mappedSupport: AuditTrailItem[] = supportList.map((s) => ({
+        id: s.id,
+        timestamp: s.createdAt,
+        adminId: s.adminId,
+        adminContact: "admin-support",
+        action: "MEMBER_DETAILS_CORRECTED",
+        category: "SUPPORT_SESSION" as AuditCategory,
+        severity: "CRITICAL" as AuditSeverity,
+        targetType: s.memberId ? "member" : "household",
+        targetId: s.memberId || s.householdId,
+        targetName: s.memberId ? `Member ${s.memberId}` : `Household ${s.householdId}`,
+        details: { sessionId: s.sessionId, changes: s.changes, reason: s.reason },
+        ipAddress: null,
+        checksum: null,
+        sourceTable: "admin_support_audit_logs" as const,
+      }));
+
+      // Combine both
+      list = [...list, ...mappedSupport].sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
-    } catch (e) {
-      console.warn("[DB] recordAdminAuditLog warning:", e);
+
+      // Filters
+      if (params.category && params.category !== "ALL") {
+        list = list.filter((l) => l.category === params.category);
+      }
+      if (params.severity && params.severity !== "ALL") {
+        list = list.filter((l) => l.severity === params.severity);
+      }
+      if (params.adminId) {
+        list = list.filter((l) =>
+          l.adminId.toLowerCase().includes(params.adminId!.toLowerCase()) ||
+          l.adminContact.toLowerCase().includes(params.adminId!.toLowerCase())
+        );
+      }
+      if (params.targetType) {
+        list = list.filter((l) => l.targetType === params.targetType);
+      }
+      if (params.targetId) {
+        list = list.filter((l) => l.targetId === params.targetId);
+      }
+      if (params.dateFrom) {
+        const fromMs = new Date(params.dateFrom).getTime();
+        list = list.filter((l) => new Date(l.timestamp).getTime() >= fromMs);
+      }
+      if (params.dateTo) {
+        const toMs = new Date(params.dateTo).getTime();
+        list = list.filter((l) => new Date(l.timestamp).getTime() <= toMs);
+      }
+      if (params.search?.trim()) {
+        const q = params.search.toLowerCase().trim();
+        list = list.filter(
+          (l) =>
+            l.action.toLowerCase().includes(q) ||
+            l.adminContact.toLowerCase().includes(q) ||
+            l.adminId.toLowerCase().includes(q) ||
+            l.targetId.toLowerCase().includes(q) ||
+            (l.targetName && l.targetName.toLowerCase().includes(q)) ||
+            JSON.stringify(l.details).toLowerCase().includes(q)
+        );
+      }
+
+      const total = list.length;
+      const paginated = list.slice(offset, offset + limit);
+
+      return {
+        success: true,
+        logs: paginated,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+      };
+    }
+
+    try {
+      const whereConditions: string[] = ["1=1"];
+      const queryParams: any[] = [];
+      let paramIndex = 1;
+
+      if (params.category && params.category !== "ALL") {
+        whereConditions.push(`category = $${paramIndex++}`);
+        queryParams.push(params.category);
+      }
+      if (params.severity && params.severity !== "ALL") {
+        whereConditions.push(`severity = $${paramIndex++}`);
+        queryParams.push(params.severity);
+      }
+      if (params.adminId) {
+        whereConditions.push(`(admin_id ILIKE $${paramIndex} OR admin_contact ILIKE $${paramIndex})`);
+        queryParams.push(`%${params.adminId}%`);
+        paramIndex++;
+      }
+      if (params.targetType) {
+        whereConditions.push(`target_type = $${paramIndex++}`);
+        queryParams.push(params.targetType);
+      }
+      if (params.targetId) {
+        whereConditions.push(`target_id = $${paramIndex++}`);
+        queryParams.push(params.targetId);
+      }
+      if (params.dateFrom) {
+        whereConditions.push(`"timestamp" >= $${paramIndex++}`);
+        queryParams.push(params.dateFrom);
+      }
+      if (params.dateTo) {
+        whereConditions.push(`"timestamp" <= $${paramIndex++}`);
+        queryParams.push(params.dateTo);
+      }
+      if (params.search?.trim()) {
+        whereConditions.push(`(
+          action ILIKE $${paramIndex}
+          OR admin_contact ILIKE $${paramIndex}
+          OR target_id ILIKE $${paramIndex}
+          OR "targetName" ILIKE $${paramIndex}
+          OR details::text ILIKE $${paramIndex}
+        )`);
+        queryParams.push(`%${params.search.trim()}%`);
+        paramIndex++;
+      }
+
+      const whereClause = whereConditions.join(" AND ");
+
+      // Count query
+      const countRes = await pool.query(
+        `SELECT COUNT(*) as total FROM view_platform_audit_trail WHERE ${whereClause};`,
+        queryParams
+      );
+      const total = parseInt(countRes.rows[0].total, 10) || 0;
+
+      // Data query with offset & limit
+      queryParams.push(limit);
+      const limitParamIdx = paramIndex++;
+      queryParams.push(offset);
+      const offsetParamIdx = paramIndex++;
+
+      const dataRes = await pool.query(
+        `SELECT * FROM view_platform_audit_trail
+         WHERE ${whereClause}
+         ORDER BY "timestamp" DESC
+         LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx};`,
+        queryParams
+      );
+
+      const logs: AuditTrailItem[] = dataRes.rows.map((r: any) => ({
+        id: String(r.id),
+        timestamp: r.timestamp instanceof Date ? r.timestamp.toISOString() : String(r.timestamp),
+        adminId: r.adminId,
+        adminContact: r.adminContact,
+        action: r.action,
+        category: r.category as AuditCategory,
+        severity: r.severity as AuditSeverity,
+        targetType: r.targetType,
+        targetId: r.targetId,
+        targetName: r.targetName || undefined,
+        details: typeof r.details === "string" ? JSON.parse(r.details) : r.details,
+        ipAddress: r.ipAddress,
+        checksum: r.checksum,
+        sourceTable: r.sourceTable,
+      }));
+
+      return {
+        success: true,
+        logs,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+      };
+    } catch (err: any) {
+      console.error("[DB] getUnifiedAuditTrail error:", err);
+      return {
+        success: false,
+        logs: [],
+        pagination: { page, limit, total: 0, totalPages: 1 },
+        error: err?.message || "Failed to load unified audit trail.",
+      };
     }
   },
+
+  async getAuditTrailStats(): Promise<AuditTrailStats> {
+    if (!pool) {
+      const list: AuditTrailItem[] = (globalThis as any).__memoryAuditLogs || [];
+      const supportList: any[] = (globalThis as any).__memorySupportAuditLogs || [];
+      const combinedCount = list.length + supportList.length;
+      const now = Date.now();
+      const oneDayAgo = now - 24 * 60 * 60 * 1000;
+      const logsToday = list.filter((l) => new Date(l.timestamp).getTime() >= oneDayAgo).length +
+        supportList.filter((s) => new Date(s.createdAt).getTime() >= oneDayAgo).length;
+      const critical = list.filter((l) => l.severity === "CRITICAL").length + supportList.length;
+      const admins = new Set([...list.map((l) => l.adminId), ...supportList.map((s) => s.adminId)]).size;
+      const breakdown: Record<string, number> = {};
+      for (const item of list) {
+        breakdown[item.category] = (breakdown[item.category] || 0) + 1;
+      }
+      if (supportList.length > 0) {
+        breakdown["SUPPORT_SESSION"] = (breakdown["SUPPORT_SESSION"] || 0) + supportList.length;
+      }
+      return {
+        totalLogs: combinedCount,
+        logsToday,
+        criticalEventsCount: critical,
+        activeAdminsCount: admins,
+        categoryBreakdown: breakdown,
+      };
+    }
+
+    try {
+      const statsRes = await pool.query(`
+        SELECT
+          COUNT(*) as total,
+          COUNT(*) FILTER (WHERE "timestamp" >= NOW() - INTERVAL '24 HOURS') as today,
+          COUNT(*) FILTER (WHERE severity = 'CRITICAL') as critical,
+          COUNT(DISTINCT "adminId") as admins
+        FROM view_platform_audit_trail;
+      `);
+      const row = statsRes.rows[0];
+
+      const catRes = await pool.query(`
+        SELECT category, COUNT(*) as count
+        FROM view_platform_audit_trail
+        GROUP BY category;
+      `);
+      const breakdown: Record<string, number> = {};
+      for (const r of catRes.rows) {
+        breakdown[r.category] = parseInt(r.count, 10);
+      }
+
+      return {
+        totalLogs: parseInt(row.total, 10) || 0,
+        logsToday: parseInt(row.today, 10) || 0,
+        criticalEventsCount: parseInt(row.critical, 10) || 0,
+        activeAdminsCount: parseInt(row.admins, 10) || 0,
+        categoryBreakdown: breakdown,
+      };
+    } catch (err) {
+      console.warn("[DB] getAuditTrailStats error:", err);
+      return {
+        totalLogs: 0,
+        logsToday: 0,
+        criticalEventsCount: 0,
+        activeAdminsCount: 0,
+        categoryBreakdown: {},
+      };
+    }
+  },
+
 
   async getRecentHouseholdWarnings(): Promise<Record<string, string>> {
     if (!pool) return {};
@@ -5502,5 +5890,8 @@ export const getAllActiveSupportSessions = db.getAllActiveSupportSessions;
 export const updateSupportSessionStatus = db.updateSupportSessionStatus;
 export const recordSupportAuditLog = db.recordSupportAuditLog;
 export const getSupportAuditLogsBySession = db.getSupportAuditLogsBySession;
+export const recordPlatformAuditLog = db.recordPlatformAuditLog;
+export const getUnifiedAuditTrail = db.getUnifiedAuditTrail;
+export const getAuditTrailStats = db.getAuditTrailStats;
 
 
