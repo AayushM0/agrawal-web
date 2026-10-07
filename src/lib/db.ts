@@ -44,7 +44,103 @@ const globalForPg = globalThis as unknown as {
   schemaEnsured?: boolean;
 };
 
+let schemaEnsured = false;
+let schemaHealedInProcess = false;
+
+export function shouldRunSchemaOnBoot(): boolean {
+  return process.env.AUTO_MIGRATE_SCHEMA === "true" || process.env.NODE_ENV === "development";
+}
+
+export function isSchemaHealed(): boolean {
+  return schemaHealedInProcess;
+}
+
+export function resetSchemaHealingStateForTest(): void {
+  schemaHealedInProcess = false;
+  schemaEnsured = false;
+  globalForPg.schemaEnsured = false;
+}
+
+export async function executeWithAutoHealing<T = any>(
+  operation: (client?: any) => Promise<T>,
+  clientSupplier?: () => Promise<any> | any,
+  ensureSchemaFn: (client: any) => Promise<void> = ensureSchema
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (err: any) {
+    const isMissingSchema =
+      err &&
+      (err.code === "42703" ||
+        err.code === "42P01" ||
+        String(err.code) === "42703" ||
+        String(err.code) === "42P01");
+
+    if (isMissingSchema && !schemaHealedInProcess) {
+      schemaHealedInProcess = true;
+      console.warn(`[DB] Missing schema detected (code ${err.code}). Executing lazy auto-healing ensureSchema...`);
+      let healingClient = clientSupplier ? await clientSupplier() : null;
+      let shouldRelease = false;
+      if (!healingClient && pool) {
+        healingClient = await pool.connect();
+        shouldRelease = true;
+      }
+      try {
+        if (healingClient) {
+          schemaEnsured = false;
+          globalForPg.schemaEnsured = false;
+          await ensureSchemaFn(healingClient);
+        }
+        schemaEnsured = true;
+        globalForPg.schemaEnsured = true;
+      } finally {
+        if (shouldRelease && healingClient) {
+          healingClient.release();
+        }
+      }
+      return await operation(healingClient);
+    }
+    throw err;
+  }
+}
+
+function wrapPoolForAutoHealing(p: Pool): void {
+  if ((p as any).__autoHealingWrapped) return;
+  (p as any).__autoHealingWrapped = true;
+
+  const originalPoolQuery: any = p.query.bind(p);
+  const originalPoolConnect: any = p.connect.bind(p);
+
+  (p as any).query = async function (...args: any[]) {
+    return executeWithAutoHealing(
+      () => originalPoolQuery(...args),
+      () => p.connect()
+    );
+  };
+
+  (p as any).connect = async function (...args: any[]) {
+    if (typeof args[0] === "function") {
+      return originalPoolConnect(...args);
+    }
+    const client: any = await originalPoolConnect(...args);
+    if (!client.__autoHealingWrapped) {
+      client.__autoHealingWrapped = true;
+      const originalClientQuery: any = client.query.bind(client);
+      client.query = async function (...queryArgs: any[]) {
+        return executeWithAutoHealing(
+          () => originalClientQuery(...queryArgs),
+          () => client
+        );
+      };
+    }
+    return client;
+  };
+}
+
 let pool: Pool | null = globalForPg.pgPool || null;
+if (pool) {
+  wrapPoolForAutoHealing(pool);
+}
 
 if (!pool && process.env.DATABASE_URL) {
   try {
@@ -75,12 +171,13 @@ if (!pool && process.env.DATABASE_URL) {
       connectionTimeoutMillis: 5000,
       keepAlive: true,
     });
+    wrapPoolForAutoHealing(pool);
     pool.on("error", (err) => {
       console.warn("PostgreSQL idle client notice:", err.message);
     });
     globalForPg.pgPool = pool;
 
-    if (!globalForPg.schemaEnsured && process.env.NODE_ENV !== "test") {
+    if (!globalForPg.schemaEnsured && shouldRunSchemaOnBoot()) {
       pool.connect().then(async (client) => {
         try {
           await ensureSchema(client);
@@ -140,8 +237,7 @@ function sanitizeRelation(rel?: string): "self" | "spouse" | "son" | "daughter" 
   return "other";
 }
 
-let schemaEnsured = false;
-async function ensureSchema(client: any) {
+export async function ensureSchema(client: any) {
   if (globalForPg.schemaEnsured || schemaEnsured) return;
   try {
     await client.query(`
@@ -1578,14 +1674,6 @@ export const db = {
     let client;
     try {
       client = await pool.connect();
-      // Ensure all required columns and tables exist BEFORE beginning the atomic transaction
-      if (!schemaEnsured || !globalForPg.schemaEnsured) {
-        try {
-          await ensureSchema(client);
-        } catch (schemaErr) {
-          console.warn("[DB] Pre-registration schema check notice:", schemaErr);
-        }
-      }
       await client.query("BEGIN");
       // Acquire exclusive transaction advisory lock to completely serialize concurrent family registrations
       await client.query("SELECT pg_advisory_xact_lock($1);", [REGISTRATION_CONCURRENCY_LOCK_ID]);
@@ -2212,13 +2300,6 @@ export const db = {
     let client;
     try {
       client = await pool.connect();
-      if (!schemaEnsured || !globalForPg.schemaEnsured) {
-        try {
-          await ensureSchema(client);
-        } catch (schemaErr) {
-          console.warn("[DB] Pre-registration schema check notice:", schemaErr);
-        }
-      }
       await client.query("BEGIN");
       await client.query("SELECT pg_advisory_xact_lock($1);", [REGISTRATION_CONCURRENCY_LOCK_ID]);
 
