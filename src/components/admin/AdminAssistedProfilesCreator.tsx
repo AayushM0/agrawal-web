@@ -9,6 +9,7 @@ import {
   AdminSearchMemberResult,
 } from '@/actions/admin-profiles';
 import Link from 'next/link';
+import { DownloadBiodataButton } from "@/components/matrimony/DownloadBiodataButton";
 
 const CAREER_DOMAINS = [
   "Technology & Software",
@@ -299,13 +300,22 @@ export default function AdminAssistedProfilesCreator() {
             <span>{statusMessage.text}</span>
           </div>
           {statusMessage.linkUrl && (
-            <Link
-              href={statusMessage.linkUrl}
-              target="_blank"
-              className="px-4 py-1.5 rounded-full text-xs font-bold bg-white text-emerald-800 border border-emerald-300 shadow-xs hover:bg-emerald-100 transition shrink-0"
-            >
-              View Profile Live ↗
-            </Link>
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {statusMessage.linkUrl.startsWith("/matrimony/") && selectedMember && (
+                <DownloadBiodataButton
+                  profileId={statusMessage.linkUrl.slice("/matrimony/".length)}
+                  profileName={selectedMember.fullName}
+                  variant="admin"
+                />
+              )}
+              <Link
+                href={statusMessage.linkUrl}
+                target="_blank"
+                className="px-4 py-1.5 rounded-full text-xs font-bold bg-white text-emerald-800 border border-emerald-300 shadow-xs hover:bg-emerald-100 transition shrink-0"
+              >
+                View Profile Live ↗
+              </Link>
+            </div>
           )}
         </div>
       )}

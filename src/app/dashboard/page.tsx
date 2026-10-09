@@ -17,6 +17,7 @@ import { calculateAge, maskContact } from "@/lib/privacy";
 import { optimizeImageForUpload } from "@/lib/image-optimizer";
 import { getMyHouseholdMatrimonialProfiles } from "@/actions/matrimony";
 import type { MatrimonialProfile } from "@/types/matrimony";
+import { DownloadBiodataButton } from "@/components/matrimony/DownloadBiodataButton";
 import {
   getMyHouseholdBusinesses,
   toggleBusinessVisibility,
@@ -1039,6 +1040,7 @@ export default function DashboardPage() {
                           {p.occupationTitle || p.highestEducation} {p.workCity ? `• ${p.workCity}` : ""}
                         </p>
                         <div className="mt-3 flex items-center gap-2">
+                          <DownloadBiodataButton profileId={p.id} profileName={p.fullName} variant="outline" />
                           <Link
                             href={`/matrimony/${p.id}`}
                             className="text-xs font-bold text-brand-primary hover:underline inline-flex items-center gap-1"

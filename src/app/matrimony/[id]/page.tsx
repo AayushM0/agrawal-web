@@ -9,6 +9,7 @@ import {
   deleteMatrimonialProfile,
 } from "@/actions/matrimony";
 import { revealContact } from "@/actions/reveal";
+import { DownloadBiodataButton } from "@/components/matrimony/DownloadBiodataButton";
 import type { MatrimonialProfile } from "@/types/matrimony";
 
 export default function MatrimonyDetailPage() {
@@ -176,6 +177,7 @@ export default function MatrimonyDetailPage() {
               </button>
             </div>
           )}
+          <DownloadBiodataButton profileId={profile.id} profileName={profile.fullName} className="shrink-0" />
         </div>
 
         {/* Digital Matrimonial Profile Card */}
@@ -505,6 +507,7 @@ export default function MatrimonyDetailPage() {
                   </h3>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
+                  <DownloadBiodataButton profileId={profile.id} profileName={profile.fullName} variant="outline" />
                   <Link
                     href={`/dashboard/messages?recipient=${profile.memberId}`}
                     className="px-4 py-2 rounded-full text-xs font-bold text-[#800020] bg-[#FFF3D6] border border-[#D4AF37] hover:bg-[#FCE8B2] transition shadow-xs flex items-center gap-1.5"
