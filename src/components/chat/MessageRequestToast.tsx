@@ -10,6 +10,8 @@ export interface MessageRequestToastData {
   conversationId: string;
 }
 
+// Toast Pros
+
 interface MessageRequestToastProps {
   toast: MessageRequestToastData | null;
   onClose: () => void;
