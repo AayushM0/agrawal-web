@@ -104,6 +104,21 @@ export async function executeWithAutoHealing<T = any>(
   }
 }
 
+export function safeParseJson<T = any>(val: any, fallback: any = {}): any {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === "object") return val;
+  if (typeof val !== "string") return fallback;
+  const trimmed = val.trim();
+  if (!trimmed) return fallback;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && typeof parsed === "object") return parsed;
+    return (typeof fallback === "object" && !Array.isArray(fallback) ? { value: parsed } : parsed);
+  } catch {
+    return (typeof fallback === "object" && !Array.isArray(fallback) ? { message: val } : fallback);
+  }
+}
+
 function wrapPoolForAutoHealing(p: Pool): void {
   if ((p as any).__autoHealingWrapped) return;
   (p as any).__autoHealingWrapped = true;
@@ -1344,7 +1359,7 @@ export const db = {
         targetType: r.targetType,
         targetId: r.targetId,
         targetName: r.targetName || undefined,
-        details: typeof r.details === "string" ? JSON.parse(r.details) : r.details,
+        details: safeParseJson(r.details, {}),
         ipAddress: r.ipAddress,
         checksum: r.checksum,
         sourceTable: r.sourceTable,
@@ -1471,7 +1486,7 @@ export const db = {
       for (const row of auditRes.rows) {
         const hId = String(row.target_id);
         if (!warnings[hId]) {
-          const details = typeof row.details === "string" ? JSON.parse(row.details) : row.details;
+          const details = safeParseJson(row.details, {});
           const errList = details?.errors;
           if (Array.isArray(errList) && errList.length > 0) {
             const firstErr = errList[0];
@@ -1524,7 +1539,7 @@ export const db = {
         action: r.action,
         targetType: r.targetType,
         targetId: r.targetId,
-        details: typeof r.details === "string" ? JSON.parse(r.details) : r.details,
+        details: safeParseJson(r.details, {}),
         ipAddress: r.ipAddress,
         createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
       }));
@@ -3866,7 +3881,7 @@ export const db = {
         hasDraft: true,
         step: r.currentStep,
         headName: r.headName,
-        formData: typeof r.formData === "string" ? JSON.parse(r.formData) : (r.formData || {}),
+        formData: safeParseJson(r.formData, {}),
       };
     } catch (err) {
       console.warn("Get registration draft notice:", err);
@@ -3984,8 +3999,8 @@ export const db = {
       const r = res.rows[0];
       return {
         ...r,
-        attachments: typeof r.attachments === "string" ? JSON.parse(r.attachments) : r.attachments,
-        metadata: typeof r.metadata === "string" ? JSON.parse(r.metadata) : (r.metadata || {}),
+        attachments: safeParseJson(r.attachments, []),
+        metadata: safeParseJson(r.metadata, {}),
       };
     } catch (err) {
       console.error("[DB] claimNextEmailJob notice:", err);
@@ -5742,16 +5757,16 @@ function mapMatrimonialRow(row: any): MatrimonialProfile {
     motherName: row.mother_name || row.motherName || "",
     motherMemberId: row.mother_member_id || row.motherMemberId || undefined,
     motherOccupation: row.mother_occupation || row.motherOccupation || "",
-    linkedSiblings: typeof row.linked_siblings === "string" ? JSON.parse(row.linked_siblings) : (row.linked_siblings || row.linkedSiblings || []),
+    linkedSiblings: safeParseJson(row.linked_siblings, row.linkedSiblings || []),
     nativePlace: row.native_place || row.nativePlace || "",
     familyLocation: row.family_location || row.familyLocation || "",
     familyType: row.family_type || row.familyType || "Nuclear",
     familyValues: row.family_values || row.familyValues || "Traditional",
     familyFinancialStatus: row.family_financial_status || row.familyFinancialStatus || "Upper Middle Class",
     aboutFamily: row.about_family || row.aboutFamily || "",
-    customFields: typeof row.custom_fields === "string" ? JSON.parse(row.custom_fields) : (row.custom_fields || row.customFields || []),
-    photos: typeof row.photos === "string" ? JSON.parse(row.photos) : (row.photos || []),
-    partnerPreferences: typeof row.partner_preferences === "string" ? JSON.parse(row.partner_preferences) : (row.partner_preferences || row.partnerPreferences || {}),
+    customFields: safeParseJson(row.custom_fields, row.customFields || []),
+    photos: Array.isArray(row.photos) ? row.photos : safeParseJson(row.photos, []),
+    partnerPreferences: safeParseJson(row.partner_preferences, row.partnerPreferences || {}),
     contactPerson: row.contact_person || row.contactPerson || "",
     contactRelation: row.contact_relation || row.contactRelation || "",
     contactPhone: row.contact_phone || row.contactPhone || "",
@@ -5819,7 +5834,7 @@ function mapProfileManagerHandoverRow(row: any): ProfileManagerHandover {
 }
 
 function mapBusinessProfileRow(row: any): BusinessProfile {
-  const rawDirectors = typeof row.linked_directors === "string" ? JSON.parse(row.linked_directors) : (row.linked_directors || row.linkedDirectors || []);
+  const rawDirectors = safeParseJson(row.linked_directors, row.linkedDirectors || []);
   return {
     id: String(row.id),
     householdId: String(row.household_id || row.householdId || ""),
@@ -5847,9 +5862,9 @@ function mapBusinessProfileRow(row: any): BusinessProfile {
     pincode: row.pincode || undefined,
     addressLine: row.address_line || row.addressLine || undefined,
     websiteUrl: row.website_url || row.websiteUrl || undefined,
-    socialLinks: typeof row.social_links === "string" ? JSON.parse(row.social_links) : (row.social_links || row.socialLinks || {}),
-    photos: Array.isArray(row.photos) ? row.photos : (typeof row.photos === "string" ? JSON.parse(row.photos) : []),
-    customFields: typeof row.custom_fields === "string" ? JSON.parse(row.custom_fields) : (row.custom_fields || row.customFields || []),
+    socialLinks: safeParseJson(row.social_links, row.socialLinks || {}),
+    photos: Array.isArray(row.photos) ? row.photos : safeParseJson(row.photos, []),
+    customFields: safeParseJson(row.custom_fields, row.customFields || []),
     linkedDirectors: Array.isArray(rawDirectors)
       ? rawDirectors.map((director) => ({ ...director, source: director.source || (director.memberId ? "directory" : "manual") }))
       : [],
@@ -5871,9 +5886,9 @@ function mapCareerProfileRow(row: any): CareerProfile {
     yearsOfExperience: typeof row.years_of_experience === "number" ? row.years_of_experience : (parseInt(row.years_of_experience, 10) || 0),
     educationHighest: row.education_highest || row.educationHighest || undefined,
     educationInstitution: row.education_institution || row.educationInstitution || undefined,
-    skills: Array.isArray(row.skills) ? row.skills : (typeof row.skills === "string" ? JSON.parse(row.skills) : []),
+    skills: Array.isArray(row.skills) ? row.skills : safeParseJson(row.skills, []),
     seekingStatus: row.seeking_status || row.seekingStatus || "open_to_offers",
-    preferredLocations: Array.isArray(row.preferred_locations) ? row.preferred_locations : (typeof row.preferred_locations === "string" ? JSON.parse(row.preferred_locations) : []),
+    preferredLocations: Array.isArray(row.preferred_locations) ? row.preferred_locations : safeParseJson(row.preferred_locations, []),
     workplacePreference: row.workplace_preference || row.workplacePreference || "flexible",
     resumeUrl: row.resume_url || row.resumeUrl || undefined,
     bio: row.bio || undefined,
@@ -5915,7 +5930,7 @@ function mapJobPostingRow(row: any): JobPosting {
     salaryRange: row.salary_range || row.salaryRange || undefined,
     description: row.description || "",
     requirements: row.requirements || undefined,
-    skillsRequired: Array.isArray(row.skills_required) ? row.skills_required : (typeof row.skills_required === "string" ? JSON.parse(row.skills_required) : []),
+    skillsRequired: Array.isArray(row.skills_required) ? row.skills_required : safeParseJson(row.skills_required, []),
     status: row.status || "active",
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || new Date().toISOString()),
     updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at || new Date().toISOString()),

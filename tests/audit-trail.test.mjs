@@ -384,4 +384,31 @@ test("AWB-21: Standalone migration script scripts/migrate-audit-view.mjs exists 
   assert.ok(script.includes("Pool"), "Migration script must use pg Pool");
 });
 
+test("safeParseJson handles plain strings, invalid JSON, and null/undefined without throwing SyntaxError", async () => {
+  const { safeParseJson } = await import("../src/lib/db.ts");
+
+  // Valid JSON string
+  assert.deepEqual(safeParseJson('{"action":"approve","count":2}', {}), { action: "approve", count: 2 });
+
+  // Plain text unparsed string (the exact bug encountered by user)
+  const plainText = 'Admin created member John Doe';
+  const parsed = safeParseJson(plainText, {});
+  assert.deepEqual(parsed, { message: plainText });
+
+  // Null, undefined, empty string
+  assert.deepEqual(safeParseJson(null, {}), {});
+  assert.deepEqual(safeParseJson(undefined, {}), {});
+  assert.deepEqual(safeParseJson("", {}), {});
+  assert.deepEqual(safeParseJson("   ", {}), {});
+
+  // Already parsed object
+  const existingObj = { role: "admin", ip: "127.0.0.1" };
+  assert.deepEqual(safeParseJson(existingObj, {}), existingObj);
+
+  // Arrays with array fallback
+  assert.deepEqual(safeParseJson('["singhal", "bansal"]', []), ["singhal", "bansal"]);
+  assert.deepEqual(safeParseJson("not-a-json-array", []), []);
+});
+
+
 
