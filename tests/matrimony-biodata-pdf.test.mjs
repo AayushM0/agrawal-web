@@ -121,20 +121,182 @@ test("sanitizeBiodataInput neutralizes XSS and unauthorized URL schemes", async 
   assert.equal(clean.fatherName, "Father");
 });
 
-test("ChromiumRenderPool enforces bounded concurrency semaphore", async () => {
+test("ChromiumRenderPool enforces bounded concurrency semaphore and FIFO queueing", async () => {
   const { ChromiumRenderPool } = await import("../src/lib/matrimony-pdf.ts");
 
   assert.equal(ChromiumRenderPool.max, 3);
   assert.equal(ChromiumRenderPool.active, 0);
 
+  // Fill all 3 slots
   await ChromiumRenderPool.acquire();
-  assert.equal(ChromiumRenderPool.active, 1);
-
   await ChromiumRenderPool.acquire();
-  assert.equal(ChromiumRenderPool.active, 2);
+  await ChromiumRenderPool.acquire();
+  assert.equal(ChromiumRenderPool.active, 3);
 
+  // 4th request must be queued
+  let fourthResolved = false;
+  const fourthPromise = ChromiumRenderPool.acquire().then(() => {
+    fourthResolved = true;
+  });
+
+  // Ensure 4th has not resolved yet
+  assert.equal(fourthResolved, false);
+
+  // Release 1 slot -> 4th request resolves
+  ChromiumRenderPool.release();
+  await fourthPromise;
+  assert.equal(fourthResolved, true);
+  assert.equal(ChromiumRenderPool.active, 3);
+
+  // Drain remaining slots
+  ChromiumRenderPool.release();
   ChromiumRenderPool.release();
   ChromiumRenderPool.release();
   assert.equal(ChromiumRenderPool.active, 0);
 });
+
+test("GET /api/matrimony/[id]/biodata/pdf route enforces security and delivery contracts", () => {
+  const root = path.join(testDirectory, "..");
+  const routeContent = fs.readFileSync(path.join(root, "src", "app", "api", "matrimony", "[id]", "biodata", "pdf", "route.ts"), "utf8");
+
+  // Route runtime configuration
+  assert.match(routeContent, /export const dynamic = "force-dynamic"/);
+  assert.match(routeContent, /export const runtime = "nodejs"/);
+
+  // 401 Unauthorized check
+  assert.match(routeContent, /if \(!session\?\.userId\) return NextResponse\.json\(\{ error: "Unauthorized" \}, \{ status: 401 \}\)/);
+
+  // 404 Not Found check
+  assert.match(routeContent, /if \(!profile\) return NextResponse\.json\(\{ error: "Not Found" \}, \{ status: 404 \}\)/);
+
+  // 403 Forbidden IDOR check
+  assert.match(routeContent, /const allowed = await canAccessMatrimonialBiodata\(session, profile\)/);
+  assert.match(routeContent, /if \(!allowed\) \{\s*return NextResponse\.json\(\{ error: "Access denied" \}, \{ status: 403 \}\);\s*\}/);
+
+  // 504 Gateway Timeout check
+  assert.match(routeContent, /timed out/);
+  assert.match(routeContent, /status: 504/);
+
+  // 200 Streaming PDF delivery headers
+  assert.match(routeContent, /"Content-Type": "application\/pdf"/);
+  assert.match(routeContent, /"Content-Disposition": `attachment; filename="\$\{filename\(profile\.fullName\)\}"`/);
+  assert.match(routeContent, /"Cache-Control": "private, no-store, must-revalidate"/);
+});
+
+test("compileBiodataHtml collapses absent optional sections on minimal profiles", async () => {
+  const { compileBiodataHtml } = await import("../src/lib/matrimony-biodata-template.ts");
+
+  const minimalData = {
+    id: "prof-min-001",
+    fullName: "Aarav Garg",
+    gotra: "Garg",
+  };
+
+  const html = compileBiodataHtml(minimalData);
+
+  assert.ok(html.includes("Aarav Garg"));
+  assert.ok(html.includes("prof-min-001"));
+  assert.ok(html.includes("Garg"));
+  assert.ok(html.includes("NotoDevanagari"));
+  assert.ok(html.includes("@page { size: A4 portrait; margin: 6mm; }"));
+
+  // Optional sections with zero data must NOT render headers or empty cards
+  assert.ok(!html.includes("Horoscope & astrology"));
+  assert.ok(!html.includes("Education & career"));
+  assert.ok(!html.includes("Family background"));
+  assert.ok(!html.includes("<img class=\"photo\""));
+});
+
+test("compileBiodataHtml safely renders rich edge-case data, unicode Devanagari and long text", async () => {
+  const { compileBiodataHtml } = await import("../src/lib/matrimony-biodata-template.ts");
+
+  const richData = {
+    id: "prof-rich-999",
+    fullName: "Pooja & Priya Bansal <Special>",
+    gender: "Female",
+    dob: "1998-05-15",
+    age: 28,
+    height: "5' 6\" (168 cm)",
+    weight: "55 kg",
+    complexion: "Fair",
+    bloodGroup: "O+",
+    diet: "Vegetarian",
+    motherTongue: "Hindi / Marwari",
+    languages: ["Hindi", "English", "Marwari"],
+    photoUrl: "https://example.com/photo.jpg",
+    fourGotras: {
+      selfGotra: "Bansal",
+      motherGotra: "Mittal",
+      dadiGotra: "Garg",
+      naniGotra: "Singhal",
+    },
+    manglik: "Anshik Manglik",
+    rashi: "Tula",
+    nakshatra: "Swati",
+    charan: "3",
+    tob: "08:45 AM",
+    pob: "Jaipur, Rajasthan",
+    highestEducation: "Master of Science in Computer Science & Artificial Intelligence (Honors)",
+    college: "National University of Singapore",
+    schooling: "Delhi Public School, R.K. Puram",
+    occupation: "Senior AI Software Engineer",
+    company: "Google Singapore Pte. Ltd.",
+    annualIncome: "SGD 180,000 / year",
+    workLocation: "Marina Bay Financial Centre, Singapore",
+    fatherName: "Rajesh Bansal",
+    fatherOccupation: "Managing Director, Global Logistics Pvt Ltd",
+    motherName: "Sunita Bansal",
+    motherOccupation: "Homemaker",
+    siblings: ["Elder Brother: Rohan Bansal (Vice President, Goldman Sachs Singapore)"],
+    nativePlace: "Agroha Dham, Hisar, Haryana",
+    currentCity: "Orchard Road, Singapore",
+    familyType: "Nuclear with Traditional Values",
+    familyValues: "Liberal & Culturally Grounded",
+    partnerPreferences: {
+      notes: "Seeking an educated, family-oriented partner from Agrawal community with mutual respect.",
+      ageRange: "27 - 32 years",
+      heightRange: "5' 9\" to 6' 2\"",
+      education: "Master's or Professional Degree",
+      diet: "Vegetarian",
+      gotraExclusion: "Excluding Bansal, Mittal, Garg, Singhal",
+      location: "Singapore, India, or USA",
+    },
+    contactPerson: "Rajesh Bansal (Father)",
+    contactPhone: "+65 9123 4567",
+    secondaryPhone: "+65 9876 5432",
+    contactEmail: "rajesh.bansal@example.com",
+    residentialAddress: "12 Paterson Road, Paterson Suites #18-02, Singapore 238511",
+    verificationSeal: "MAFL Government-ID Verified",
+    footerPortalInfo: "Maharaja Agrasen Foundation Limited · Registered in Singapore",
+  };
+
+  const html = compileBiodataHtml(richData);
+
+  // Devanagari script preservation
+  assert.ok(html.includes("॥ श्री गणेशाय नमः ॥"));
+  assert.ok(html.includes("वैवाहिक परिचय पत्र"));
+  assert.ok(html.includes("॥ श्री कुलदेव्यै नमः ॥"));
+  assert.ok(html.includes("दादी / Dadi"));
+  assert.ok(html.includes("नानी / Nani"));
+
+  // 4 Gotras badges
+  assert.ok(html.includes("Bansal"));
+  assert.ok(html.includes("Mittal"));
+  assert.ok(html.includes("Garg"));
+  assert.ok(html.includes("Singhal"));
+
+  // Escaping verification
+  assert.ok(html.includes("Pooja &amp; Priya Bansal &lt;Special&gt;"));
+  assert.ok(!html.includes("<Special>"));
+
+  // Rich data content
+  assert.ok(html.includes("Master of Science in Computer Science"));
+  assert.ok(html.includes("National University of Singapore"));
+  assert.ok(html.includes("Senior AI Software Engineer"));
+  assert.ok(html.includes("Rohan Bansal (Vice President"));
+  assert.ok(html.includes("Excluding Bansal, Mittal, Garg, Singhal"));
+  assert.ok(html.includes("MAFL Government-ID Verified"));
+  assert.ok(html.includes("img class=\"photo\""));
+});
+
 
