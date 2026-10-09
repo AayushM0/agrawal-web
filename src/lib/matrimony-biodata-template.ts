@@ -10,8 +10,84 @@ const present = (value: unknown) => value !== undefined && value !== null && Str
 const row = (label: string, value?: unknown) => present(value) ? `<div class="row"><b>${escapeHtml(label)}</b><span>${escapeHtml(value)}</span></div>` : "";
 const section = (title: string, body: string) => body.trim() ? `<section class="card"><h2>${escapeHtml(title)}</h2><div class="grid">${body}</div></section>` : "";
 const gotraBadge = (label: string, value?: string) => present(value) ? `<div class="gotra"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>` : "";
+const DANGEROUS_BLOCKS_REGEX = /<(?:script|style|iframe|object|embed|applet)[^>]*>[\s\S]*?<\/(?:script|style|iframe|object|embed|applet)>/gi;
+const DANGEROUS_TAGS_REGEX = /<\/?(?:script|style|iframe|object|embed|link|applet|meta|base)[^>]*>/gi;
+const DANGEROUS_SCHEMES_REGEX = /^(?:javascript|vbscript|file|data:(?!image\/(?:png|jpe?g|webp|gif);base64,)):/i;
 
-export function compileBiodataHtml(data: BiodataTemplateProps): string {
+function sanitizeString(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  const str = String(value);
+  let cleaned = str.replace(DANGEROUS_BLOCKS_REGEX, "").replace(DANGEROUS_TAGS_REGEX, "");
+  if (DANGEROUS_SCHEMES_REGEX.test(cleaned.trim())) {
+    cleaned = "";
+  }
+  return cleaned;
+}
+
+export function sanitizeBiodataInput(raw: any): BiodataTemplateProps {
+  const base = normalizeProfileToBiodataProps(raw);
+  const sanitize = (val: any) => typeof val === "string" ? sanitizeString(val) : val;
+  const sanitizeArray = (arr?: any[]) => Array.isArray(arr) ? arr.map(sanitize).filter(Boolean) : undefined;
+
+  const sanitized: BiodataTemplateProps = {
+    ...base,
+    fullName: sanitize(base.fullName) || "Candidate",
+    id: sanitize(base.id) || "MAFL/MAT/PENDING",
+    gender: sanitize(base.gender),
+    dob: sanitize(base.dob),
+    age: sanitize(base.age),
+    height: sanitize(base.height),
+    weight: sanitize(base.weight),
+    complexion: sanitize(base.complexion),
+    bloodGroup: sanitize(base.bloodGroup),
+    diet: sanitize(base.diet),
+    motherTongue: sanitize(base.motherTongue),
+    languages: sanitizeArray(base.languages),
+    aboutMe: sanitize(base.aboutMe),
+    gotra: sanitize(base.gotra),
+    manglik: sanitize(base.manglik),
+    rashi: sanitize(base.rashi),
+    nakshatra: sanitize(base.nakshatra),
+    charan: sanitize(base.charan),
+    tob: sanitize(base.tob),
+    pob: sanitize(base.pob),
+    highestEducation: sanitize(base.highestEducation),
+    college: sanitize(base.college),
+    schooling: sanitize(base.schooling),
+    occupation: sanitize(base.occupation),
+    company: sanitize(base.company),
+    annualIncome: sanitize(base.annualIncome),
+    workLocation: sanitize(base.workLocation),
+    fatherName: sanitize(base.fatherName),
+    fatherOccupation: sanitize(base.fatherOccupation),
+    motherName: sanitize(base.motherName),
+    motherOccupation: sanitize(base.motherOccupation),
+    siblings: sanitizeArray(base.siblings),
+    nativePlace: sanitize(base.nativePlace),
+    currentCity: sanitize(base.currentCity),
+    familyType: sanitize(base.familyType),
+    familyValues: sanitize(base.familyValues),
+    contactPerson: sanitize(base.contactPerson),
+    contactPhone: sanitize(base.contactPhone),
+    secondaryPhone: sanitize(base.secondaryPhone),
+    contactEmail: sanitize(base.contactEmail),
+    residentialAddress: sanitize(base.residentialAddress),
+    verificationSeal: sanitize(base.verificationSeal),
+    footerPortalInfo: sanitize(base.footerPortalInfo),
+  };
+
+  if (sanitized.photoUrl && DANGEROUS_SCHEMES_REGEX.test(sanitized.photoUrl.trim())) {
+    sanitized.photoUrl = undefined;
+  }
+  if (sanitized.photoBase64 && DANGEROUS_SCHEMES_REGEX.test(sanitized.photoBase64.trim())) {
+    sanitized.photoBase64 = undefined;
+  }
+
+  return sanitized;
+}
+
+export function compileBiodataHtml(inputData: BiodataTemplateProps): string {
+  const data = sanitizeBiodataInput(inputData);
   const regular = fontBase64("NotoSansDevanagari-Regular.ttf");
   const bold = fontBase64("NotoSansDevanagari-Bold.ttf");
   const gotras: FourGotras = data.fourGotras ?? { selfGotra: data.gotra };
@@ -43,6 +119,6 @@ export function normalizeProfileToBiodataProps(profile: any): BiodataTemplatePro
   const height = profile.heightDisplay || (profile.heightCm ? `${profile.heightCm} cm` : undefined);
   const preferences = profile.partnerPreferences || {};
   return {
-    id: profile.id || profile.matrimonialProfileId || "MAFL/MAT/PENDING", fullName: profile.fullName || "Candidate", gender: profile.gender, dob: profile.dob, age: profile.age, height, weight: profile.weight || profile.weightBuild, complexion: profile.complexion, bloodGroup: profile.bloodGroup, diet: profile.diet, motherTongue: profile.motherTongue, languages: profile.languages || profile.languagesSpoken, photoBase64: profile.photoBase64, photoUrl: profile.photoUrl || profile.photos?.[0], gotra: profile.gotra, fourGotras: profile.fourGotras || { selfGotra: profile.gotra }, manglik: profile.manglik, rashi: profile.rashi, nakshatra: profile.nakshatra, charan: profile.charan, tob: profile.tob || profile.timeOfBirth, pob: profile.pob || profile.placeOfBirth, highestEducation: profile.highestEducation, college: profile.college || profile.collegeName, schooling: profile.schooling || profile.schoolingHonors, occupation: profile.occupation || profile.occupationTitle, company: profile.company || profile.companyName, annualIncome: profile.annualIncome, workLocation: profile.workLocation || [profile.workCity, profile.workCountry].filter(Boolean).join(", "), fatherName: profile.fatherName, fatherOccupation: profile.fatherOccupation, motherName: profile.motherName, motherOccupation: profile.motherOccupation, siblings: profile.siblings || profile.linkedSiblings?.map((s: any) => [s.relationLabel || s.relation, s.name, s.occupation].filter(Boolean).join(": ")), nativePlace: profile.nativePlace, currentCity: profile.currentCity || profile.familyLocation, familyType: profile.familyType, familyValues: profile.familyValues, partnerPreferences: { ...preferences, education: Array.isArray(preferences.education) ? preferences.education.join(", ") : preferences.education, diet: Array.isArray(preferences.diet) ? preferences.diet.join(", ") : preferences.diet, location: Array.isArray(preferences.preferredLocations) ? preferences.preferredLocations.join(", ") : preferences.location }, contactPerson: profile.contactPerson, contactPhone: profile.contactPhone, secondaryPhone: profile.secondaryPhone, contactEmail: profile.contactEmail, residentialAddress: profile.residentialAddress, verificationSeal: profile.isGovtIdVerified ? "MAFL Verified Profile" : undefined, footerPortalInfo: profile.footerPortalInfo,
+    id: profile.id || profile.matrimonialProfileId || "MAFL/MAT/PENDING", fullName: profile.fullName || "Candidate", gender: profile.gender, dob: profile.dob, age: profile.age, height, weight: profile.weight || profile.weightBuild, complexion: profile.complexion, bloodGroup: profile.bloodGroup, diet: profile.diet, motherTongue: profile.motherTongue, languages: profile.languages || profile.languagesSpoken, aboutMe: profile.aboutMe, photoBase64: profile.photoBase64, photoUrl: profile.photoUrl || profile.photos?.[0], gotra: profile.gotra, fourGotras: profile.fourGotras || { selfGotra: profile.gotra }, manglik: profile.manglik, rashi: profile.rashi, nakshatra: profile.nakshatra, charan: profile.charan, tob: profile.tob || profile.timeOfBirth, pob: profile.pob || profile.placeOfBirth, highestEducation: profile.highestEducation, college: profile.college || profile.collegeName, schooling: profile.schooling || profile.schoolingHonors, occupation: profile.occupation || profile.occupationTitle, company: profile.company || profile.companyName, annualIncome: profile.annualIncome, workLocation: profile.workLocation || [profile.workCity, profile.workCountry].filter(Boolean).join(", "), fatherName: profile.fatherName, fatherOccupation: profile.fatherOccupation, motherName: profile.motherName, motherOccupation: profile.motherOccupation, siblings: profile.siblings || profile.linkedSiblings?.map((s: any) => [s.relationLabel || s.relation, s.name, s.occupation].filter(Boolean).join(": ")), nativePlace: profile.nativePlace, currentCity: profile.currentCity || profile.familyLocation, familyType: profile.familyType, familyValues: profile.familyValues, partnerPreferences: { ...preferences, education: Array.isArray(preferences.education) ? preferences.education.join(", ") : preferences.education, diet: Array.isArray(preferences.diet) ? preferences.diet.join(", ") : preferences.diet, location: Array.isArray(preferences.preferredLocations) ? preferences.preferredLocations.join(", ") : preferences.location }, contactPerson: profile.contactPerson, contactPhone: profile.contactPhone, secondaryPhone: profile.secondaryPhone, contactEmail: profile.contactEmail, residentialAddress: profile.residentialAddress, verificationSeal: profile.isGovtIdVerified ? "MAFL Verified Profile" : undefined, footerPortalInfo: profile.footerPortalInfo,
   };
 }

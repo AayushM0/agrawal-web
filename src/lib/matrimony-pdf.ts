@@ -62,13 +62,72 @@ function biodataHtml(profile: MatrimonialProfile): string {
     <footer>www.maharajaagrasenfoundation.com · Official MAFL biodata</footer></main></body></html>`;
 }
 
-export async function renderBiodataPdf(profileData: MatrimonialProfile): Promise<Buffer> {
-  const page = await (await browser()).newPage();
-  try {
-    const html = compileBiodataHtml(normalizeProfileToBiodataProps(profileData));
-    await page.setContent(html, { waitUntil: "load" });
-    return Buffer.from(await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true }));
-  } finally {
-    await page.close();
+class Semaphore {
+  public readonly max: number;
+  private current: number = 0;
+  private queue: Array<() => void> = [];
+
+  constructor(max: number) {
+    this.max = max;
+  }
+
+  async acquire(): Promise<void> {
+    if (this.current < this.max) {
+      this.current++;
+      return;
+    }
+    await new Promise<void>((resolve) => {
+      this.queue.push(resolve);
+    });
+    this.current++;
+  }
+
+  release(): void {
+    this.current--;
+    const next = this.queue.shift();
+    if (next) {
+      next();
+    }
+  }
+
+  get active(): number {
+    return this.current;
   }
 }
+
+export const ChromiumRenderPool = new Semaphore(3);
+
+export async function renderBiodataPdf(profileData: MatrimonialProfile, timeoutMs: number = 15000): Promise<Buffer> {
+  await ChromiumRenderPool.acquire();
+  let page: any = null;
+  let timer: NodeJS.Timeout | undefined;
+
+  try {
+    const b = await browser();
+    page = await b.newPage();
+
+    const pdfPromise = (async () => {
+      const html = compileBiodataHtml(normalizeProfileToBiodataProps(profileData));
+      await page.setContent(html, { waitUntil: "load" });
+      const buffer = await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true });
+      return Buffer.from(buffer);
+    })();
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new Error("PDF generation timed out");
+        (error as any).code = "ETIMEDOUT";
+        reject(error);
+      }, timeoutMs);
+    });
+
+    return await Promise.race([pdfPromise, timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (page) {
+      await page.close().catch(() => {});
+    }
+    ChromiumRenderPool.release();
+  }
+}
+

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/actions/auth";
 import { db } from "@/lib/db";
 import { renderBiodataPdf } from "@/lib/matrimony-pdf";
+import { canAccessMatrimonialBiodata } from "@/lib/matrimony-access";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -18,8 +19,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     const profile = await db.getMatrimonialProfileById(id);
     if (!profile) return NextResponse.json({ error: "Not Found" }, { status: 404 });
-    if (session.role !== "admin" && session.userId !== profile.createdByUserId && session.userId !== profile.memberId) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    const allowed = await canAccessMatrimonialBiodata(session, profile);
+    if (!allowed) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
     const pdf = await renderBiodataPdf(profile);
@@ -28,7 +31,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       "Content-Disposition": `attachment; filename="${filename(profile.fullName)}"`,
       "Cache-Control": "private, no-store, must-revalidate",
     }});
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message?.includes("timed out") || error?.code === "ETIMEDOUT") {
+      return NextResponse.json({ error: "PDF generation timed out" }, { status: 504 });
+    }
     console.error("[MATRIMONY BIODATA PDF]", error);
     return NextResponse.json({ error: "Unable to generate biodata PDF." }, { status: 500 });
   }

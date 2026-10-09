@@ -28,6 +28,7 @@ export interface BiodataTemplateProps {
   diet?: string;
   motherTongue?: string;
   languages?: string[];
+  aboutMe?: string;
   photoBase64?: string;
   photoUrl?: string;
   gotra?: string;
