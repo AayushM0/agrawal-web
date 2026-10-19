@@ -13,6 +13,17 @@ Initiated under the patronage of **Sohan Lal Jindal ("Singapore Wale")**, the pl
 
 ---
 
+## 🔗 Repository & Git Architecture
+
+> [!NOTE]
+> **Git Repository Location**: This directory (`web/`) is the root of the Git repository connected to [`https://github.com/AayushM0/agrawal-web.git`](https://github.com/AayushM0/agrawal-web.git).
+> All `git` commands (`status`, `commit`, `pull`, `push`) must be executed from inside `web/` to preserve Vercel deployment parity.
+
+For a comprehensive walkthrough of the application's user flows, state transitions, role permissions, and sequence diagrams, refer to:
+👉 **[User Flow & Navigation Architecture Guide (USER_FLOW.md)](./USER_FLOW.md)**
+
+---
+
 ## 🏗️ Architecture & Technology Stack
 
 The platform is engineered as a modern, serverless-ready full-stack application with strict data integrity, defense-in-depth privacy guards, and verifiable audit trails.
@@ -45,7 +56,8 @@ The platform is engineered as a modern, serverless-ready full-stack application 
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        Outbound Service Layer                          │
 │  - Resend API (Transactional Email Queue with IPv4 DNS Fallback)       │
-│  - @react-pdf/renderer (Dynamic Lanyard Passes & Official Certificates)│
+│  - Playwright Chromium (Vector A4 Marriage Biodata PDFs)               │
+│  - @react-pdf/renderer (Dynamic Lanyard Passes & Business Certificates)│
 │  - DPDP Data Retention Cron (Automatic 90-day Message Pruning)         │
 └────────────────────────────────────────────────────────────────────────┘
 ```
@@ -56,11 +68,12 @@ The platform is engineered as a modern, serverless-ready full-stack application 
 |---|---|---|
 | **Framework** | **Next.js 15 (App Router)** | Hybrid SSG/SSR, Server Actions, Zero-bundle backend execution |
 | **Frontend UI** | **React 19, Tailwind CSS** | Server & Client Components, 12px accessible type floor, Lucide SVG icons |
-| **Language** | **TypeScript 5 (Strict)** | End-to-end type safety across schemas, actions, and UI forms |
+| **Language** | **TypeScript 5 (Strict)** | End-to-end type safety across schemas, actions, and UI forms (0 type errors) |
 | **Database** | **PostgreSQL (pg)** | ACID relational storage, custom sequence gap algorithms, RLS policies |
+| **Cold-Start Engine** | **Lazy Auto-Healing** | Zero DDL table locking on serverless boots; automatic runtime schema healing |
 | **Security & Auth** | **bcryptjs, Web Crypto HMAC** | Salted passwords, secure httpOnly session cookies, cryptographic OTPs |
-| **Real-Time** | **Pusher** | Instant 1-to-1 messaging, presence, and moderation alerts |
-| **Document Engine**| **@react-pdf/renderer** | Native serverless PDF generation for lanyard cards & business certificates |
+| **Real-Time** | **Pusher Channels** | Instant 1-to-1 messaging, presence, and moderation alerts |
+| **Document Engines**| **Playwright & React-PDF** | Headless Chromium for Devanagari biodatas; React-PDF for passes & certificates |
 | **Anti-Abuse** | **Cloudflare Turnstile** | Non-intrusive CAPTCHA alternative safeguarding signups and logins |
 | **Transactional Email** | **Resend / DB Queue** | Durable PostgreSQL email queue with retry mechanics and rate-limiting |
 
@@ -72,7 +85,7 @@ The platform is engineered as a modern, serverless-ready full-stack application 
 - **5-Step Interactive Wizard**: Contact validation, household gotra/native place, member profiles, privacy preferences, and confirmation.
 - **Serial Number Reclamation**: Algorithmic gap detection (`generateNextHouseholdNo`, `generateNextMemberSerialNo`) ensures cancelled or rejected applications immediately recycle serial numbers without burning permanent sequences.
 - **RFC 5321 Email Input Hardening**: Shared client/server email normalization with real-time typo detection (e.g., `gmial.com` $\to$ `gmail.com`) and punycode support.
-- **Draft Recovery**: Auto-saving registration drafts (`form_data` JSONB) with sensitive field redaction (passwords scrubbed before storage).
+- **Draft Recovery**: Auto-saving registration drafts (`form_data` JSONB & `localStorage`) with sensitive field redaction.
 
 ### 2. Login-Gated Global Community Directory (`/directory`)
 - **Faceted Search**: Search members across full text (name, profession, native place, gotra) and geographical location.
@@ -86,11 +99,11 @@ The platform is engineered as a modern, serverless-ready full-stack application 
 
 ### 4. Careers & Job Opportunities Network (`/careers`)
 - **Talent Directory & Profiles**: Agarwal professionals can showcase portfolios, skills, experience, and open-to-work statuses.
-- **Native Job Postings (`/careers/post`)**: Live enterprise job postings with instant applicant tracking and moderation guards.
+- **Native Job Postings (`/careers/jobs`, `/careers/post`)**: Live enterprise job postings with instant applicant tracking and moderation guards.
 
-### 5. Matrimonial Directory (`/matrimony`)
-- **Culturally Aligned Profiles**: Gotra compatibility, sub-caste rules, astrological details, educational qualifications, and lifestyle values.
-- **Privacy Shields**: Optional photo sharing, protected contact requests, and admin moderation before profiles go live.
+### 5. Matrimonial Directory & Biodata Engine (`/matrimony`)
+- **Culturally Aligned Profiles**: Gotra compatibility, 4-Gotra heritage matrix (Self, Mother/Nanihal, Dadi, Nani), astrological details, and educational qualifications.
+- **Playwright Vector PDF Generator (`/api/matrimony/[id]/biodata/pdf`)**: High-resolution, zero-dependency A4 vector PDF biodata downloads powered by headless Chromium with strict IDOR access checks and bounded semaphore concurrency.
 
 ### 6. Real-Time Chat & Direct Inquiries (`/dashboard/messages`)
 - **Pusher WebSockets**: Low-latency 1-to-1 chat between verified members and business inquiries.
@@ -98,28 +111,34 @@ The platform is engineered as a modern, serverless-ready full-stack application 
 - **DPDP Right to Erasure & Auto-Pruning**: Cron endpoint (`/api/cron/prune-messages`) enforces 90-day chat retention limits in compliance with global data protection laws.
 
 ### 7. Member-Authorized Admin Support Sessions (`/admin/moderation` • Issue 052)
-- **Zero Trust Support Access**: Admins cannot unilaterally modify personal member records. A support session requires a member-authorized 6-digit cryptographic OTP challenge sent to the member's registered email.
+- **Zero-Trust Support Access**: Admins cannot unilaterally modify personal member records. A support session requires a member-authorized 6-digit cryptographic OTP challenge sent to the member's registered email.
 - **Enforced Security Bounds**: 24-hour time-to-live (TTL), digital `HH:MM:SS` countdown timer, 3-attempt lockout defense, and two-step in-modal session revocation.
 - **Atomic Diff Audit Logs**: Every modification records precise before/after snapshots (`admin_support_audit_logs`) and enforces PostgreSQL OID 1082 DATE parsing to eliminate timezone day-drift.
+
+### 8. Unified Platform Audit Trail (`/admin/audit` • AWB-16 to AWB-22)
+- **Centralized Tamper-Evident Explorer**: Immutable audit ledger tracking all administrative decisions, moderation actions, and member profile corrections.
+- **Security Hardened**: Full protection against CSV formula injection (CWE-1236) on exports, query limit capping, search debounce, and interactive diff viewer modals.
 
 ---
 
 ## 📁 Repository Structure
 
 ```
-src/
-├── actions/                  # Next.js Server Actions (Auth, Careers, Register, Support, etc.)
-├── app/                      # App Router routes (Directory, Signup, Admin, Careers, etc.)
-├── components/               # React UI Components (Layout, Forms, Modals, Admin tables)
-├── db/
-│   └── schema.sql            # Master PostgreSQL DDL, Triggers, Views & Functions
-├── lib/                      # Core utilities (db.ts, email-validation.ts, pass.ts, privacy.ts)
-└── types/                    # TypeScript interfaces and domain unions
-public/                       # Static images, seals, logos, and fonts
-scripts/                      # DB migration, inspection, and verification scripts
-tests/                        # 89 automated unit, seam, and regression tests
-.env.example                  # Environment configuration template
-package.json                  # Scripts and dependencies
+web/
+├── src/
+│   ├── actions/                  # Next.js Server Actions (Auth, Careers, Register, Support, etc.)
+│   ├── app/                      # App Router routes (Directory, Signup, Admin, Careers, etc.)
+│   ├── components/               # React UI Components (Layout, Forms, Modals, Admin tables)
+│   ├── db/
+│   │   └── schema.sql            # Master PostgreSQL DDL, Triggers, Views & Functions
+│   ├── lib/                      # Core utilities (db.ts, privacy.ts, email-validation.ts, matrimony-pdf.ts)
+│   └── types/                    # TypeScript interfaces and domain unions
+├── public/                       # Static images, official seals, logos, and fonts
+├── scripts/                      # DB migration, inspection, and verification scripts
+├── tests/                        # 127 automated unit, seam, and regression tests
+├── USER_FLOW.md                  # Comprehensive user journey & navigation documentation
+├── .env.example                  # Environment configuration template
+└── package.json                  # Scripts and dependencies
 ```
 
 ---
@@ -129,10 +148,11 @@ package.json                  # Scripts and dependencies
 ### Prerequisites
 - **Node.js**: `v20.x` or higher
 - **npm**: `v10.x` or higher
-- **PostgreSQL**: Local Docker instance or remote database
+- **Docker & Docker Compose**: For local PostgreSQL (or access to an external PostgreSQL instance)
 
-### 1. Install Dependencies
+### 1. Clone & Install
 ```bash
+cd web
 npm install
 ```
 
@@ -150,7 +170,7 @@ DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/agrawal_dev"
 # Cryptographic secret for session signing & OTP generation (min 32 chars)
 AUTH_SECRET="your_secure_random_32_character_hex_or_base64_secret"
 
-# Master administrative password for /admin/moderation
+# Master administrative password for /admin/moderation and /admin/audit
 ADMIN_MASTER_PASSWORD="your_admin_master_password"
 
 # Optional: Transactional email (falls back to mock/queue in dev if empty)
@@ -163,8 +183,12 @@ PUSHER_SECRET=""
 NEXT_PUBLIC_PUSHER_CLUSTER="us2"
 ```
 
-### 3. Initialize Database
-The database initialization script runs automatically on the first connection, executing `src/db/schema.sql` idempotently.
+### 3. Start Local Database
+If using Docker, start the PostgreSQL container from the project root:
+```bash
+docker compose up -d
+```
+The database initialization script runs automatically on the first connection, executing [`src/db/schema.sql`](file:///d:/Projects/agrawalWeb/web/src/db/schema.sql) idempotently.
 
 ### 4. Run Development Server
 ```bash
@@ -179,29 +203,27 @@ Open [http://localhost:3000](http://localhost:3000) to view the application.
 The repository maintains strict verification standards with an automated test suite using Node.js's native test runner (`node:test`).
 
 ```bash
-# Run the complete test suite (89 passing tests)
-npm test -- --run
+# Run the complete test suite (127 passing tests)
+npm test
 
-# Run TypeScript type verification
+# On Windows with restricted PowerShell execution policies:
+npm.cmd test
+
+# Run TypeScript type verification (0 errors)
 npx tsc --noEmit
 
-# Run Next.js production build (validates all 44 routes)
+# Run Next.js production build (validates all 45 routes)
 npm run build
 ```
 
 ### Architectural Seams
-The test suite enforces 37 distinct **Architectural Seams** in `tests/seams.test.mjs`, ensuring:
+The test suite enforces 38 distinct **Architectural Seams** in [`tests/seams.test.mjs`](file:///d:/Projects/agrawalWeb/web/tests/seams.test.mjs), ensuring:
 - Zero plaintext password leaks or hardcoded cryptographic fallbacks.
 - Strict gap recovery on rejected registration serial numbers.
 - Immutability of business certificate serial numbers across reapproval.
 - Idempotent schema migrations and dual in-memory fallback behavior during headless runs.
-
----
-
-## 🗺️ Upcoming Roadmap
-
-- [ ] **Unified Platform Audit Trail (AWB-16+)**: Centralizing all administrative, moderation, and support events into an immutable, SHA-256 tamper-evident PostgreSQL view with a dedicated `/admin/audit` faceted explorer.
-- [ ] **Production Resend Email Dispatch**: Configuring production domain authentication and API keys for the durable email queue.
+- IDOR access boundaries on matrimonial biodata vector PDFs and lanyard cards.
+- Tamper-evident formatting and CSV formula injection neutralization in the platform audit trail.
 
 ---
 
