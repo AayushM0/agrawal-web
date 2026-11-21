@@ -108,8 +108,13 @@ export default function RoyalFooter() {
               Secretariat &amp; Foundation
             </h4>
             <p className="text-xs leading-relaxed text-body-text/85 mb-3">
-              <strong>Sohan Lal Jindal &ldquo;Singapore Wale&rdquo;</strong><br />
-              Founder &amp; Chairman — Maharaja Agrasen Foundation Limited Singapore
+              <Link href="/sohan-lal-jindal" className="hover:text-brand-primary transition-colors">
+                <strong>Sohan Lal Jindal &ldquo;Singapore Wale&rdquo;</strong>
+              </Link><br />
+              Founder &amp; Chairman — Maharaja Agrasen Foundation Limited Singapore (
+              <Link href="/sohan-lal-jindal" className="text-brand-primary hover:underline font-semibold">
+                Official Profile →
+              </Link>)
             </p>
             <div className="space-y-2 text-xs text-body-muted mb-4">
               <a

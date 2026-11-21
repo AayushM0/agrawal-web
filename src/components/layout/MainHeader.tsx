@@ -245,7 +245,8 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
     pathname.startsWith("/matrimony") ||
     pathname.startsWith("/businesses") ||
     pathname === "/about" ||
-    pathname === "/guide";
+    pathname === "/guide" ||
+    pathname === "/sohan-lal-jindal";
 
   return (
     <>
@@ -416,6 +417,27 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
                   </Link>
 
                   <div className="my-1 border-t border-brand-accent/20"></div>
+
+                  <Link
+                    href="/sohan-lal-jindal"
+                    onClick={() => setShowCommunityMenu(false)}
+                    className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-canvas-warm transition text-left group"
+                  >
+                    <div className="p-2 rounded-lg bg-amber-50 text-brand-primary shrink-0 group-hover:bg-amber-100 transition">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-gray-900 group-hover:text-brand-primary">
+                        Founder &amp; Chairman
+                      </div>
+                      <div className="text-[11px] text-body-muted leading-tight mt-0.5">
+                        श्री सोहनलाल जिंदल &ldquo;Singapore Wale&rdquo;
+                      </div>
+                    </div>
+                  </Link>
 
                   <Link
                     href="/about"
@@ -885,6 +907,23 @@ export default function MainHeader({ initialSession }: { initialSession?: Sessio
                       <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
                     </svg>
                     <span>Jobs & Careers (रोजगार व करियर)</span>
+                  </div>
+                  <span>→</span>
+                </Link>
+
+                <Link
+                  href="/sohan-lal-jindal"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all ${
+                    pathname === "/sohan-lal-jindal" ? "bg-brand-primary text-white" : "text-body-heading hover:bg-canvas-warm"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <svg className="w-4 h-4 text-brand-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                    <span>Founder &amp; Chairman (संस्थापक परिचय)</span>
                   </div>
                   <span>→</span>
                 </Link>
