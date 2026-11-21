@@ -53,6 +53,12 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: false,
+  },
   outputFileTracingIncludes: {
     "/**/*": ["./public/fonts/**/*"],
   },

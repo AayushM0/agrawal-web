@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -75,7 +75,6 @@ export default function FounderContent({ photoSrc }: FounderContentProps) {
   const [selectedMilestone, setSelectedMilestone] = useState<Milestone | null>(null);
   const [copiedBio, setCopiedBio] = useState(false);
   const [brickCount, setBrickCount] = useState(1);
-  const [activeTab, setActiveTab] = useState<"vision" | "pillars" | "diaspora">("vision");
 
   // 3D Card Tilt State for Portrait
   const cardRef = useRef<HTMLDivElement>(null);

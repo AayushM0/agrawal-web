@@ -23,7 +23,7 @@ export default function FounderAppeal() {
                 An Appeal to Every Agarwal Family Worldwide
               </h2>
 
-              <blockquote className="text-sm sm:text-base text-amber-100 font-medium italic border-l-3 border-amber-300 pl-4 py-1 leading-relaxed">
+              <blockquote className="text-sm sm:text-base text-amber-100 font-medium italic border-l-4 border-amber-300 pl-4 py-1 leading-relaxed">
                 &ldquo;Our vision is to document, unite, and empower every family in our global community. By registering your household today, you help build an unbreakable legacy of mutual support, cultural preservation, and youth opportunities.&rdquo;
               </blockquote>
 
@@ -53,7 +53,7 @@ export default function FounderAppeal() {
             <div className="lg:col-span-4 flex flex-col items-center">
               <div className="w-full bg-white/10 border border-white/20 backdrop-blur-md rounded-2xl p-5 text-center flex flex-col items-center shadow-lg">
                 <Link href="/sohan-lal-jindal" className="group block relative">
-                  <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-3 border-amber-300 shadow-md transition-transform group-hover:scale-105 mx-auto">
+                  <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden border-[3px] border-amber-300 shadow-md transition-transform group-hover:scale-105 mx-auto">
                     <Image
                       src="/images/sohan-lal-jindal-singapore.jpg"
                       alt="Sohan Lal Jindal (सोहनलाल जिंदल), Founder and Chairman, Maharaja Agrasen Foundation Limited, Singapore"
