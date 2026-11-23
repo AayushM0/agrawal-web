@@ -47,16 +47,16 @@ export default function SupportPage() {
 
   return (
     <main className="py-12 bg-canvas-page min-h-screen">
-      <div className="max-w-4xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8">
         
-        {/* Secretariat Contact Column (1/3) */}
-        <div className="md:col-span-1 space-y-6">
+        {/* Secretariat Contact Column */}
+        <div className="md:col-span-5 lg:col-span-4 space-y-6">
           <div className="bg-white border-2 border-brand-accent/30 rounded-3xl p-5 sm:p-6 shadow-warm">
             <h2 className="text-sm font-extrabold text-brand-primary uppercase tracking-wider mb-4 border-b-2 border-brand-accent pb-1 inline-block">
               Foundation Hotline
             </h2>
             <div className="space-y-4 text-xs">
-              <p className="text-body-text">
+              <p className="text-body-text leading-relaxed">
                 For urgent inquiries regarding family verification status or profile claims, please reach our Secretariat.
               </p>
               <div>
@@ -65,7 +65,8 @@ export default function SupportPage() {
                   href="tel:+6592774444"
                   className="text-sm font-extrabold text-brand-primary hover:underline flex items-center gap-1.5 mt-1"
                 >
-                  📞 +65 9277 4444
+                  <span className="shrink-0">📞</span>
+                  <span>+65 9277 4444</span>
                 </a>
               </div>
               <div>
@@ -76,16 +77,18 @@ export default function SupportPage() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-[#075E54] hover:underline mt-1"
                 >
-                  <span>💬 Chat on WhatsApp (+65 9277 4444)</span>
+                  <span className="shrink-0">💬</span>
+                  <span>Chat on WhatsApp (+65 9277 4444)</span>
                 </a>
               </div>
               <div>
                 <span className="text-xs text-body-muted block font-bold">Email Communications</span>
                 <a
                   href="mailto:contact@maharajaagrasenfoundation.com"
-                  className="text-xs font-bold text-brand-primary hover:underline block mt-1"
+                  className="text-xs font-bold text-brand-primary hover:underline flex items-start gap-1.5 mt-1 break-all"
                 >
-                  📧 contact@maharajaagrasenfoundation.com
+                  <span className="shrink-0">📧</span>
+                  <span className="break-all">contact@maharajaagrasenfoundation.com</span>
                 </a>
               </div>
             </div>
@@ -96,8 +99,8 @@ export default function SupportPage() {
           </div>
         </div>
 
-        {/* Support Request Form Column (2/3) */}
-        <div className="md:col-span-2">
+        {/* Support Request Form Column */}
+        <div className="md:col-span-7 lg:col-span-8">
           <div className="bg-white border border-brand-accent/30 rounded-3xl p-6 sm:p-8 shadow-warm">
             {isSuccess ? (
               <div className="text-center py-8">
